@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ワードファーム</title>
+  <link rel="stylesheet" href="style.css?v=3">
+</head>
+<body>
+  <div id="titleScreen">
+    <h1>ワードファーム</h1>
+    <input type="text" id="inputStr" placeholder="名前を入力">
+    <button id="startNewGameBtn">はじめから</button>
+    <button id="loadGameBtn">つづきから</button>
+    <button id="showBattleModeBtn">対戦モード</button>
+    <div id="loadSection">
+      <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br>
+<input type="file" id="saveFileInput" accept=".txt"><br>
+    </div>
+    <div id="vsMode" class="hidden">
+      <input type="text" id="vsName1" placeholder="キャラ1">
+      <input type="text" id="vsName2" placeholder="キャラ2">
+      <button id="startVsModeBtn">対戦開始</button>
+    </div>
+  </div>
+
+  <div id="gameScreen" class="hidden">
+    <div class="status-area">
+  <div id="playerStats">
+    <p id="atkStat">ATK:</p>
+    <p id="defStat">DEF:</p>
+    <p id="spdStat">SPD:</p>
+    <p id="hpStat">HP:</p>
+    <p id="maxHpStat">MAX HP:</p>
+  </div>
+      <div id="playerStats"></div>
+      <canvas id="playerImg" width="32" height="32"></canvas>
+    </div>
+    <div class="status-area">
+      <div id="enemyStats"></div>
+      <canvas id="enemyImg" width="32" height="32"></canvas>
+    </div>
+
+    <button id="startBattleBtn">バトル！</button>
+    <label>同時発動スキル数: 
+      <input type="number" id="skillSimulCount" value="2" min="1" max="5">
+    </label>
+
+    <canvas id="hpChart" style="background-color: #ccc;" width="600" height="100"></canvas>
+    <pre id="battleLog"></pre>
+
+    <div id="saveControls">
+      <button id="endGameBtn">終了</button>
+      <button id="saveCodeBtn">保存</button>
+      <input type="text" id="saveCodeBox" readonly>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
