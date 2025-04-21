@@ -171,3 +171,29 @@ canvas#enemyImg {
 #titleScreen label {
   font-family: 'Press Start 2P', system-ui, sans-serif !important;
 }
+
+#skillMemoryList {
+  display: flex;
+  flex-wrap: wrap;              /* 折り返し可能に */
+  justify-content: flex-start;  /* 左寄せ */
+  gap: 10px;                    /* 各スキル間の余白 */
+  padding: 10px;
+  background: #222;             /* 黒背景 */
+  color: white;
+  border: 2px solid #444;
+  max-width: 100%;
+  max-height: 200px;            /* 最大高さ。必要に応じて調整 */
+  overflow-y: auto;             /* 高さ超過時に縦スクロール */
+  box-sizing: border-box;
+}
+
+#skillMemoryList li {
+  padding: 6px 12px;
+  background: #333;
+  border: 1px solid #666;
+  border-radius: 5px;
+  cursor: move;
+  list-style: none;
+  flex: 0 0 auto;               /* 折り返し対応 */
+  white-space: nowrap;
+}

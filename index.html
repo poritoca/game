@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>スーパーやりこみ大戦</title>
+  <title>転職したってよ（仮）</title>
   <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="titleScreen">
-    <h1>スーパーやりこみ大戦</h1>
+    <h1>転職したってよ（仮）</h1>
     <input type="text" id="inputStr" placeholder="名前を入力">
     <button id="startNewGameBtn">はじめから</button>
     <button id="loadGameBtn">つづきから</button>
-    <button id="showBattleModeBtn">対戦モード</button>
+   <!-- <button id="showBattleModeBtn">対戦モード</button>-->
     <div id="loadSection">
       <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br>
 <input type="file" id="saveFileInput" accept=".txt"><br>
@@ -57,5 +57,11 @@
   </div>
 
   <script type="module" src="game.js"></script>
+
+  <div id="skillMemoryContainer" style="display: none;">
+  <h3>スキルメモリ順（並び替え可能）</h3>
+  <ul id="skillMemoryList"></ul>
+  </div>
 </body>
+
 </html>

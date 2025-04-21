@@ -63,10 +63,11 @@ let currentStreak = 0;
 let streakBonus = 1;
 let skillSimulCount = 2;
 let hpHistory = [];
+let sslot = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
-  document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
+  //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
   document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
   document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
@@ -118,6 +119,7 @@ window.recordHP = function() {
   ]);
 };
 
+
 // HP推移グラフ描画（プレイヤー=青, 敵=赤）
 window.drawHPGraph = function() {
   const canvas = document.getElementById('hpChart');
@@ -125,6 +127,19 @@ window.drawHPGraph = function() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const maxTurns = 30;
   const stepX = canvas.width / maxTurns;
+
+  // 縦グリッド線の描画
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= maxTurns; i++) {
+    const x = stepX * i;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  // プレイヤーのHP線（青）
   ctx.strokeStyle = 'blue';
   ctx.beginPath();
   hpHistory.forEach(([p], i) => {
@@ -133,6 +148,8 @@ window.drawHPGraph = function() {
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+
+  // 敵のHP線（赤）
   ctx.strokeStyle = 'red';
   ctx.beginPath();
   hpHistory.forEach(([, e], i) => {
@@ -147,6 +164,7 @@ window.drawHPGraph = function() {
   ctx.font = '12px sans-serif';
   ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
 };
+
 
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
@@ -181,7 +199,9 @@ window.startNewGame = function() {
   statusLogged = false;
   document.getElementById('titleScreen').classList.add('hidden');
   document.getElementById('gameScreen').classList.remove('hidden');
-  currentStreak = 0;
+    currentStreak = 0;
+	  // スキルメモリの表示を有効化
+	document.getElementById("skillMemoryContainer").style.display = "block";
 };
 
 // 対戦モード選択画面表示
@@ -392,6 +412,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
+	drawSkillMemoryList();
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || displayName(player.name) !== name) {
     const tmpChar = makeCharacter(name);
@@ -399,6 +420,7 @@ window.startBattle = function() {
       ...tmpChar,
       growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 }
     };
+		drawSkillMemoryList();
   try {
   } catch (e) {
   }
@@ -442,7 +464,7 @@ window.startBattle = function() {
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
-  player.hp = player.maxHp;
+  //player.hp = player.maxHp;
   enemy.hp = enemy.maxHp;
   player.battleStats = {};
   enemy.battleStats = {};
@@ -451,33 +473,13 @@ window.startBattle = function() {
     log.push(`\n-- ${turn}ターン --`);
     recordHP();
 
-  // 戦闘後に baseStats + growthBonus に再初期化
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-  player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
-
-
-  // 戦闘後に baseStats + growthBonus に再初期化（nullチェック付き）
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-
   // バフ・デバフを戦闘後にリセット
   if (player._originalStats) {
     player.attack = player._originalStats.attack;
     player.defense = player._originalStats.defense;
     player.speed = player._originalStats.speed;
     player.maxHp = player._originalStats.maxHp;
-    if (player.hp > player.maxHp) player.hp = player.maxHp;
+   // if (player.hp > player.maxHp) player.hp = player.maxHp;
   }
     // 継続効果の処理（毒・火傷・再生など）
     [player, enemy].forEach(ch => {
@@ -593,23 +595,13 @@ window.startBattle = function() {
   }
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
-
-  // 戦闘後に baseStats + growthBonus に再初期化（nullチェック付き）
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-
   // バフ・デバフを戦闘後にリセット
   if (player._originalStats) {
     player.attack = player._originalStats.attack;
     player.defense = player._originalStats.defense;
     player.speed = player._originalStats.speed;
     player.maxHp = player._originalStats.maxHp;
-    if (player.hp > player.maxHp) player.hp = player.maxHp;
+  //  if (player.hp > player.maxHp) player.hp = player.maxHp;
   }
   if (playerWon) {
     currentStreak++;
@@ -621,16 +613,17 @@ window.startBattle = function() {
       if (eff.type === 'berserk') { player.attack = eff.originalAttack; player.defense = eff.originalDefense; }
     });
     player.effects = [];
+		
     // ランダムステータス成長（2%）
     const stats = ['attack', 'defense', 'speed', 'maxHp'];
     const targetStat = stats[Math.floor(Math.random() * stats.length)];
+		
     // Reality倍率に応じて成長率も上げる
- 
     const realityBonus = enemy.rarity * (1 + currentStreak * 0.01);
     const growthRate = 1 + 0.02 * realityBonus;
     player[targetStat] = Math.floor(player[targetStat] * growthRate);
     log.push(`\n成長: ${targetStat} が ${(growthRate * 100 - 100).toFixed(1)}% 上昇！`);
-
+		
     // スキル熟練度チェック（5回使用でLvアップ）
     player.skills.forEach(sk => {
       if (sk.uses >= 5 && sk.level < 999) {
@@ -638,6 +631,7 @@ window.startBattle = function() {
         sk.uses = 0;
         player.skillMemory[sk.name] = sk.level;
         log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
+				drawSkillMemoryList();
       }
       else {
       }
@@ -655,8 +649,19 @@ window.startBattle = function() {
         const savedLv = player.skillMemory[newSkill.name] || 1;
         player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
         log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
+				drawSkillMemoryList();
       }
     }
+		
+		// Reality倍率ベースで変数を増やす（超低確率）
+    const chance = enemy.rarity / 100000;
+    if (Math.random() < chance) {
+			if (sslot < 8) {
+        sslot = (sslot || 0) + 1;
+        log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
+				alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
+			}
+    drawSkillMemoryList();}
   } else {
     currentStreak = 0;
 		streakBonus = 1;
@@ -665,31 +670,35 @@ window.startBattle = function() {
     for (const sk of player.skills) {
       player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
     }
-    // 初期スキル3つに戻す（レベルは引継ぎ）
-    const initSkills = Object.entries(player.skillMemory).slice(0, 3).map(([name, level]) => ({
+    // 初期スキル3つ + 4番目から sslot 個（レベルは引継ぎ）
+    const entries = Object.entries(player.skillMemory);
+    const firstThree = entries.slice(0, 3);
+    const nextX = entries.slice(3, 3 + sslot);
+
+    const unique = new Map();
+    for (const [name, level] of [...firstThree, ...nextX]) {
+      if (!unique.has(name)) {
+        unique.set(name, level);
+      }
+    }
+
+    const initSkills = Array.from(unique.entries()).map(([name, level]) => ({
       name,
       level,
       uses: 0
     }));
     player.skills = initSkills;
-  }
+	}
   // 最終HP表示
-  log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
+//  log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
   log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
   // ダメージ内訳表示
-
-  if (!statusLogged) {
-    log.push("【基礎ステータス】");
-    log.push("ATK: " + player.baseStats.attack + "（+" + player.growthBonus.attack + "）");
-    log.push("DEF: " + player.baseStats.defense + "（+" + player.growthBonus.defense + "）");
-    log.push("SPD: " + player.baseStats.speed + "（+" + player.growthBonus.speed + "）");
-    log.push("HP : " + player.baseStats.maxHp + "（+" + player.growthBonus.maxHp + "）");
-    statusLogged = true;
-  }
   log.push(`\n${displayName(player.name)} のダメージ内訳`);
   for (let key in player.battleStats) {
     log.push(`${key}：${player.battleStats[key]}`);
   }
+	
+  if (player.hp > player.maxHp) player.hp = player.maxHp;
 
   log.push(`
 現在の連勝数: ${currentStreak}`);
@@ -702,10 +711,13 @@ window.startBattle = function() {
   document.getElementById('battleLog').textContent = log.join('\n');
   drawHPGraph();
   updateStats();
+	drawSkillMemoryList();
   try {
   } catch (error) {
   }
 };
+
+
 
 // セーブデータの署名用SHA-256ハッシュ生成
 async function generateHash(input) {
@@ -718,7 +730,7 @@ async function generateHash(input) {
 // セーブデータをコード化してコピー（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
-  const payload = { player, currentStreak, rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0') };
+  const payload = { player, currentStreak, sslot, skillMemoryOrder:Object.entries(player.skillMemory), rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0') };
   const raw = JSON.stringify(payload);
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
@@ -780,6 +792,7 @@ window.importSaveCode = async function() {
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
 window.loadGame = async function() {
 // ファイル入力がある場合は読み込む
+drawSkillMemoryList();
 const fileInput = document.getElementById('saveFileInput');
 if (fileInput && fileInput.files.length > 0) {
   const file = fileInput.files[0];
@@ -825,6 +838,8 @@ window.endGame = function() {
   enemy = null;
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('titleScreen').classList.remove('hidden');
+	document.getElementById("skillMemoryList").classList.add('hidden');
+	document.getElementById("skillMemoryContainer").classList.add('hidden');
 };
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -882,3 +897,64 @@ window.makeCharacter = function(name) {
     skillMemory: memory
   };
 };
+
+function drawSkillMemoryList() {
+  //alert("drawSkillMemoryList");
+	const list = document.getElementById("skillMemoryList");
+  if (!list || !player || !player.skillMemory) return;
+  list.innerHTML = "";
+
+  Object.entries(player.skillMemory).forEach(([name, level]) => {
+    const li = document.createElement("li");
+    li.textContent = `${name} Lv${level}`;
+    li.setAttribute("data-name", name);
+    li.setAttribute("data-level", level);
+    li.setAttribute("draggable", "true");
+
+    li.ondragstart = e => {
+      e.dataTransfer.setData("text/plain", name);
+    };
+
+    li.ondragover = e => {
+      e.preventDefault();
+      li.style.border = "2px dashed #888";
+    };
+
+    li.ondragleave = () => {
+      li.style.border = "";
+    };
+
+    li.ondrop = e => {
+      e.preventDefault();
+      const draggedName = e.dataTransfer.getData("text/plain");
+      const items = Array.from(list.children);
+      const draggedIndex = items.findIndex(i => i.getAttribute("data-name") === draggedName);
+      const targetIndex = items.indexOf(li);
+
+      if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
+        const dragged = items[draggedIndex];
+        list.removeChild(dragged);
+        if (targetIndex < list.children.length) {
+          list.insertBefore(dragged, list.children[targetIndex]);
+        } else {
+          list.appendChild(dragged);
+        }
+        updateSkillMemoryOrder();
+      }
+      li.style.border = "";
+    };
+
+    list.appendChild(li);
+  });
+}
+
+function updateSkillMemoryOrder() {
+  const lis = document.querySelectorAll("#skillMemoryList li");
+  const newMemory = {};
+  lis.forEach(li => {
+    const name = li.getAttribute("data-name");
+    const level = parseInt(li.getAttribute("data-level"));
+    newMemory[name] = level;
+  });
+  player.skillMemory = newMemory;
+}
