@@ -49,7 +49,7 @@ function seededHash(name) {
 
 function getRarityMultiplierFromRand(randFunc) {
   const seed = Math.max(0.000000001, randFunc());
-  return Math.min(100, 1.0 + 99 * Math.pow(1 - seed, 20));
+  return Math.min(10, 1.0 + 9 * Math.pow(1 - seed, 20));
 }
 
 
