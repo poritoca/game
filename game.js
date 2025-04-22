@@ -49,7 +49,9 @@ function seededHash(name) {
 
 function getRarityMultiplierFromRand(randFunc) {
   const seed = Math.max(0.000000001, randFunc());
-  return Math.min(10, 1.0 + 9 * Math.pow(1 - seed, 20));
+  const power = 30;      // 分布の鋭さ
+  const max = 5;         // 上限倍率
+  return 1.0 + (max - 1.0) * Math.pow(1 - seed, power);
 }
 
 
@@ -649,7 +651,9 @@ window.startBattle = function() {
         const savedLv = player.skillMemory[newSkill.name] || 1;
         player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
         log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
-				drawSkillMemoryList();
+				if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
+          drawSkillMemoryList();
+          }
       }
     }
 		
