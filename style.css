@@ -9,6 +9,8 @@
 
 body {
   font-family: 'Press Start 2P', system-ui;
+	touch-action: manipulation;
+	overscroll-behavior: contain;
   background: linear-gradient(to bottom right, #1c1c1c, #2f2f2f);
   color: #f0f0f0;
   margin: 0;
@@ -197,3 +199,4 @@ canvas#enemyImg {
   flex: 0 0 auto;               /* 折り返し対応 */
   white-space: nowrap;
 }
+

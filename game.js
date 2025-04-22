@@ -14,6 +14,16 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+
+function getExpandedSkills(skills, neededCount) {
+  const result = [];
+  const shuffled = [...skills].sort(() => 0.5 - Math.random());
+  for (let i = 0; i < neededCount; i++) {
+    result.push(shuffled[i % shuffled.length]);
+  }
+  return result;
+}
+
 function getEffectiveStat(char, stat) {
   let growthValue = 0;
   if (char.growthBonus && (stat in char.growthBonus)) {
@@ -536,7 +546,19 @@ window.startBattle = function() {
       const useSkill = !sealed && Math.random() < 0.5 && actor.skills.length > 0;
       if (useSkill) {
         // スキルを複数同時発動（skillSimulCount分）
-        const chosenSkills = actor.skills.sort(() => 0.5 - Math.random()).slice(0, skillSimulCount);
+        
+const mySkillCount = player.skills.length;
+const enemySkillCount = enemy.skills.length;
+let effectiveCount = skillSimulCount;
+
+if (mySkillCount < skillSimulCount && enemySkillCount < skillSimulCount) {
+  effectiveCount = Math.max(mySkillCount, enemySkillCount);
+}
+
+const chosenSkills = actor.skills.length >= effectiveCount
+  ? actor.skills.sort(() => 0.5 - Math.random()).slice(0, effectiveCount)
+  : getExpandedSkills(actor.skills, effectiveCount);
+
         for (const sk of chosenSkills) {
           // 回避判定
           const evasionEff = target.effects.find(e => e.type === 'evasion');
@@ -764,7 +786,8 @@ window.exportSaveCode = async function() {
 
 // セーブコードの読み込み（入力値から復元）
 window.importSaveCode = async function() {
-  const input = document.getElementById('saveData').value.trim();
+ document.getElementById("skillMemoryList").classList.remove("hidden");
+	const input = document.getElementById('saveData').value.trim();
   try {
     const parts = input.split('.');
     if (parts.length !== 2) throw new Error('形式が不正です');
@@ -800,6 +823,7 @@ window.importSaveCode = async function() {
 window.loadGame = async function() {
 // ファイル入力がある場合は読み込む
 isLoadedFromSave = true;
+document.getElementById("skillMemoryList").classList.remove("hidden");
 drawSkillMemoryList();
 const fileInput = document.getElementById('saveFileInput');
 if (fileInput && fileInput.files.length > 0) {
@@ -832,7 +856,7 @@ if (fileInput && fileInput.files.length > 0) {
       enemy = makeCharacter('敵' + Math.random());
 //alert('[A006] [A778] enemy生成: ' + JSON.stringify(enemy?.baseStats));
       updateStats();
-      document.getElementById('titleScreen').classList.add('hidden');
+      //document.getElementById('titleScreen').classList.add('hidden');
       document.getElementById('gameScreen').classList.remove('hidden');
     } catch (e) {
     }
@@ -846,8 +870,8 @@ window.endGame = function() {
   enemy = null;
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('titleScreen').classList.remove('hidden');
-	document.getElementById("skillMemoryList").classList.add('hidden');
-	document.getElementById("skillMemoryContainer").classList.add('hidden');
+	//document.getElementById("skillMemoryList").classList.add('hidden');
+	//document.getElementById("skillMemoryContainer").classList.add('hidden');
 };
 
 document.addEventListener("DOMContentLoaded", function() {
