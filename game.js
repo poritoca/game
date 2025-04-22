@@ -66,6 +66,9 @@ let streakBonus = 1;
 let skillSimulCount = 2;
 let hpHistory = [];
 let sslot = 0;
+let isLoadedFromSave = false;
+
+
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
@@ -416,7 +419,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 window.startBattle = function() {
 	drawSkillMemoryList();
   const name = document.getElementById('inputStr').value || 'あなた';
-  if (!player || displayName(player.name) !== name) {
+  if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
     const tmpChar = makeCharacter(name);
     player = {
       ...tmpChar,
@@ -462,7 +465,7 @@ window.startBattle = function() {
 	//alert('現在のstreakBonusの値は: ' + streakBonus);
 	
 	const adjustedRarity = (enemy.rarity * streakBonus).toFixed(2);
-  log.push(`敵のステータス倍率（Reality）: ${adjustedRarity}倍（基礎 ${enemy.rarity.toFixed(2)} × 連勝補正 ${streakBonus.toFixed(2)}）`);
+  log.push(`敵のステータス倍率（Rarity）: ${adjustedRarity}倍（基礎 ${enemy.rarity.toFixed(2)} × 連勝補正 ${streakBonus.toFixed(2)}）`);
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
@@ -620,9 +623,9 @@ window.startBattle = function() {
     const stats = ['attack', 'defense', 'speed', 'maxHp'];
     const targetStat = stats[Math.floor(Math.random() * stats.length)];
 		
-    // Reality倍率に応じて成長率も上げる
-    const realityBonus = enemy.rarity * (1 + currentStreak * 0.01);
-    const growthRate = 1 + 0.02 * realityBonus;
+    // Rarity倍率に応じて成長率も上げる
+    const rarityBonus = enemy.rarity * (1 + currentStreak * 0.01);
+    const growthRate = 1 + 0.02 * rarityBonus;
     player[targetStat] = Math.floor(player[targetStat] * growthRate);
     log.push(`\n成長: ${targetStat} が ${(growthRate * 100 - 100).toFixed(1)}% 上昇！`);
 		
@@ -639,10 +642,10 @@ window.startBattle = function() {
       }
     });
     // 新スキル習得のチャンス
-    // 敵のRealityに応じたスキル取得確率
-    const reality = enemy.rarity * (1 + currentStreak * 0.01);
-    const skillGainChance = Math.min(1.0, 0.1 * reality);
-    log.push(`\n新スキル獲得率（最大10%×Reality）: ${(skillGainChance * 100).toFixed(1)}%`);
+    // 敵のRarityに応じたスキル取得確率
+    const rarity = enemy.rarity * (1 + currentStreak * 0.01);
+    const skillGainChance = Math.min(1.0, 0.1 * rarity);
+    log.push(`\n新スキル獲得率（最大10%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
     if (Math.random() < skillGainChance) {
       const owned = new Set(player.skills.map(s => s.name));
       const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
@@ -657,7 +660,7 @@ window.startBattle = function() {
       }
     }
 		
-		// Reality倍率ベースで変数を増やす（超低確率）
+		// Rarity倍率ベースで変数を増やす（超低確率）
     const chance = enemy.rarity / 100000;
     if (Math.random() < chance) {
 			if (sslot < 8) {
@@ -796,6 +799,7 @@ window.importSaveCode = async function() {
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
 window.loadGame = async function() {
 // ファイル入力がある場合は読み込む
+isLoadedFromSave = true;
 drawSkillMemoryList();
 const fileInput = document.getElementById('saveFileInput');
 if (fileInput && fileInput.files.length > 0) {
