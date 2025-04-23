@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
   document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
-  document.getElementById('endGameBtn').addEventListener('click', window.endGame);
+  //document.getElementById('endGameBtn').addEventListener('click', window.endGame);
   document.getElementById('skillSimulCount').addEventListener('change', e => {
     skillSimulCount = parseInt(e.target.value);
   });
@@ -470,7 +470,7 @@ window.startBattle = function() {
   enemy.effects = [];
   updateStats();
   const log = [];
-  let streakBonus = 1 + currentStreak * 0.01;
+  let streakBonus = 1 + currentStreak * 0.02;
   
 	//alert('現在のstreakBonusの値は: ' + streakBonus);
 	
@@ -620,6 +620,23 @@ const chosenSkills = actor.skills.length >= effectiveCount
     player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
     player.hp = player.maxHp;
   }
+  streakBonus = 1 + currentStreak * 0.01;
+  const effectiveRarity = enemy.rarity * streakBonus;
+
+  if (playerWon && Math.random() < effectiveRarity * 0.02) {
+  const stats = ['attack', 'defense', 'speed', 'maxHp'];
+  const targetStat = stats[Math.floor(Math.random() * stats.length)];
+  const growthAmount = Math.floor(enemy[targetStat] * 0.02);
+  if (!player.growthBonus) {
+    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+  }
+  player.growthBonus[targetStat] += growthAmount;
+  player[targetStat] = player.baseStats[targetStat] + player.growthBonus[targetStat];
+  log.push(`\n成長: ${targetStat} が 敵の${targetStat}の2%（+${growthAmount}）上昇`);
+} else if (playerWon) {
+  log.push(`\n今回は成長なし（確率 ${(effectiveRarity * 0.02 * 100).toFixed(2)}%）`);
+}
+
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
   // バフ・デバフを戦闘後にリセット
@@ -640,16 +657,6 @@ const chosenSkills = actor.skills.length >= effectiveCount
       if (eff.type === 'berserk') { player.attack = eff.originalAttack; player.defense = eff.originalDefense; }
     });
     player.effects = [];
-		
-    // ランダムステータス成長（2%）
-    const stats = ['attack', 'defense', 'speed', 'maxHp'];
-    const targetStat = stats[Math.floor(Math.random() * stats.length)];
-		
-    // Rarity倍率に応じて成長率も上げる
-    const rarityBonus = enemy.rarity * (1 + currentStreak * 0.01);
-    const growthRate = 1 + 0.02 * rarityBonus;
-    player[targetStat] = Math.floor(player[targetStat] * growthRate);
-    log.push(`\n成長: ${targetStat} が ${(growthRate * 100 - 100).toFixed(1)}% 上昇！`);
 		
     // スキル熟練度チェック（5回使用でLvアップ）
     player.skills.forEach(sk => {
@@ -695,6 +702,15 @@ const chosenSkills = actor.skills.length >= effectiveCount
     currentStreak = 0;
 		streakBonus = 1;
     log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
+		
+		if (player.baseStats && player.growthBonus) {
+      player.attack = player.baseStats.attack + player.growthBonus.attack;
+      player.defense = player.baseStats.defense + player.growthBonus.defense;
+      player.speed = player.baseStats.speed + player.growthBonus.speed;
+      player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+      player.hp = player.maxHp;
+    }
+
     // スキル記憶更新（最高Lv保持）
     for (const sk of player.skills) {
       player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
@@ -738,7 +754,7 @@ const chosenSkills = actor.skills.length >= effectiveCount
   log.push(`最大連勝数: ${Math.max(currentStreak, maxStreak)}`);
 
   document.getElementById('battleLog').textContent = log.join('\n');
-  drawHPGraph();
+  drawHPGraphAnimated();
   updateStats();
 	drawSkillMemoryList();
   try {
@@ -824,6 +840,7 @@ window.loadGame = async function() {
 // ファイル入力がある場合は読み込む
 isLoadedFromSave = true;
 document.getElementById("skillMemoryList").classList.remove("hidden");
+document.getElementById("skillMemoryContainer").style.display = "block";
 drawSkillMemoryList();
 const fileInput = document.getElementById('saveFileInput');
 if (fileInput && fileInput.files.length > 0) {
@@ -864,15 +881,15 @@ if (fileInput && fileInput.files.length > 0) {
 };
 
 // ゲーム終了処理（タイトル画面に戻る）
-window.endGame = function() {
-  currentStreak = 0;
-  player = null;
-  enemy = null;
-  document.getElementById('gameScreen').classList.add('hidden');
-  document.getElementById('titleScreen').classList.remove('hidden');
+//window.endGame = function() {
+//  currentStreak = 0;
+//  player = null;
+//  enemy = null;
+  //document.getElementById('gameScreen').classList.add('hidden');
+ // document.getElementById('titleScreen').classList.remove('hidden');
 	//document.getElementById("skillMemoryList").classList.add('hidden');
 	//document.getElementById("skillMemoryContainer").classList.add('hidden');
-};
+//};
 
 document.addEventListener("DOMContentLoaded", function() {
   const btn = document.getElementById("startBattleBtn");
@@ -990,3 +1007,72 @@ function updateSkillMemoryOrder() {
   });
   player.skillMemory = newMemory;
 }
+
+
+
+// HPグラフをゆっくり描く＆描き終わったら背景を黒にするバージョン
+window.drawHPGraphAnimated = function () {
+  const canvas = document.getElementById('hpChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const maxTurns = 30;
+  const stepX = canvas.width / maxTurns;
+  const duration = 1000; // 全体で1秒かけて描く
+  const totalFrames = 90;
+  let currentFrame = 0;
+
+  const playerPath = [];
+  const enemyPath = [];
+
+  hpHistory.forEach(([p, e], i) => {
+    const x = stepX * i;
+    const py = canvas.height * (1 - p);
+    const ey = canvas.height * (1 - e);
+    playerPath.push({ x, y: py });
+    enemyPath.push({ x, y: ey });
+  });
+
+  function drawFrame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 背景
+    if (currentFrame >= totalFrames) {
+      
+    }
+
+    // 線を少しずつ描く
+    const limit = Math.floor((playerPath.length - 1) * currentFrame / totalFrames);
+
+    // プレイヤー線（青）
+    ctx.strokeStyle = 'blue';
+    ctx.beginPath();
+    for (let i = 0; i <= limit; i++) {
+      const pt = playerPath[i];
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.stroke();
+
+    // 敵線（赤）
+    ctx.strokeStyle = 'red';
+    ctx.beginPath();
+    for (let i = 0; i <= limit; i++) {
+      const pt = enemyPath[i];
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.stroke();
+
+    // タイトル
+    ctx.fillStyle = 'black';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
+
+    if (currentFrame < totalFrames) {
+      currentFrame++;
+      requestAnimationFrame(drawFrame);
+    }
+  }
+
+  drawFrame();
+};
