@@ -1018,7 +1018,7 @@ window.drawHPGraphAnimated = function () {
   const maxTurns = 30;
   const stepX = canvas.width / maxTurns;
   const duration = 1000; // 全体で1秒かけて描く
-  const totalFrames = 90;
+  const totalFrames = 30;
   let currentFrame = 0;
 
   const playerPath = [];
