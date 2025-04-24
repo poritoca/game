@@ -200,3 +200,131 @@ canvas#enemyImg {
   white-space: nowrap;
 }
 
+
+
+#playerStats, #enemyStats {
+  position: relative;
+  background: linear-gradient(#222, #000);
+  border: 2px solid #444;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 10px;
+  color: #fff;
+  box-shadow:
+    inset 0 0 15px rgba(255, 255, 255, 0.03),
+    0 0 20px rgba(0, 0, 0, 0.9),
+    0 0 5px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+#playerStats::before, #enemyStats::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 4s infinite;
+}
+
+@keyframes shimmer {
+  0%   { left: -100%; }
+  100% { left: 100%; }
+}
+  background: linear-gradient(#333, #111);       /* 上がグレー、下が黒のグラデーション */
+  border: 2px solid #444;                        /* 濃いめのボーダー */
+  border-radius: 8px;
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.6);   /* 濃くて広がる影 */
+  padding: 10px;
+  margin: 10px;
+  color: #fff;                                   /* テキストを白系にして見やすく */
+}
+
+#skillMemoryList li {
+  padding: 6px 12px;
+  background: linear-gradient(#222, #000);
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #fff;
+  box-shadow:
+    inset 0 0 10px rgba(255,255,255,0.05),
+    0 0 6px rgba(0, 0, 0, 0.8);
+  cursor: move;
+  list-style: none;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  position: relative;
+  transition: transform 0.2s;
+}
+
+#skillMemoryList li:hover {
+  transform: scale(1.05);
+}
+
+#skillMemoryList li.passive {
+  background: linear-gradient(#444000, #221100);
+  border: 1px solid #ddcc66;
+  color: #ffeb8a;
+  box-shadow:
+    inset 0 0 12px rgba(255, 255, 200, 0.1),
+    0 0 8px rgba(255, 220, 100, 0.4);
+  font-weight: bold;
+}
+
+#startBattleBtn {
+  height: 5em;
+  font-size: 2em;
+  background: linear-gradient(to bottom, #444, #111);
+  border: 2px solid #666;
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px 24px;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+#startBattleBtn:active {
+  transform: scale(0.95);
+  box-shadow:
+    inset 0 2px 6px rgba(255, 255, 255, 0.2),
+    0 2px 6px rgba(255, 255, 255, 0.5);
+}
+
+#startBattleBtn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, rgba(255,255,255,0.2), rgba(255,255,255,0.6), rgba(255,255,255,0.2));
+  transform: skewX(-20deg);
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.3s;
+	
+	user-select: none;           /* テキスト選択を禁止 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+	
+  touch-action: manipulation;  /* タップ時の挙動制御（ダブルタップズーム等も防止） */
+  -webkit-touch-callout: none;
+}
+}
+
+#startBattleBtn:active::after {
+  left: 125%;
+  opacity: 1;
+  transition: left 0.3s ease-out, opacity 0.3s ease-out;
+}

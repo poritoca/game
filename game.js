@@ -15,6 +15,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+
+function applySafeAttack(attacker, defender, log) {
+  const baseDmg = attacker.attack - defender.defense;
+  const dmg = Math.max(1, Math.floor(isNaN(baseDmg) ? 1 : baseDmg));
+  defender.hp -= dmg;
+  return;
+}
+
 function getExpandedSkills(skills, neededCount) {
   const result = [];
   const shuffled = [...skills].sort(() => 0.5 - Math.random());
@@ -77,7 +85,7 @@ let skillSimulCount = 2;
 let hpHistory = [];
 let sslot = 0;
 let isLoadedFromSave = false;
-
+let isAutoBattle = false; // ← 長押し中を表すフラグ
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,6 +93,37 @@ document.addEventListener('DOMContentLoaded', () => {
   //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
   document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
+	
+	    // スマホ・PC 両対応の連打処理
+  const battleBtn = document.getElementById('startBattleBtn');
+  let battleInterval;
+
+  function startAutoBattle() {
+    isAutoBattle = true;  // ← 長押し中にセット
+		if (!battleInterval) {
+      battleInterval = setInterval(() => {
+        window.startBattle();
+      }, 100); // 連打間隔（ミリ秒）調整可
+    }
+  }
+
+  function stopAutoBattle() {
+    isAutoBattle = false; // ← 長押し終了
+		clearInterval(battleInterval);
+    battleInterval = null;
+  }
+
+  // PC向け
+  battleBtn.addEventListener("mousedown", startAutoBattle);
+  battleBtn.addEventListener("mouseup", stopAutoBattle);
+  battleBtn.addEventListener("mouseleave", stopAutoBattle);
+
+  // スマホ向け
+  battleBtn.addEventListener("touchstart", startAutoBattle);
+  battleBtn.addEventListener("touchend", stopAutoBattle);
+  battleBtn.addEventListener("touchcancel", stopAutoBattle);
+	
+	
   document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
   //document.getElementById('endGameBtn').addEventListener('click', window.endGame);
   document.getElementById('skillSimulCount').addEventListener('change', e => {
@@ -132,52 +171,6 @@ window.recordHP = function() {
     Math.max(0, Math.min(1, player.hp / player.maxHp)),
     Math.max(0, Math.min(1, enemy.hp / enemy.maxHp))
   ]);
-};
-
-
-// HP推移グラフ描画（プレイヤー=青, 敵=赤）
-window.drawHPGraph = function() {
-  const canvas = document.getElementById('hpChart');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const maxTurns = 30;
-  const stepX = canvas.width / maxTurns;
-
-  // 縦グリッド線の描画
-  ctx.strokeStyle = 'white';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= maxTurns; i++) {
-    const x = stepX * i;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  // プレイヤーのHP線（青）
-  ctx.strokeStyle = 'blue';
-  ctx.beginPath();
-  hpHistory.forEach(([p], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - p);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-
-  // 敵のHP線（赤）
-  ctx.strokeStyle = 'red';
-  ctx.beginPath();
-  hpHistory.forEach(([, e], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - e);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-
-  // タイトル
-  ctx.fillStyle = 'black';
-  ctx.font = '12px sans-serif';
-  ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
 };
 
 
@@ -246,6 +239,10 @@ window.startVsMode = function() {
 
 // スキル効果を適用（カテゴリ別に処理）
 window.getSkillEffect = function(skill, user, target, log) {
+  if (skill.sealed) {
+    log.push(`${displayName(user.name)}のスキル「${skill.name}」は封印されているため発動できない`);
+    return;
+  }
   let statusLogged = false;
   let totalDamage = 0;
   skill.uses = (skill.uses || 0) + 1;
@@ -470,6 +467,16 @@ window.startBattle = function() {
   enemy.effects = [];
   updateStats();
   const log = [];
+	
+	[player, enemy].forEach(c => {
+  if (!c.skills) return;
+  c.skills.forEach(sk => {
+    sk.sealed = false; // 封印解除
+   });
+  });
+	
+  applyPassiveSkills(player, enemy, log);
+  applyPassiveSkills(enemy, player, log);
   let streakBonus = 1 + currentStreak * 0.02;
   
 	//alert('現在のstreakBonusの値は: ' + streakBonus);
@@ -754,7 +761,7 @@ const chosenSkills = actor.skills.length >= effectiveCount
   log.push(`最大連勝数: ${Math.max(currentStreak, maxStreak)}`);
 
   document.getElementById('battleLog').textContent = log.join('\n');
-  drawHPGraphAnimated();
+  drawHPGraph();
   updateStats();
 	drawSkillMemoryList();
   try {
@@ -948,8 +955,7 @@ window.makeCharacter = function(name) {
 };
 
 function drawSkillMemoryList() {
-  //alert("drawSkillMemoryList");
-	const list = document.getElementById("skillMemoryList");
+  const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
   list.innerHTML = "";
 
@@ -960,19 +966,29 @@ function drawSkillMemoryList() {
     li.setAttribute("data-level", level);
     li.setAttribute("draggable", "true");
 
+    // パッシブスキルならクラスを付ける
+    const skillDef = skillPool.find(s => s.name === name);
+    if (skillDef && skillDef.category === "passive") {
+      li.classList.add("passive");
+    }
+
+    // ドラッグ開始
     li.ondragstart = e => {
       e.dataTransfer.setData("text/plain", name);
     };
 
+    // ドラッグ中に上に乗ったとき
     li.ondragover = e => {
       e.preventDefault();
       li.style.border = "2px dashed #888";
     };
 
+    // ドラッグが離れたとき
     li.ondragleave = () => {
       li.style.border = "";
     };
 
+    // ドロップ時の並び替え処理
     li.ondrop = e => {
       e.preventDefault();
       const draggedName = e.dataTransfer.getData("text/plain");
@@ -1010,69 +1026,153 @@ function updateSkillMemoryOrder() {
 
 
 
-// HPグラフをゆっくり描く＆描き終わったら背景を黒にするバージョン
-window.drawHPGraphAnimated = function () {
+let hpShineOffset = 0; // アニメーション用オフセット
+
+window.drawHPGraph = function () {
+	if (isAutoBattle) return; // ← 長押し中は描画スキップ
   const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const maxTurns = 30;
-  const stepX = canvas.width / maxTurns;
-  const duration = 1000; // 全体で1秒かけて描く
-  const totalFrames = 30;
-  let currentFrame = 0;
 
-  const playerPath = [];
-  const enemyPath = [];
+  const maxTurns = hpHistory.length || 1;
+  const stepX = canvas.width / (maxTurns - 1);
 
-  hpHistory.forEach(([p, e], i) => {
+  // グリッド線
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < maxTurns; i++) {
     const x = stepX * i;
-    const py = canvas.height * (1 - p);
-    const ey = canvas.height * (1 - e);
-    playerPath.push({ x, y: py });
-    enemyPath.push({ x, y: ey });
-  });
-
-  function drawFrame() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 背景
-    if (currentFrame >= totalFrames) {
-      
-    }
-
-    // 線を少しずつ描く
-    const limit = Math.floor((playerPath.length - 1) * currentFrame / totalFrames);
-
-    // プレイヤー線（青）
-    ctx.strokeStyle = 'blue';
     ctx.beginPath();
-    for (let i = 0; i <= limit; i++) {
-      const pt = playerPath[i];
-      if (i === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    }
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
     ctx.stroke();
-
-    // 敵線（赤）
-    ctx.strokeStyle = 'red';
-    ctx.beginPath();
-    for (let i = 0; i <= limit; i++) {
-      const pt = enemyPath[i];
-      if (i === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    }
-    ctx.stroke();
-
-    // タイトル
-    ctx.fillStyle = 'black';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
-
-    if (currentFrame < totalFrames) {
-      currentFrame++;
-      requestAnimationFrame(drawFrame);
-    }
   }
 
-  drawFrame();
+  // === プレイヤーの塗り（青） ===
+  const gradBlue = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradBlue.addColorStop(0, 'rgba(0, 0, 255, 0.4)');
+  gradBlue.addColorStop(1, 'rgba(0, 0, 255, 0)');
+  ctx.beginPath();
+  hpHistory.forEach(([p], i) => {
+    const x = stepX * i;
+    const y = canvas.height * (1 - p);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+  ctx.lineTo(0, canvas.height);
+  ctx.closePath();
+  ctx.fillStyle = gradBlue;
+  ctx.fill();
+
+  // === 敵の塗り（赤） ===
+  const gradRed = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradRed.addColorStop(0, 'rgba(255, 0, 0, 0.4)');
+  gradRed.addColorStop(1, 'rgba(255, 0, 0, 0)');
+  ctx.beginPath();
+  hpHistory.forEach(([, e], i) => {
+    const x = stepX * i;
+    const y = canvas.height * (1 - e);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+  ctx.lineTo(0, canvas.height);
+  ctx.closePath();
+  ctx.fillStyle = gradRed;
+  ctx.fill();
+
+  // === アニメーションする光沢 ===
+  hpShineOffset += 2;
+  if (hpShineOffset > canvas.width) hpShineOffset = -100;
+
+  const shineGrad = ctx.createLinearGradient(hpShineOffset, 0, hpShineOffset + 100, 0);
+  shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+  shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shineGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // === グロー付き折れ線（プレイヤー） ===
+  ctx.shadowColor = 'rgba(0, 0, 255, 0.6)';
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'blue';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  hpHistory.forEach(([p], i) => {
+    const x = stepX * i;
+    const y = canvas.height * (1 - p);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // === グロー付き折れ線（敵） ===
+  ctx.shadowColor = 'rgba(255, 0, 0, 0.6)';
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'red';
+  ctx.beginPath();
+  hpHistory.forEach(([, e], i) => {
+    const x = stepX * i;
+    const y = canvas.height * (1 - e);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // グロー効果を解除
+  ctx.shadowBlur = 0;
+
+  // ラベル
+  ctx.fillStyle = 'black';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
+  ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
+  ctx.save();
+  ctx.translate(5, canvas.height / 2 + 20);
+  ctx.rotate(-Math.PI / 2);
+  ctx.restore();
+
+  // 次フレームへ再描画
+  requestAnimationFrame(window.drawHPGraph);
 };
+
+function applyPassiveSkills(unit, opponent, log) {
+  if (!unit.skills) return;
+
+  unit.skills.forEach(skill => {
+    const skillDef = skillPool.find(s => s.name === skill.name);
+    if (!skillDef || skillDef.category !== "passive") return;
+
+    //log.push(`[DEBUG005] パッシブスキル認識: ${skill.name} ／ 効果: ${skillDef.effect}`);
+
+    if (skillDef.effect === "blockTurnEffects") {
+      if (!opponent.skills) return;
+
+      const subtype = skillDef.subtype;  // サブタイプによる分類を取得
+
+      opponent.skills.forEach(os => {
+        const def = skillPool.find(k => k.name === os.name);
+        if (!def || def.duration < 2) return;
+
+        let typeMatch = false;
+        if (!subtype) {
+          typeMatch = true; // subtype指定がなければ全て封印
+        } else if (subtype === "poison_burn") {
+          typeMatch = def.category === "poison" || def.category === "burn";
+        } else {
+          typeMatch = def.category === subtype;
+        }
+
+        if (typeMatch) {
+          os.sealed = true;
+         // log.push(`相手スキル「${os.name}」を封印しました（カテゴリ: ${def.category}）`);
+        }
+      });
+
+      log.push(`${displayName(unit.name)}のパッシブスキル「${skill.name}」が発動！`);
+
+      opponent.skills.forEach(os => {
+        if (os.sealed) {
+          log.push(`スキル「${os.name}」は封印状態です`);
+        }
+      });
+    }
+  });
+}

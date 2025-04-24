@@ -829,4 +829,10 @@ export const skillPool = [
     "duration": 2,
     "description": "蔦で相手を拘束し、行動不能にする"
   }
-];
+,
+{"name": "静寂の守り", "category": "passive", "effect": "blockTurnEffects", "subtype": "poison_burn", "description": "毒・火傷系の継続スキルを戦闘開始時に封印する"},
+{"name": "無音の加護", "category": "passive", "effect": "blockTurnEffects", "subtype": "buff", "description": "バフ系の継続スキルを戦闘開始時に封印する"},
+{"name": "呪封の障壁", "category": "passive", "effect": "blockTurnEffects", "subtype": "debuff", "description": "デバフ系の継続スキルを戦闘開始時に封印する"},
+{"name": "再生拒絶", "category": "passive", "effect": "blockTurnEffects", "subtype": "regen", "description": "再生スキルを戦闘開始時に封印する"},
+{"name": "反射破り", "category": "passive", "effect": "blockTurnEffects", "subtype": "reflect", "description": "反射スキルを戦闘開始時に封印する"}
+]
