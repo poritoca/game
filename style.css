@@ -339,3 +339,10 @@ canvas#enemyImg {
   opacity: 1;
   transition: left 0.3s ease-out, opacity 0.3s ease-out;
 }
+
+#customAlert {
+  font-family: 'Press Start 2P', system-ui;
+  border-radius: 8px;
+  box-shadow: 0 0 10px #000;
+  transition: opacity 0.5s ease;
+}

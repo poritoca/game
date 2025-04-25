@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (!battleInterval) {
       battleInterval = setInterval(() => {
         window.startBattle();
-      }, 100); // 連打間隔（ミリ秒）調整可
+      }, 150); // 連打間隔（ミリ秒）調整可
     }
   }
 
@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		clearInterval(battleInterval);
     battleInterval = null;
   }
+	window.stopAutoBattle = stopAutoBattle;
 
   // PC向け
   battleBtn.addEventListener("mousedown", startAutoBattle);
@@ -596,7 +597,7 @@ const chosenSkills = actor.skills.length >= effectiveCount
           log.push(`${displayName(target.name)}は攻撃を回避した！`);
         } else {
           // バリアダメージ軽減適用
-          let dmg = Math.max(0, actor.attack - target.defense / 2);
+          let dmg = Math.max(0, (actor.attack - target.defense / 2)*0.5);
           const barrierEff = target.effects.find(e => e.type === 'barrier');
           if (barrierEff) {
             dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
@@ -659,6 +660,9 @@ const chosenSkills = actor.skills.length >= effectiveCount
   }
   if (playerWon) {
     currentStreak++;
+		
+		showCustomAlert(`\n勝利：${displayName(enemy.name)}に勝利\n現在連勝数：${currentStreak}`,2000);
+		
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
     // 戦闘終了時に残る強化・弱体を解除
     player.effects.forEach(eff => {
@@ -709,7 +713,12 @@ const chosenSkills = actor.skills.length >= effectiveCount
 			}
     drawSkillMemoryList();}
   } else {
-    currentStreak = 0;
+
+		stopAutoBattle()
+		
+		showCustomAlert(`\n敗北：${displayName(enemy.name)}に敗北\n最終連勝数：${currentStreak}`,2000, "#ff4d4d", "#fff");
+		
+		currentStreak = 0;
 		streakBonus = 1;
     log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
 		
@@ -1137,6 +1146,23 @@ window.drawHPGraph = function () {
   // 次フレームへ再描画
   requestAnimationFrame(window.drawHPGraph);
 };
+
+function showCustomAlert(message, duration = 2000, bgColor = '#222', textColor = '#fff') {
+  const alertBox = document.getElementById("customAlert");
+  alertBox.textContent = message;
+  alertBox.style.display = "block";
+  alertBox.style.opacity = 1;
+  alertBox.style.backgroundColor = bgColor;
+  alertBox.style.color = textColor;
+
+  setTimeout(() => {
+    alertBox.style.opacity = 0;
+    setTimeout(() => {
+      alertBox.style.display = "none";
+    }, 500);
+  }, duration);
+}
+
 
 function applyPassiveSkills(unit, opponent, log) {
   if (!unit.skills) return;
