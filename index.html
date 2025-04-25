@@ -68,5 +68,18 @@
 	
 
   <script type="module" src="game.js"></script>
+	
+	<div id="growthSelect" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
+  background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
+  box-shadow:0 0 10px #fff; z-index:9999; text-align:center;">
+  <h3>成長させるステータスを選んでください</h3>
+  <div style="margin-top:10px;">
+    <button class="growth-btn" onclick="chooseGrowth('attack')">攻撃</button>
+    <button class="growth-btn" onclick="chooseGrowth('defense')">防御</button>
+    <button class="growth-btn" onclick="chooseGrowth('speed')">素早さ</button>
+    <button class="growth-btn" onclick="chooseGrowth('maxHp')">最大HP</button>
+  </div>
+</div>
+
 </body>
 </html>

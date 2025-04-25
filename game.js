@@ -102,7 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
     isAutoBattle = true;  // ← 長押し中にセット
 		if (!battleInterval) {
       battleInterval = setInterval(() => {
-        window.startBattle();
+        if (isWaitingGrowth) return;
+				window.startBattle();
       }, 150); // 連打間隔（ミリ秒）調整可
     }
   }
@@ -162,6 +163,24 @@ window.displayName = function(name) {
     return result;
   }
   return name;
+};
+
+let isWaitingGrowth = false;
+
+window.chooseGrowth = function(stat) {
+  const growthAmount = Math.floor(enemy[stat] * 0.08); // 成長量8%
+  if (!player.growthBonus) {
+    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+  }
+  player.growthBonus[stat] += growthAmount;
+  player[stat] = player.baseStats[stat] + player.growthBonus[stat];
+
+  // 戦闘ログにも書き込み
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}) 上昇\n`;
+
+  document.getElementById('growthSelect').style.display = 'none';
+  isWaitingGrowth = false; // バトル再開許可
 };
 
 // キャラクターオブジェクト生成（初期ステータスとランダム3スキル）
@@ -445,6 +464,21 @@ window.startBattle = function() {
     }
   }
   enemy = makeCharacter('敵' + Math.random());
+	
+
+  enemy.skills.forEach(skill => {
+  // ★修正ポイント：倍率を1にする！
+  const rarityBase = Math.floor(enemy.rarity * 1);  // ★ここ！
+  let randomBoost = 0;
+  
+  if (currentStreak >= 10) {
+    randomBoost = Math.floor(Math.pow(Math.random(), 8) * 300);
+  }
+  
+  const finalLevel = Math.min(999, rarityBase + randomBoost);
+  skill.level = Math.max(1, finalLevel);
+});
+
 //alert('[A001] [A396] enemy生成: ' + JSON.stringify(enemy?.baseStats));
   // 連勝数に応じた敵の強化
 	
@@ -635,17 +669,11 @@ const chosenSkills = actor.skills.length >= effectiveCount
   const effectiveRarity = enemy.rarity * streakBonus;
 
   if (playerWon && Math.random() < effectiveRarity * 0.03) {
-  const stats = ['attack', 'defense', 'speed', 'maxHp'];
-  const targetStat = stats[Math.floor(Math.random() * stats.length)];
-  const growthAmount = Math.floor(enemy[targetStat] * 0.05);
-  if (!player.growthBonus) {
-    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-  }
-  player.growthBonus[targetStat] += growthAmount;
-  player[targetStat] = player.baseStats[targetStat] + player.growthBonus[targetStat];
-  log.push(`\n成長: ${targetStat} が 敵の${targetStat}の5%（+${growthAmount}）上昇`);
+  isWaitingGrowth = true;
+  document.getElementById('growthSelect').style.display = 'block';
 } else if (playerWon) {
-  log.push(`\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）`);
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
 }
 
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };

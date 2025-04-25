@@ -346,3 +346,18 @@ canvas#enemyImg {
   box-shadow: 0 0 10px #000;
   transition: opacity 0.5s ease;
 }
+
+.growth-btn {
+  font-size: 14px;
+  font-family: 'Press Start 2P', system-ui;
+  margin: 5px;
+  padding: 10px 20px;
+  background-color: #444;
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.growth-btn:hover {
+  background-color: #666;
+}
