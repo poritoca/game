@@ -207,6 +207,7 @@ window.startNewGame = function() {
   statusLogged = false;
   document.getElementById('titleScreen').classList.add('hidden');
   document.getElementById('gameScreen').classList.remove('hidden');
+  document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
 	  // スキルメモリの表示を有効化
 	document.getElementById("skillMemoryContainer").style.display = "block";
@@ -234,6 +235,7 @@ window.startVsMode = function() {
   //alert("[A008] enemy 初期ステータス = " + JSON.stringify(enemy.baseStats));
   document.getElementById('titleScreen').classList.add('hidden');
   document.getElementById('gameScreen').classList.remove('hidden');
+  document.getElementById("battleArea").classList.add("hidden");
   updateStats();
 };
 
@@ -424,6 +426,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
+  document.getElementById("battleArea").classList.remove("hidden");
 	drawSkillMemoryList();
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
@@ -831,6 +834,7 @@ window.importSaveCode = async function() {
     updateStats();
     document.getElementById('titleScreen').classList.add('hidden');
     document.getElementById('gameScreen').classList.remove('hidden');
+  document.getElementById("battleArea").classList.add("hidden");
     // 連勝数・転生回数表示更新（必要なら）
     if (document.getElementById('currentStreakDisplay')) {
       document.getElementById('currentStreakDisplay').textContent = '連勝数：' + currentStreak;
@@ -882,6 +886,7 @@ if (fileInput && fileInput.files.length > 0) {
       updateStats();
       //document.getElementById('titleScreen').classList.add('hidden');
       document.getElementById('gameScreen').classList.remove('hidden');
+  document.getElementById("battleArea").classList.add("hidden");
     } catch (e) {
     }
   }
