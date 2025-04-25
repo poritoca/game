@@ -634,18 +634,18 @@ const chosenSkills = actor.skills.length >= effectiveCount
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
 
-  if (playerWon && Math.random() < effectiveRarity * 0.02) {
+  if (playerWon && Math.random() < effectiveRarity * 0.03) {
   const stats = ['attack', 'defense', 'speed', 'maxHp'];
   const targetStat = stats[Math.floor(Math.random() * stats.length)];
-  const growthAmount = Math.floor(enemy[targetStat] * 0.02);
+  const growthAmount = Math.floor(enemy[targetStat] * 0.05);
   if (!player.growthBonus) {
     player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
   }
   player.growthBonus[targetStat] += growthAmount;
   player[targetStat] = player.baseStats[targetStat] + player.growthBonus[targetStat];
-  log.push(`\n成長: ${targetStat} が 敵の${targetStat}の2%（+${growthAmount}）上昇`);
+  log.push(`\n成長: ${targetStat} が 敵の${targetStat}の5%（+${growthAmount}）上昇`);
 } else if (playerWon) {
-  log.push(`\n今回は成長なし（確率 ${(effectiveRarity * 0.02 * 100).toFixed(2)}%）`);
+  log.push(`\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）`);
 }
 
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
@@ -716,7 +716,7 @@ const chosenSkills = actor.skills.length >= effectiveCount
 
 		stopAutoBattle()
 		
-		showCustomAlert(`\n敗北：${displayName(enemy.name)}に敗北\n最終連勝数：${currentStreak}`,2000, "#ff4d4d", "#fff");
+		showCustomAlert(`\n敗北：${displayName(enemy.name)}に敗北\n最終連勝数：${currentStreak}`,4000, "#ff4d4d", "#fff");
 		
 		currentStreak = 0;
 		streakBonus = 1;
