@@ -24,7 +24,10 @@
   </div>
 
   <div id="gameScreen" class="hidden">
-    <button id="startBattleBtn">バトル！</button>
+    <button id="startBattleBtn">バトル！（長押可）</button>
+		
+  <canvas id="hpChart" style="background-color: #ccc;" width="600" height="100"></canvas>
+
     <div id="battleArea" class="hidden">
       <div class="status-area">
         <div id="playerStats">
@@ -45,8 +48,7 @@
         <input type="number" id="skillSimulCount" value="2" min="1" max="5">
       </label>
 
-      <canvas id="hpChart" style="background-color: #ccc;" width="600" height="100"></canvas>
-      <pre id="battleLog"></pre>
+       <pre id="battleLog"></pre>
 
       <div id="saveControls">
         <button id="saveCodeBtn">保存</button>
@@ -59,6 +61,7 @@
     <h3>スキルメモリ順（並び替え可能）</h3>
     <ul id="skillMemoryList"></ul>
   </div>
+	
 
   <script type="module" src="game.js"></script>
 </body>
