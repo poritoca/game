@@ -742,7 +742,7 @@ const chosenSkills = actor.skills.length >= effectiveCount
     drawSkillMemoryList();}
   } else {
 
-		stopAutoBattle()
+		//stopAutoBattle()
 		
 		showCustomAlert(`\n敗北：${displayName(enemy.name)}に敗北\n最終連勝数：${currentStreak}`,4000, "#ff4d4d", "#fff");
 		
@@ -1179,7 +1179,7 @@ function showCustomAlert(message, duration = 2000, bgColor = '#222', textColor =
   const alertBox = document.getElementById("customAlert");
   alertBox.textContent = message;
   alertBox.style.display = "block";
-  alertBox.style.opacity = 1;
+  alertBox.style.opacity = 0.8;
   alertBox.style.backgroundColor = bgColor;
   alertBox.style.color = textColor;
 
@@ -1225,7 +1225,39 @@ function applyPassiveSkills(unit, opponent, log) {
         }
       });
 
-      log.push(`${displayName(unit.name)}のパッシブスキル「${skill.name}」が発動！`);
+      const levelBonusTurns = Math.floor(skill.level / 333);
+const baseDuration = skill.duration || 1;
+const finalDuration = baseDuration + levelBonusTurns;
+
+// スキル封印対象を検索・封印
+opponent.skills.forEach(os => {
+  const def = skillPool.find(k => k.name === os.name);
+  if (!def || def.duration < 2) return;
+
+  let typeMatch = false;
+  if (!subtype) {
+    typeMatch = true; // subtype指定なし＝すべて封印
+  } else if (subtype === "poison_burn") {
+    typeMatch = def.category === "poison" || def.category === "burn";
+  } else {
+    typeMatch = def.category === subtype;
+  }
+
+  if (typeMatch) {
+    os.sealed = true;
+    os.sealRemaining = finalDuration; // ← 残り封印ターンを記録
+  }
+});
+
+// 発動ログにターン数を含めて記録
+log.push(`${displayName(unit.name)}のパッシブスキル「${skill.name}」が発動！（${finalDuration}ターン）`);
+
+// 封印ログ
+opponent.skills.forEach(os => {
+  if (os.sealed) {
+    log.push(`スキル「${os.name}」は封印状態です（残り${os.sealRemaining}ターン）`);
+  }
+});
 
       opponent.skills.forEach(os => {
         if (os.sealed) {
