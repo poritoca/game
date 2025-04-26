@@ -1175,7 +1175,7 @@ window.drawHPGraph = function () {
   requestAnimationFrame(window.drawHPGraph);
 };
 
-function showCustomAlert(message, duration = 2000, bgColor = '#222', textColor = '#fff') {
+function showCustomAlert(message, duration = 200, bgColor = '#222', textColor = '#fff') {
   const alertBox = document.getElementById("customAlert");
   alertBox.textContent = message;
   alertBox.style.display = "block";
