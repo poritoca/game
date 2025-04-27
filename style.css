@@ -69,6 +69,7 @@ button:active {
 }
 
 .status-area {
+	color: #ffffff !important;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid #aaa;
   padding: 12px;
@@ -78,6 +79,7 @@ button:active {
 }
 
 .status-area span {
+	color: #ffffff !important;
   cursor: help;
   display: inline-block;
   margin: 3px;
@@ -85,7 +87,6 @@ button:active {
   background: #222;
   border: 1px solid #666;
   border-radius: 4px;
-  color: #fff;
   font-size: 0.9em;
 }
 
@@ -360,4 +361,135 @@ canvas#enemyImg {
 }
 .growth-btn:hover {
   background-color: #666;
+}
+
+/* ダークグラデーション背景とネオン風エフェクト */
+#battleLog {
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(138, 43, 226, 0.6), inset 0 0 10px rgba(255, 255, 255, 0.2);
+  overflow-y: auto;
+  position: relative;
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.4), inset 0 0 5px rgba(255, 255, 255, 0.1);
+  }
+  100% {
+    box-shadow: 0 0 25px rgba(138, 43, 226, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* スクロールバーのスタイル調整（モダンで怪しい） */
+#battleLog::-webkit-scrollbar {
+  width: 8px;
+}
+
+#battleLog::-webkit-scrollbar-track {
+  background: #1f1f38;
+}
+
+#battleLog::-webkit-scrollbar-thumb {
+  background: rgba(138, 43, 226, 0.8);
+  border-radius: 4px;
+}
+
+#battleLog::-webkit-scrollbar-thumb:hover {
+  background: rgba(138, 43, 226, 1);
+}
+
+/* ダークテーマの全体背景色 */
+body {
+  background: linear-gradient(to bottom, #141e30, #243b55);
+  color: #ffffff;
+  font-family: 'Press Start 2P', system-ui;
+}
+
+/* ボタンをかっこよく */
+button {
+  background: linear-gradient(145deg, #3a3f5e, #23273c);
+  color: #fff;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+}
+
+button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* 追加分：タイトル画面のスタイリング */
+#titleScreen {
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+  border-radius: 15px;
+  padding: 30px;
+  margin: auto;
+  width: 80%;
+  max-width: 700px;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  animation: glow 3s infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
+  to { box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); }
+}
+
+#titleScreen h1 {
+  color: gold;
+  text-shadow: 0 0 10px gold;
+  animation: flicker 2s infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+#titleScreen button {
+  background-color: rgba(0, 0, 0, 0.5);
+  border: 1px solid gold;
+  color: gold;
+  padding: 10px 20px;
+  margin-top: 10px;
+  transition: all 0.3s;
+}
+
+#titleScreen button:hover {
+  background-color: gold;
+  color: black;
+}
+
+#inputStr {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 8px;
+}
+
+#inputStr::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes fadeBrightness {
+  0%, 100% { filter: brightness(100%); }
+  50% { filter: brightness(50%); }
+}
+
+#titleScreen img {
+  animation: fadeBrightness 4s infinite ease-in-out, pulse 5s infinite;
 }
