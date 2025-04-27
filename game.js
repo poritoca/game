@@ -573,7 +573,7 @@ window.startBattle = function() {
         continue;
       }
       const sealed = actor.effects.some(e => e.type === 'seal');
-      const useSkill = !sealed && Math.random() < 0.5 && actor.skills.length > 0;
+      const useSkill = !sealed && actor.skills.length > 0;
       if (useSkill) {
         // スキルを複数同時発動（skillSimulCount分）
 
