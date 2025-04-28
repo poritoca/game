@@ -214,7 +214,15 @@ window.recordHP = function() {
 
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
-  return `${displayName(c.name)}: ATK ${c.attack}, DEF ${c.defense}, SPD ${c.speed}, HP ${c.hp}/${c.maxHp}`;
+  return `
+    <div><strong>${displayName(c.name)}</strong></div>
+    <ul style="padding-left: 20px;">
+      <li>ATK: ${c.attack}</li>
+      <li>DEF: ${c.defense}</li>
+      <li>SPD: ${c.speed}</li>
+      <li>HP: ${c.hp} / ${c.maxHp}</li>
+    </ul>
+  `;
 };
 
 // スキル一覧表示用HTML生成（ホバーで説明）
@@ -248,7 +256,12 @@ window.formatSkills = function(c) {
   skillElements.sort((a, b) => a.priority - b.priority);
 
   // htmlだけをjoinして表示
-  return 'スキル: ' + skillElements.map(e => e.html).join(', ');
+  return `
+  <div><strong>スキル</strong></div>
+  <ul style="padding-left: 20px;">
+    ${skillElements.map(e => `<li>${e.html}</li>`).join('')}
+  </ul>
+`;
 };
 
 // ステータス表示の更新
@@ -956,9 +969,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
   //document.getElementById('endGameBtn').addEventListener('click', window.endGame);
-  document.getElementById('skillSimulCount').addEventListener('change', e => {
-    skillSimulCount = parseInt(e.target.value);
-  });
+document.getElementById('skillSimulCountSelect').addEventListener('change', e => {
+  skillSimulCount = parseInt(e.target.value);
+});
 });
 
 

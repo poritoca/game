@@ -5,112 +5,127 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>転職したってよ（仮）</title>
   <link rel="stylesheet" href="style.css?v=3">
+
+  <style>
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+  </style>
 </head>
+
+<body>
+
+<!-- カスタムアラート -->
 <div id="customAlert" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
   background:#222; color:#fff; padding:20px; border:2px solid #fff; z-index:9999; font-size:16px;">
   メッセージ
 </div>
-<body>
+
+<!-- タイトル画面 -->
 <div id="titleScreen">
   <h1>転職したってよ（仮）</h1>
- <div style="text-align: center; margin-bottom: 20px;">
-  <img src="dark_knight.png" alt="タイトル画像" style="width:80%; max-width:600px; height:auto;">
-</div>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <img src="dark_knight.png" alt="タイトル画像" style="width:80%; max-width:600px; height:auto;">
+  </div>
   <input type="text" id="inputStr" placeholder="名前を入力">
   <button id="startNewGameBtn">はじめから</button>
   <button id="loadGameBtn">つづきから</button>
+
   <div id="loadSection">
     <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br>
     <input type="file" id="saveFileInput" accept=".txt"><br>
   </div>
+
+  <!-- VSモード（隠し） -->
+  <div id="vsMode" class="hidden">
+    <input type="text" id="vsName1" placeholder="キャラ1">
+    <input type="text" id="vsName2" placeholder="キャラ2">
+    <button id="startVsModeBtn">対戦開始</button>
+  </div>
 </div>
 
-<script type="module" src="game.js"></script>
+<!-- ゲーム画面 -->
+<div id="gameScreen" class="hidden">
 
-<style>
-  @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-  }
-</style>
+  <div id="battleArea" class="hidden">
+    <div class="status-area">
+      <div id="playerStats">
+        <p id="atkStat">ATK:</p>
+        <p id="defStat">DEF:</p>
+        <p id="spdStat">SPD:</p>
+        <p id="hpStat">HP:</p>
+        <p id="maxHpStat">MAX HP:</p>
+      </div>
+      <canvas id="playerImg" width="32" height="32"></canvas>
+    </div>
 
-    <div id="vsMode" class="hidden">
-      <input type="text" id="vsName1" placeholder="キャラ1">
-      <input type="text" id="vsName2" placeholder="キャラ2">
-      <button id="startVsModeBtn">対戦開始</button>
+    <div class="status-area">
+      <div id="enemyStats"></div>
+      <canvas id="enemyImg" width="32" height="32"></canvas>
+    </div>
+
+<label>同時発動スキル数（不足時繰り返し）:
+  <select id="skillSimulCountSelect">
+    <option value="1">1個</option>
+    <option value="2" selected>2個</option>
+    <option value="3">3個</option>
+    <option value="4">4個</option>
+    <option value="5">5個</option>
+  </select>
+</label>
+  </div>
+<canvas id="hpChart" style="background-color: #ffffff;" width="600" height="100"></canvas>
+  <button id="startBattleBtn">バトル！（長押可）</button>
+	
+	  <!-- バトルログ -->
+  <pre id="battleLog" style="height:200px;"></pre>
+  <!-- 成長選択ポップアップ -->
+  <div id="growthSelect" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
+    background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
+    box-shadow:0 0 10px #fff; z-index:9999; text-align:center;">
+    <h3>成長させるステータスを選んでください</h3>
+    <div style="margin-top:10px;">
+      <button class="growth-btn" onclick="chooseGrowth('attack')">攻撃</button>
+      <button class="growth-btn" onclick="chooseGrowth('defense')">防御</button>
+      <button class="growth-btn" onclick="chooseGrowth('speed')">素早さ</button>
+      <button class="growth-btn" onclick="chooseGrowth('maxHp')">最大HP</button>
+    </div>
+  </div>
+
+  <!-- イベントポップアップ -->
+  <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
+    background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
+    box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
+    <h3 id="eventPopupTitle"></h3>
+    <div id="eventPopupOptions" style="margin-top:10px;"></div>
+    <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
+      <select id="eventPopupSelect"></select>
+      <button id="eventPopupSelectBtn">決定</button>
     </div>
   </div>
 
 
 
-  <script type="module" src="game.js"></script>
-	
-	  <div id="gameScreen" class="hidden">
-    <button id="startBattleBtn">バトル！（長押可）</button>
-		
-    <canvas id="hpChart" style="background-color: rgba(0,0,0,0.6);" width="600" height="100"></canvas>
-    <div id="battleArea" class="hidden">
-      <div class="status-area">
-        <div id="playerStats">
-          <p id="atkStat">ATK:</p>
-          <p id="defStat">DEF:</p>
-          <p id="spdStat">SPD:</p>
-          <p id="hpStat">HP:</p>
-          <p id="maxHpStat">MAX HP:</p>
-        </div>
-        <canvas id="playerImg" width="32" height="32"></canvas>
-      </div>
-      <div class="status-area">
-        <div id="enemyStats"></div>
-        <canvas id="enemyImg" width="32" height="32"></canvas>
-      </div>
-
-      <label>同時発動スキル数（不足時繰り返し）: 
-        <input type="number" id="skillSimulCount" value="2" min="1" max="5">
-      </label>
-
-  </div>
-	
-	
-	<div id="growthSelect" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
-  background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
-  box-shadow:0 0 10px #fff; z-index:9999; text-align:center;">
-  <h3>成長させるステータスを選んでください</h3>
-  <div style="margin-top:10px;">
-    <button class="growth-btn" onclick="chooseGrowth('attack')">攻撃</button>
-    <button class="growth-btn" onclick="chooseGrowth('defense')">防御</button>
-    <button class="growth-btn" onclick="chooseGrowth('speed')">素早さ</button>
-    <button class="growth-btn" onclick="chooseGrowth('maxHp')">最大HP</button>
-  </div>
-</div>
-
-<!-- イベント用ポップアップ -->
-<div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
-  background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
-  box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
-  <h3 id="eventPopupTitle"></h3>
-  <div id="eventPopupOptions" style="margin-top:10px;"></div>
-  <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
-    <select id="eventPopupSelect"></select>
-    <button id="eventPopupSelectBtn">決定</button>
-  </div>
-</div>
-
-<pre id="battleLog" style="height:200px; "></pre>
-
+  <!-- スキルメモリ表示 -->
   <div id="skillMemoryContainer" style="display: none;">
     <h3>スキルメモリ順（並び替え可能）</h3>
     <ul id="skillMemoryList"></ul>
   </div>
-	
-	<button id="downloadLogsBtn">バトルログ出力</button>
 
-	<div id="saveControls">
-        <button id="saveCodeBtn">保存</button>
-        <input type="text" id="saveCodeBox" readonly>
-      </div>
-    </div>
-	
+  <!-- バトルログ出力ボタン -->
+  <button id="downloadLogsBtn">バトルログ出力</button>
+
+  <!-- セーブコントロール -->
+  <div id="saveControls">
+    <button id="saveCodeBtn">保存</button>
+    <input type="text" id="saveCodeBox" readonly>
+  </div>
+</div>
+
+<!-- スクリプト -->
+<script type="module" src="game.js"></script>
+
 </body>
 </html>
