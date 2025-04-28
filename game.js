@@ -820,6 +820,8 @@ window.startBattle = function() {
     showCustomAlert(`\n勝利：${displayName(enemy.name)}に勝利\n現在連勝数：${currentStreak}`,2000);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
+		saveBattleLog(log);
+		
     // 戦闘終了時に残る強化・弱体を解除
     player.effects.forEach(eff => {
       if (eff.type === 'buff') player[eff.stat] = eff.original;
@@ -868,7 +870,6 @@ window.startBattle = function() {
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
   drawSkillMemoryList();
-  saveBattleLog(log);
 
 }
 } else {
@@ -880,7 +881,7 @@ window.startBattle = function() {
   currentStreak = 0;
   streakBonus = 1;
   log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
-
+  saveBattleLog(log);
   if (player.baseStats && player.growthBonus) {
     player.attack = player.baseStats.attack + player.growthBonus.attack;
     player.defense = player.baseStats.defense + player.growthBonus.defense;
@@ -911,7 +912,6 @@ window.startBattle = function() {
     uses: 0
   }));
   player.skills = initSkills;
-	saveBattleLog(log);
 }
 
 document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
