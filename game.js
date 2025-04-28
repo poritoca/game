@@ -41,26 +41,7 @@ function decideSkillsToUse(actor, maxActivations) {
   return decidedSkills;
 }
 
-function showBloodMessage(message) {
-  const overlay = document.getElementById('bloodOverlay');
-  const bloodText = document.getElementById('bloodMessage');
-  bloodText.innerHTML = message;
-  overlay.style.display = 'flex';
 
-  // 最初はハッキリ表示
-  bloodText.style.opacity = 1;
-  bloodText.style.transform = 'scale(1) translateY(0)';
-  bloodText.style.filter = 'blur(0)';
-
-  // 3秒後にぼやけて沈みながら消える
-  setTimeout(() => {
-    bloodText.style.animation = 'bloodFadeOut 2s forwards';
-    setTimeout(() => {
-      overlay.style.display = 'none';
-      bloodText.style.animation = '';
-    }, 1000);
-  }, 2000);
-}
 
 
 // 設定に基づいてターン数ボーナスを返す関数
@@ -933,17 +914,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       const name = document.getElementById("inputStr").value || "プレイヤー";
-      showBloodMessage(`${name}は、<br>ダンジョンの奥深くに<br>閉じ込められた`);
-			startNewGame(name);
+      startNewGame(name);
     });
   }
 
-  document.getElementById('loadGameBtn').addEventListener('click', () => {
-  //showBloodMessage("");
-  window.loadGame();
-});
+  document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
   //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
-  //document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
+  document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
 
   // スマホ・PC 両対応の連打処理
