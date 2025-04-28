@@ -214,8 +214,19 @@ window.recordHP = function() {
 
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
+  const isPlayer = (c === player); // ← ここで「プレイヤーか？」を判定！
+  const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
+  
   return `
-    <div><strong>${displayName(c.name)}</strong></div>
+    <div class="name-and-streak">
+      <div class="player-name"><strong>${displayName(c.name)}</strong></div>
+      ${isPlayer ? `
+      <div class="streak-counter">
+        ${currentStreak}連勝<br>
+        (最大${maxStreak}連勝)
+      </div>
+      ` : ``}
+    </div>
     <ul style="padding-left: 20px;">
       <li>ATK: ${c.attack}</li>
       <li>DEF: ${c.defense}</li>
@@ -226,42 +237,64 @@ window.formatStats = function(c) {
 };
 
 // スキル一覧表示用HTML生成（ホバーで説明）
+
+const categoryColors = {
+  "multi": "#ff4d4d",        // 連撃系 → 赤
+  "poison": "#9933cc",       // 毒系 → 紫
+  "burn": "#ff6600",         // 火傷系 → オレンジ
+  "lifesteal": "#66ccff",    // 吸収系 → 水色
+  "skillSeal": "#9999ff",    // 封印系 → 薄い青
+  "barrier": "#66ff66",      // バリア系 → 緑
+  "regen": "#66ff99",        // 再生系 → 明るい緑
+  "reflect": "#ffff66",      // 反射系 → 黄色
+  "evasion": "#ff99cc",      // 回避系 → ピンク
+  "buff": "#ffd700",         // 強化系 → 金
+  "debuff": "#cc66ff",       // 弱体系 → 紫
+  "heal": "#00ffcc",         // 回復系 → シアン
+  "damage": "#ff3333",       // 通常攻撃 → 真っ赤
+  "stun": "#ff99cc",         // スタン → ピンク
+  "buffExtension": "#00ccff",// バフ延長 → 水色
+  "debuffExtension": "#cc66ff", // デバフ延長 → 紫
+  "berserk": "#ff3333",      // 狂戦士化 → 赤
+  "passive": "gold",         // パッシブは別扱い
+  "others": "#cccccc"        // その他 → 灰色
+};
+
 window.formatSkills = function(c) {
   const skillElements = c.skills.map(s => {
-    const found = skillPool.find(sk => sk.name === s.name);
-    var desc = '';
-    if (found) {
-      desc = found.description;
-    }
+    const skillName = (typeof s === 'string') ? s : s.name;
+    const found = skillPool.find(sk => sk.name === skillName);
+    var desc = found?.description || '';
+    var category = found?.category || 'others';
 
     // 色と優先順位を決める
-    let color = 'white'; // デフォルト白
-    let priority = 2;    // デフォルト普通スキル（低い）
+    let color = 'white'; // デフォルト
+    let priority = 2;
 
-    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) {
+    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(skillName)) {
       color = 'deepskyblue';
-      priority = 0; // 最優先（初期・sslot）
-    } else if (found && found.category === 'passive') {
+      priority = 0;
+    } else if (category === 'passive') {
       color = 'gold';
-      priority = 1; // 次に優先（パッシブ）
+      priority = 1;
+    } else {
+      color = categoryColors[category] || 'white';
     }
 
     return {
-      html: `<span title='${desc}' style='color:${color}'>${s.name} Lv${s.level}</span>`,
+      html: `<span title='${desc}' style='color:${color}'>${skillName} Lv${s.level || 1}</span>`,
       priority: priority
     };
   });
 
-  // ★ここで priority順に並び替え！
   skillElements.sort((a, b) => a.priority - b.priority);
 
-  // htmlだけをjoinして表示
   return `
-  <div><strong>スキル</strong></div>
-  <ul style="padding-left: 20px;">
-    ${skillElements.map(e => `<li>${e.html}</li>`).join('')}
-  </ul>
-`;
+    <div><strong>スキル</strong></div>
+    <ul style="padding-left: 20px;">
+      ${skillElements.map(e => `<li>${e.html}</li>`).join('')}
+    </ul>
+  `;
 };
 
 // ステータス表示の更新
@@ -1318,36 +1351,66 @@ function drawSkillMemoryList() {
   if (!list || !player || !player.skillMemory) return;
   list.innerHTML = "";
 
+  const categoryColors = {
+    "multi": "#ff4d4d",
+    "poison": "#9933cc",
+    "burn": "#ff6600",
+    "lifesteal": "#66ccff",
+    "skillSeal": "#9999ff",
+    "barrier": "#66ff66",
+    "regen": "#66ff99",
+    "reflect": "#ffff66",
+    "evasion": "#ff99cc",
+    "buff": "#ffd700",
+    "debuff": "#cc66ff",
+    "heal": "#00ffcc",
+    "damage": "#ff3333",
+    "stun": "#ff99cc",
+    "buffExtension": "#00ccff",
+    "debuffExtension": "#cc66ff",
+    "berserk": "#ff3333",
+    "passive": "gold",
+    "others": "#cccccc"
+  };
+
   Object.entries(player.skillMemory).forEach(([name, level]) => {
     const li = document.createElement("li");
-    li.textContent = `${name} Lv${level}`;
+    const skillDef = skillPool.find(s => s.name === name);
+    const category = skillDef?.category || "others";
+    const desc = skillDef?.description || "";
+
+    // 色決め
+    let color = "white";
+    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(name)) {
+      color = "deepskyblue"; // 初期スキル
+    } else if (category === "passive") {
+      color = "gold"; // パッシブスキル
+    } else {
+      color = categoryColors[category] || "white"; // 通常カテゴリ
+    }
+
+    // 色＋タイトル説明付きでHTML化
+    li.innerHTML = `<span style="color:${color}" title="${desc}">${name} Lv${level}</span>`;
+
     li.setAttribute("data-name", name);
     li.setAttribute("data-level", level);
     li.setAttribute("draggable", "true");
-
-    // パッシブスキルならクラスを付ける
-    const skillDef = skillPool.find(s => s.name === name);
-    if (skillDef && skillDef.category === "passive") {
-      li.classList.add("passive");
-    }
 
     // ドラッグ開始
     li.ondragstart = e => {
       e.dataTransfer.setData("text/plain", name);
     };
 
-    // ドラッグ中に上に乗ったとき
+    // ドラッグ中
     li.ondragover = e => {
       e.preventDefault();
       li.style.border = "2px dashed #888";
     };
 
-    // ドラッグが離れたとき
     li.ondragleave = () => {
       li.style.border = "";
     };
 
-    // ドロップ時の並び替え処理
     li.ondrop = e => {
       e.preventDefault();
       const draggedName = e.dataTransfer.getData("text/plain");
