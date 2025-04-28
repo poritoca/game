@@ -207,56 +207,56 @@ export const skillPool = [
   {
     "name": "火傷",
     "category": "burn",
-    "power": 5,
-    "duration": 5,
+    "power": 105,
+    "duration": 10,
     "levelFactor": 0.01002,
     "description": "相手を火傷状態にする（毎ターン少しダメージ）"
   },
   {
     "name": "大炎上",
     "category": "burn",
-    "power": 20,
-    "duration": 5,
+    "power": 120,
+    "duration": 10,
     "levelFactor": 0.01002,
     "description": "激しい炎で相手を火傷状態にする"
   },
   {
     "name": "灼熱",
     "category": "burn",
-    "power": 15,
-    "duration": 4,
+    "power": 115,
+    "duration": 8,
     "levelFactor": 0.01002,
     "description": "灼熱の炎で相手を火傷させる"
   },
   {
     "name": "業火",
     "category": "burn",
-    "power": 25,
-    "duration": 5,
+    "power": 125,
+    "duration": 10,
     "levelFactor": 0.01002,
     "description": "業火で相手を焼き尽くす（火傷状態付与）"
   },
   {
     "name": "黒炎",
     "category": "burn",
-    "power": 35,
-    "duration": 3,
+    "power": 250,
+    "duration": 6,
     "levelFactor": 0.01002,
     "description": "黒い炎で相手を火傷させる"
   },
   {
     "name": "煉獄炎",
     "category": "burn",
-    "power": 45,
-    "duration": 6,
+    "power": 145,
+    "duration": 12,
     "levelFactor": 0.01002,
     "description": "煉獄の炎で相手を火傷状態にする"
   },
   {
     "name": "熱波",
     "category": "burn",
-    "power": 15,
-    "duration": 2,
+    "power": 315,
+    "duration": 4,
     "levelFactor": 0.01002,
     "description": "熱波を浴びせ相手を火傷させる"
   },
@@ -299,25 +299,25 @@ export const skillPool = [
     "name": "封印",
     "category": "skillSeal",
     "sealCount": 1,
-    "sealChance": 1.0,
+    "sealChance": 0.7,
     "duration": 5,
     "description": "相手の1スキルを5ターン封印する"
   },
   {
     "name": "沈黙",
     "category": "skillSeal",
-    "sealCount": 5,
-    "sealChance": 0.5,
-    "duration": 2,
-    "description": "相手の最大5スキルを2ターン封印する"
+    "sealCount": 2,
+    "sealChance": 0.2,
+    "duration": 10,
+    "description": "相手の最大2スキルを低確率で10ターン封印する"
   },
   {
     "name": "呪縛",
     "category": "skillSeal",
-    "sealCount": 2,
-    "sealChance": 1.0,
+    "sealCount": 10,
+    "sealChance": 0.2,
     "duration": 2,
-    "description": "相手の2スキルを2ターン封印する"
+    "description": "相手の最大10スキルを低確率で2ターン封印する"
   },
   {
     "name": "封魂",
@@ -844,15 +844,15 @@ export const skillPool = [
     "sealCount": 3,
     "sealChance": 0.5,
     "duration": 1,
-    "description": "相手のスキルを3つまで、50%の確率で1ターン封印する"
+    "description": "相手のスキルを3つまで、50%の確率で1ターン封印する。先行のみ効果あり"
   },
   {
     "name": "蔦縛り",
     "category": "stun",
-    "duration": 1,
-    "stunChance": 0.5,
+    "duration": 2,
+    "stunChance": 0.25,
     "priority": 5,         // 優先度5
-    "description": "蔦で縛り付け、50%の確率で1ターン行動不能にする"
+    "description": "蔦で縛り付け、25%の確率で2ターン行動不能にする"
   },
   {
     "name": "静寂の守り",
