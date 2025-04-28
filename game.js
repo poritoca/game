@@ -1,3 +1,60 @@
+
+// スキルレベルに応じてターン数ボーナスを決める設定
+const levelTurnBonusSettings = [
+  { level: 999, bonus: 2 },
+  { level: 500, bonus: 1 },
+  { level: 0, bonus: 0 },
+];
+
+
+// スキル発動可否を個別に判定し、優先度順に決める関数
+function decideSkillsToUse(actor, maxActivations) {
+  const usableSkills = actor.skills.filter(skill => !skill.sealed); // 封印されてないスキル
+  const decidedSkills = [];
+
+  // スキルを priority（高い順）、同じならspeed（高い順）で並べ替える
+  usableSkills.sort((a, b) => {
+    const aData = skillPool.find(s => s.name === a.name);
+    const bData = skillPool.find(s => s.name === b.name);
+
+    const aPriority = aData?.priority ?? -1;
+    const bPriority = bData?.priority ?? -1;
+
+    if (bPriority !== aPriority) {
+      return bPriority - aPriority; // priority高い順
+    }
+    return (b.speed || 0) - (a.speed || 0); // speed高い順（高い方優先）
+  });
+
+  for (const skill of usableSkills) {
+    const skillData = skillPool.find(s => s.name === skill.name);
+    const activationRate = skillData?.activationRate ?? 0.8; // デフォルト80%
+
+    if (Math.random() < activationRate) {
+      decidedSkills.push(skill);
+      if (decidedSkills.length >= maxActivations) {
+        break; // 最大発動数に達したら終了
+      }
+    }
+  }
+
+  return decidedSkills;
+}
+
+
+
+
+// 設定に基づいてターン数ボーナスを返す関数
+function getLevelTurnBonus(level) {
+  for (const setting of levelTurnBonusSettings) {
+    if (level >= setting.level) {
+      return setting.bonus;
+    }
+  }
+  return 0;
+}
+
+
 let statusLogged = false;
 window.startBattle = undefined;
 document.addEventListener("DOMContentLoaded", () => {
@@ -12,6 +69,10 @@ document.addEventListener("DOMContentLoaded", () => {
     //alert("[A010] startBattle 終了");
   }
 });
+
+
+
+
 
 function applySafeAttack(attacker, defender, log) {
   const baseDmg = attacker.attack - defender.defense;
@@ -295,14 +356,31 @@ window.getSkillEffect = function(skill, user, target, log) {
       log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ & ${heal}回復`);
       break;
     }
-    case 'skillSeal':
-    case 'seal': {
-      target.effects.push({ type: 'seal', remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}は${skillData.duration}ターンスキル封印状態`);
-      break;
+case 'skillSeal':
+case 'seal': {
+  const candidates = target.skills.filter(sk => !sk.sealed);
+  const shuffled = candidates.sort(() => 0.5 - Math.random());
+
+  const sealCount = Math.min(skillData.sealCount ?? 99, shuffled.length);
+  const sealChance = skillData.sealChance ?? 1.0;
+  const sealDuration = skillData.duration ?? 1;
+
+  let sealed = 0;
+  for (let i = 0; i < sealCount; i++) {
+    if (Math.random() < sealChance) {
+      shuffled[i].sealed = true;
+      shuffled[i].sealRemaining = sealDuration;
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}のスキル「${shuffled[i].name}」を${sealDuration}ターン封印！`);
+      sealed++;
+    }
+  }
+  if (sealed === 0) {
+    log.push(`${displayName(user.name)}の${skill.name}：しかし封印に失敗した！`);
+  }
+  break;
     }
     case 'barrier': {
-      user.effects.push({ type: 'barrier', reduction: skillData.reduction, remaining: skillData.duration });
+      user.effects.push({ type: 'barrier', reduction: skillData.reduction, remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ軽減バリア展開`);
       break;
     }
@@ -313,7 +391,7 @@ window.getSkillEffect = function(skill, user, target, log) {
       break;
     }
     case 'reflect': {
-      user.effects.push({ type: 'reflect', percent: skillData.reflectPercent, remaining: skillData.duration });
+      user.effects.push({ type: 'reflect', percent: skillData.reflectPercent, remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ反射状態`);
       break;
     }
@@ -322,66 +400,78 @@ window.getSkillEffect = function(skill, user, target, log) {
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン回避率上昇`);
       break;
     }
-    case 'buff': {
-      // 複数ステータスの強化にも対応
-      skillData.targetStats.forEach(stat => {
-        // 同じステータスに既存の強化効果がある場合は上書き（まず解除）
-        const existing = user.effects.find(e => e.type === 'buff' && e.stat === stat);
-        if (existing) {
-          user[stat] = existing.original;
-          user.effects = user.effects.filter(e => e !== existing);
-        }
-        const original = user[stat];
-        user[stat] = Math.floor(user[stat] * skillData.factor);
-        user.effects.push({ type: 'buff', stat: stat, original: original, remaining: skillData.duration });
-      });
-      log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン能力強化`);
-      break;
+case 'buff': {
+  const bonusTurns = getLevelTurnBonus(skill.level || 1);
+  const duration = (skillData.duration || 1) + bonusTurns;
+  const baseFactor = skillData.factor || 1.5;
+  const factor = baseFactor + (skill.level || 1) * 0.0005; // レベルに応じて上昇
+
+  skillData.targetStats.forEach(stat => {
+    const existing = user.effects.find(e => e.type === 'buff' && e.stat === stat);
+    if (existing) {
+      user[stat] = existing.original;
+      user.effects = user.effects.filter(e => e !== existing);
     }
-    case 'debuff': {
-      skillData.targetStats.forEach(stat => {
-        const existing = target.effects.find(e => e.type === 'debuff' && e.stat === stat);
-        if (existing) {
-          target[stat] = existing.original;
-          target.effects = target.effects.filter(e => e !== existing);
-        }
-        const original = target[stat];
-        target[stat] = Math.floor(target[stat] * skillData.factor);
-        target.effects.push({ type: 'debuff', stat: stat, original: original, remaining: skillData.duration });
-      });
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}の能力低下（${skillData.duration}ターン）`);
-      break;
+    const original = user[stat];
+    user[stat] = Math.floor(user[stat] * factor);
+    user.effects.push({ type: 'buff', stat: stat, original: original, remaining: duration });
+  });
+  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 強化！`);
+  break;
+}
+case 'debuff': {
+  const bonusTurns = getLevelTurnBonus(skill.level || 1);
+  const duration = (skillData.duration || 1) + bonusTurns;
+  const baseFactor = skillData.factor || 0.5;
+  const factor = Math.max(0.1, baseFactor - (skill.level || 1) * 0.0003); // 下限を0.1に制限
+
+  skillData.targetStats.forEach(stat => {
+    const existing = user.effects.find(e => e.type === 'debuff' && e.stat === stat);
+    if (existing) {
+      user[stat] = existing.original;
+      user.effects = user.effects.filter(e => e !== existing);
     }
-    case 'buffExtension': {
-      let extended = false;
-      user.effects.forEach(e => {
-        if (e.type === 'buff' || e.type === 'berserk') {
-          e.remaining += skillData.extendTurns;
-          extended = true;
-        }
-      });
-      if (extended) {
-        log.push(`${displayName(user.name)}の${skill.name}：強化効果延長+${skillData.extendTurns}ターン`);
-      } else {
-        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
-      }
-      break;
+    const original = user[stat];
+    user[stat] = Math.floor(user[stat] * factor);
+    user.effects.push({ type: 'debuff', stat: stat, original: original, remaining: duration });
+  });
+  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 弱体！`);
+  break;
+}
+case 'buffExtension': {
+  const bonusTurns = getLevelTurnBonus(skill.level || 1);
+  const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
+  let extended = false;
+  user.effects.forEach(e => {
+    if (e.type === 'buff' || e.type === 'berserk') {
+      e.remaining += extendTurns;
+      extended = true;
     }
-    case 'debuffExtension': {
-      let extended = false;
-      target.effects.forEach(e => {
-        if (e.type === 'debuff') {
-          e.remaining += skillData.extendTurns;
-          extended = true;
-        }
-      });
-      if (extended) {
-        log.push(`${displayName(user.name)}の${skill.name}：弱体効果延長+${skillData.extendTurns}ターン`);
-      } else {
-        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
-      }
-      break;
+  });
+  if (extended) {
+    log.push(`${displayName(user.name)}の${skill.name}：強化効果延長+${extendTurns}ターン`);
+  } else {
+    log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+  }
+  break;
+}
+case 'debuffExtension': {
+  const bonusTurns = getLevelTurnBonus(skill.level || 1);
+  const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
+  let extended = false;
+  user.effects.forEach(e => {
+    if (e.type === 'debuff') {
+      e.remaining += extendTurns;
+      extended = true;
     }
+  });
+  if (extended) {
+    log.push(`${displayName(user.name)}の${skill.name}：弱体効果延長+${extendTurns}ターン`);
+  } else {
+    log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+  }
+  break;
+}
     case 'heal': {
       const healAmount = Math.floor(user.maxHp * (skillData.healRatio + skillData.levelFactor * skill.level));
       user.hp = Math.min(user.maxHp, user.hp + healAmount);
@@ -400,26 +490,37 @@ window.getSkillEffect = function(skill, user, target, log) {
       log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ`);
       break;
     }
-    case 'stun': {
-      target.effects.push({ type: 'stun', remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}を${skillData.duration}ターン行動不能にした`);
-      break;
-    }
-    case 'berserk': {
-      // 攻撃大幅アップ＆防御大幅ダウン効果
-      const origAtk = user.attack;
-      const origDef = user.defense;
-      user.attack = Math.floor(user.attack * 2.0);
-      user.defense = Math.floor(user.defense * 0.5);
-      user.effects.push({ type: 'berserk', originalAttack: origAtk, originalDefense: origDef, remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：攻撃力大幅上昇、防御力大幅減少（${skillData.duration}ターン）`);
-      break;
-    }
-    default: {
-      // 対応しないスキルカテゴリの場合（何もしない）
-      break;
-    }
+case 'stun': {
+  const stunChance = skillData.stunChance ?? 1.0; // デフォルトは100%
+  if (Math.random() < stunChance) {
+    target.effects.push({ type: 'stun', remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
+    log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}を${skillData.duration}ターン行動不能にした`);
+  } else {
+    log.push(`${displayName(user.name)}の${skill.name}：しかし行動不能にできなかった`);
   }
+  break;
+
+    }
+case 'berserk': {
+  const bonusTurns = getLevelTurnBonus(skill.level || 1);
+  const duration = (skillData.duration || 1) + bonusTurns;
+
+  const attackFactor = 2.0 + (skill.level || 1) * 0.0005;
+  const defenseFactor = Math.max(0.1, 0.5 - (skill.level || 1) * 0.0002);
+
+  const originalAttack = user.attack;
+  const originalDefense = user.defense;
+
+  user.attack = Math.floor(user.attack * attackFactor);
+  user.defense = Math.floor(user.defense * defenseFactor);
+
+  user.effects.push({ type: 'buff', stat: 'attack', original: originalAttack, remaining: duration });
+  user.effects.push({ type: 'debuff', stat: 'defense', original: originalDefense, remaining: duration });
+
+  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン 攻撃${attackFactor.toFixed(2)}倍 / 防御${defenseFactor.toFixed(2)}倍`);
+  break;
+}
+}
   // ダメージ実績を記録
   user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
 };
@@ -573,21 +674,17 @@ window.startBattle = function() {
         continue;
       }
       const sealed = actor.effects.some(e => e.type === 'seal');
-      const useSkill = !sealed && actor.skills.length > 0;
+      let useSkill = !sealed && actor.skills.length > 0;
+			let chosenSkills = [];
       if (useSkill) {
         // スキルを複数同時発動（skillSimulCount分）
 
-        const mySkillCount = player.skills.length;
-        const enemySkillCount = enemy.skills.length;
-        let effectiveCount = skillSimulCount;
+        useSkill = !sealed && actor.skills.length > 0;
+        if (useSkill) {
+          chosenSkills = decideSkillsToUse(actor, skillSimulCount);
 
-        if (mySkillCount < skillSimulCount && enemySkillCount < skillSimulCount) {
-          effectiveCount = Math.max(mySkillCount, enemySkillCount);
+          // chosenSkills を順番に使う処理
         }
-
-        const chosenSkills = actor.skills.length >= effectiveCount
-        ? actor.skills.sort(() => 0.5 - Math.random()).slice(0, effectiveCount)
-        : getExpandedSkills(actor.skills, effectiveCount);
 
         for (const sk of chosenSkills) {
           // 回避判定
@@ -724,7 +821,10 @@ window.startBattle = function() {
       log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
-  drawSkillMemoryList();}
+  drawSkillMemoryList();
+  saveBattleLog(log);
+
+}
 } else {
 
   //stopAutoBattle()
@@ -765,6 +865,7 @@ window.startBattle = function() {
     uses: 0
   }));
   player.skills = initSkills;
+	saveBattleLog(log);
 }
 
 document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
@@ -801,6 +902,22 @@ try {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+	
+	const downloadBtn = document.getElementById('downloadLogsBtn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      window.downloadBattleLogs();
+    });
+  }
+
+  const startBtn = document.getElementById("startNewGameBtn");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      const name = document.getElementById("inputStr").value || "プレイヤー";
+      startNewGame(name);
+    });
+  }
+
   document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
   //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
   document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
@@ -1375,6 +1492,43 @@ function showCustomAlert(message, duration = 200, bgColor = '#222', textColor = 
     }, 500);
   }, duration);
 }
+
+// 全戦闘ログ保存用
+window.allBattleLogs = [];
+
+// 戦闘後、ログを保存する処理（startBattleの最後に追加するイメージ）
+function saveBattleLog(log) {
+  window.allBattleLogs.push(log.join('\n'));
+
+  // 100戦を超えたら古いものから削除
+  if (window.allBattleLogs.length > 100) {
+    window.allBattleLogs.shift();
+  }
+}
+
+// テキストファイル出力用
+window.downloadBattleLogs = function() {
+  const separator = '\n\n=============== 戦闘ログ区切り ===============\n\n';
+  const text = window.allBattleLogs.join(separator);
+
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+
+  const filename = `100_battle_logs_${yyyy}${mm}${dd}_${hh}${min}.txt`;
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 // パッシブスキルによる封印処理
 function applyPassiveSeals(attacker, defender,log = []) {

@@ -1,3 +1,16 @@
+
+/*
+{
+  name: "ファイアボール",
+  type: "damage",
+  power: 100,
+  activationRate: 0.7, // 70%発動
+  priority: 5,         // 優先度5
+},
+*/
+
+
+
 export const skillPool = [
   {
     "name": "連続攻撃",
@@ -122,7 +135,7 @@ export const skillPool = [
   {
     "name": "毒撃",
     "category": "poison",
-    "power": 4,
+    "power": 20,
     "duration": 2,
     "levelFactor": 0.01002,
     "description": "相手を毒状態にする（毎ターン少しダメージ）"
@@ -130,7 +143,7 @@ export const skillPool = [
   {
     "name": "猛毒撃",
     "category": "poison",
-    "power": 5,
+    "power": 25,
     "duration": 4,
     "levelFactor": 0.01002,
     "description": "強力な毒で相手を蝕む（毎ターンダメージ）"
@@ -138,7 +151,7 @@ export const skillPool = [
   {
     "name": "劇毒",
     "category": "poison",
-    "power": 7,
+    "power": 35,
     "duration": 6,
     "levelFactor": 0.01002,
     "description": "致命的な毒で相手を蝕む（毎ターン大ダメージ）"
@@ -146,7 +159,7 @@ export const skillPool = [
   {
     "name": "毒霧",
     "category": "poison",
-    "power": 5,
+    "power": 25,
     "duration": 3,
     "levelFactor": 0.01002,
     "description": "毒の霧で相手を包み込む（毒状態付与）"
@@ -154,7 +167,7 @@ export const skillPool = [
   {
     "name": "毒牙",
     "category": "poison",
-    "power": 4,
+    "power": 20,
     "duration": 3,
     "levelFactor": 0.01002,
     "description": "猛毒の牙で噛みつき、毒状態にする"
@@ -162,7 +175,7 @@ export const skillPool = [
   {
     "name": "猛毒花",
     "category": "poison",
-    "power": 6,
+    "power": 30,
     "duration": 5,
     "levelFactor": 0.01002,
     "description": "猛毒の花粉で相手を毒状態にする"
@@ -170,7 +183,7 @@ export const skillPool = [
   {
     "name": "致死毒",
     "category": "poison",
-    "power": 9,
+    "power": 45,
     "duration": 6,
     "levelFactor": 0.01002,
     "description": "致死性の毒で相手を蝕む"
@@ -178,7 +191,7 @@ export const skillPool = [
   {
     "name": "瘴気",
     "category": "poison",
-    "power": 8,
+    "power": 40,
     "duration": 4,
     "levelFactor": 0.01002,
     "description": "瘴気を放ち相手を毒状態にする"
@@ -186,7 +199,7 @@ export const skillPool = [
   {
     "name": "毒針",
     "category": "poison",
-    "power": 3,
+    "power": 15,
     "duration": 2,
     "levelFactor": 0.01002,
     "description": "毒の棘で刺し、相手を毒状態にする"
@@ -194,7 +207,7 @@ export const skillPool = [
   {
     "name": "火傷",
     "category": "burn",
-    "power": 1,
+    "power": 5,
     "duration": 5,
     "levelFactor": 0.01002,
     "description": "相手を火傷状態にする（毎ターン少しダメージ）"
@@ -202,7 +215,7 @@ export const skillPool = [
   {
     "name": "大炎上",
     "category": "burn",
-    "power": 4,
+    "power": 20,
     "duration": 5,
     "levelFactor": 0.01002,
     "description": "激しい炎で相手を火傷状態にする"
@@ -210,7 +223,7 @@ export const skillPool = [
   {
     "name": "灼熱",
     "category": "burn",
-    "power": 3,
+    "power": 15,
     "duration": 4,
     "levelFactor": 0.01002,
     "description": "灼熱の炎で相手を火傷させる"
@@ -218,7 +231,7 @@ export const skillPool = [
   {
     "name": "業火",
     "category": "burn",
-    "power": 5,
+    "power": 25,
     "duration": 5,
     "levelFactor": 0.01002,
     "description": "業火で相手を焼き尽くす（火傷状態付与）"
@@ -226,7 +239,7 @@ export const skillPool = [
   {
     "name": "黒炎",
     "category": "burn",
-    "power": 7,
+    "power": 35,
     "duration": 3,
     "levelFactor": 0.01002,
     "description": "黒い炎で相手を火傷させる"
@@ -234,7 +247,7 @@ export const skillPool = [
   {
     "name": "煉獄炎",
     "category": "burn",
-    "power": 9,
+    "power": 45,
     "duration": 6,
     "levelFactor": 0.01002,
     "description": "煉獄の炎で相手を火傷状態にする"
@@ -242,7 +255,7 @@ export const skillPool = [
   {
     "name": "熱波",
     "category": "burn",
-    "power": 3,
+    "power": 15,
     "duration": 2,
     "levelFactor": 0.01002,
     "description": "熱波を浴びせ相手を火傷させる"
@@ -285,26 +298,34 @@ export const skillPool = [
   {
     "name": "封印",
     "category": "skillSeal",
-    "duration": 3,
-    "description": "相手のスキルの一部を封じる"
+    "sealCount": 1,
+    "sealChance": 1.0,
+    "duration": 5,
+    "description": "相手の1スキルを5ターン封印する"
   },
   {
     "name": "沈黙",
-    "category": "seal",
-    "duration": 3,
-    "description": "相手を沈黙させスキルを使用不能にする"
+    "category": "skillSeal",
+    "sealCount": 5,
+    "sealChance": 0.5,
+    "duration": 2,
+    "description": "相手の最大5スキルを2ターン封印する"
   },
   {
     "name": "呪縛",
-    "category": "seal",
-    "duration": 4,
-    "description": "相手を呪い縛り、スキルを使用不能にする"
+    "category": "skillSeal",
+    "sealCount": 2,
+    "sealChance": 1.0,
+    "duration": 2,
+    "description": "相手の2スキルを2ターン封印する"
   },
   {
     "name": "封魂",
     "category": "skillSeal",
+    "sealCount": 2,
+    "sealChance": 0.4,
     "duration": 4,
-    "description": "相手の魂を封じ込め、スキルを一つ封印する"
+    "description": "相手の最大2スキルを4ターン封印する"
   },
   {
     "name": "バリア",
@@ -351,7 +372,7 @@ export const skillPool = [
   {
     "name": "再生",
     "category": "regen",
-    "amount": 4,
+    "amount": 12,
     "duration": 3,
     "levelFactor": 0.01503,
     "description": "一定ターン毎ターンHPが回復する"
@@ -359,7 +380,7 @@ export const skillPool = [
   {
     "name": "急速再生",
     "category": "regen",
-    "amount": 7,
+    "amount": 21,
     "duration": 3,
     "levelFactor": 0.01503,
     "description": "急速にHPが再生する（毎ターン回復）"
@@ -367,7 +388,7 @@ export const skillPool = [
   {
     "name": "自然治癒",
     "category": "regen",
-    "amount": 4,
+    "amount": 12,
     "duration": 5,
     "levelFactor": 0.01503,
     "description": "自然の力で徐々にHPが回復する"
@@ -375,7 +396,7 @@ export const skillPool = [
   {
     "name": "祝福",
     "category": "regen",
-    "amount": 6,
+    "amount": 18,
     "duration": 4,
     "levelFactor": 0.01503,
     "description": "祝福の力で毎ターンHPが回復する"
@@ -493,7 +514,7 @@ export const skillPool = [
       "speed"
     ],
     "factor": 1.5,
-    "duration": 3,
+    "duration": 5,
     "description": "一定ターン素早さを強化する"
   },
   {
@@ -625,42 +646,42 @@ export const skillPool = [
   {
     "name": "治癒",
     "category": "heal",
-    "healRatio": 0.2,
+    "healRatio": 0.6,
     "levelFactor": 0.000501,
     "description": "自身のHPを回復する"
   },
   {
     "name": "大治癒",
     "category": "heal",
-    "healRatio": 0.5,
+    "healRatio": 1.5,
     "levelFactor": 0.000501,
     "description": "自身のHPを大きく回復する"
   },
   {
     "name": "奇跡",
     "category": "heal",
-    "healRatio": 1.0,
+    "healRatio": 3.0,
     "levelFactor": 0.0,
     "description": "奇跡を起こし自身のHPを全回復する"
   },
   {
     "name": "癒しの光",
     "category": "heal",
-    "healRatio": 0.3,
+    "healRatio": 0.9,
     "levelFactor": 0.000501,
     "description": "癒しの光で自身のHPを回復する"
   },
   {
     "name": "癒し",
     "category": "heal",
-    "healRatio": 0.25,
+    "healRatio": 0.75,
     "levelFactor": 0.000501,
     "description": "癒しの力で自身のHPを回復する"
   },
   {
     "name": "火炎",
     "category": "damage",
-    "multiplier": 1.2,
+    "multiplier": 1.44,
     "ignoreDefense": 0.4,
     "description": "炎で攻撃する",
     "levelFactor": 0.002004
@@ -668,7 +689,7 @@ export const skillPool = [
   {
     "name": "ファイア",
     "category": "damage",
-    "multiplier": 1.0,
+    "multiplier": 1.2,
     "ignoreDefense": 0.3,
     "description": "火の魔法で攻撃する",
     "levelFactor": 0.002004
@@ -676,7 +697,7 @@ export const skillPool = [
   {
     "name": "氷結",
     "category": "damage",
-    "multiplier": 1.0,
+    "multiplier": 1.2,
     "ignoreDefense": 0.5,
     "description": "氷の魔法で攻撃する",
     "levelFactor": 0.002004
@@ -684,7 +705,7 @@ export const skillPool = [
   {
     "name": "吹雪",
     "category": "damage",
-    "multiplier": 0.9,
+    "multiplier": 1.08,
     "ignoreDefense": 0.4,
     "description": "猛吹雪で攻撃する",
     "levelFactor": 0.002004
@@ -692,7 +713,7 @@ export const skillPool = [
   {
     "name": "雷撃",
     "category": "damage",
-    "multiplier": 0.8,
+    "multiplier": 0.96,
     "ignoreDefense": 0.0,
     "description": "雷で攻撃する",
     "levelFactor": 0.002004
@@ -700,7 +721,7 @@ export const skillPool = [
   {
     "name": "落雷",
     "category": "damage",
-    "multiplier": 1.1,
+    "multiplier": 1.32,
     "ignoreDefense": 0.2,
     "description": "雷を落として攻撃する",
     "levelFactor": 0.002004
@@ -708,7 +729,7 @@ export const skillPool = [
   {
     "name": "岩石",
     "category": "damage",
-    "multiplier": 1.3,
+    "multiplier": 1.56,
     "ignoreDefense": 0.5,
     "description": "岩石をぶつけて攻撃する",
     "levelFactor": 0.002004
@@ -716,7 +737,7 @@ export const skillPool = [
   {
     "name": "地震",
     "category": "damage",
-    "multiplier": 1.4,
+    "multiplier": 1.68,
     "ignoreDefense": 0.5,
     "description": "地震を発生させ攻撃する",
     "levelFactor": 0.002004
@@ -724,7 +745,7 @@ export const skillPool = [
   {
     "name": "疾風",
     "category": "damage",
-    "multiplier": 1.0,
+    "multiplier": 1.2,
     "ignoreDefense": 0.5,
     "description": "疾風で斬りつける",
     "levelFactor": 0.002004
@@ -732,7 +753,7 @@ export const skillPool = [
   {
     "name": "竜巻",
     "category": "damage",
-    "multiplier": 1.1,
+    "multiplier": 1.32,
     "ignoreDefense": 0.4,
     "description": "竜巻を起こして攻撃する",
     "levelFactor": 0.002004
@@ -740,7 +761,7 @@ export const skillPool = [
   {
     "name": "水流",
     "category": "damage",
-    "multiplier": 1.0,
+    "multiplier": 1.2,
     "ignoreDefense": 0.4,
     "description": "水流をぶつけて攻撃する",
     "levelFactor": 0.002004
@@ -748,7 +769,7 @@ export const skillPool = [
   {
     "name": "津波",
     "category": "damage",
-    "multiplier": 1.2,
+    "multiplier": 1.44,
     "ignoreDefense": 0.4,
     "description": "大津波で攻撃する",
     "levelFactor": 0.002004
@@ -756,7 +777,7 @@ export const skillPool = [
   {
     "name": "聖光",
     "category": "damage",
-    "multiplier": 1.1,
+    "multiplier": 1.32,
     "ignoreDefense": 0.3,
     "description": "聖なる光で攻撃する",
     "levelFactor": 0.002004
@@ -764,7 +785,7 @@ export const skillPool = [
   {
     "name": "ホーリー",
     "category": "damage",
-    "multiplier": 1.3,
+    "multiplier": 1.56,
     "ignoreDefense": 0.2,
     "description": "聖なる魔法で攻撃する",
     "levelFactor": 0.002004
@@ -772,7 +793,7 @@ export const skillPool = [
   {
     "name": "闇術",
     "category": "damage",
-    "multiplier": 1.3,
+    "multiplier": 1.56,
     "ignoreDefense": 0.5,
     "description": "闇の魔法で攻撃する",
     "levelFactor": 0.002004
@@ -780,7 +801,7 @@ export const skillPool = [
   {
     "name": "暗黒",
     "category": "damage",
-    "multiplier": 1.4,
+    "multiplier": 1.68,
     "ignoreDefense": 0.4,
     "description": "暗黒の力で攻撃する",
     "levelFactor": 0.002004
@@ -788,7 +809,7 @@ export const skillPool = [
   {
     "name": "メテオ",
     "category": "damage",
-    "multiplier": 2.0,
+    "multiplier": 2.4,
     "ignoreDefense": 0.5,
     "description": "隕石を落とし大ダメージを与える",
     "levelFactor": 0.002004
@@ -796,7 +817,7 @@ export const skillPool = [
   {
     "name": "アルテマ",
     "category": "damage",
-    "multiplier": 2.5,
+    "multiplier": 3.0,
     "ignoreDefense": 0.5,
     "description": "究極魔法で敵に大ダメージを与える",
     "levelFactor": 0.002004
@@ -804,7 +825,7 @@ export const skillPool = [
   {
     "name": "強打",
     "category": "damage",
-    "multiplier": 1.5,
+    "multiplier": 1.8,
     "ignoreDefense": 0.5,
     "description": "渾身の一撃を叩き込む",
     "levelFactor": 0.002004
@@ -812,28 +833,67 @@ export const skillPool = [
   {
     "name": "貫通",
     "category": "damage",
-    "multiplier": 1.0,
+    "multiplier": 1.2,
     "ignoreDefense": 0.0,
     "description": "相手の防御を無視して攻撃する",
     "levelFactor": 0.002004
   },
   {
     "name": "痺れ粉",
-    "category": "stun",
+    "category": "skillSeal",
+    "sealCount": 3,
+    "sealChance": 0.5,
     "duration": 1,
-    "description": "相手を麻痺させ、行動不能にする"
+    "description": "相手のスキルを3つまで、50%の確率で1ターン封印する"
   },
   {
     "name": "蔦縛り",
     "category": "stun",
-    "duration": 2,
-    "description": "蔦で相手を拘束し、行動不能にする"
+    "duration": 1,
+    "stunChance": 0.5,
+    "priority": 5,         // 優先度5
+    "description": "蔦で縛り付け、50%の確率で1ターン行動不能にする"
+  },
+  {
+    "name": "静寂の守り",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "poison_burn",
+    "description": "毒・火傷系の継続スキルを戦闘開始時に封印する"
+  },
+  {
+    "name": "無音の加護",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "buff",
+    "description": "バフ系の継続スキルを戦闘開始時に封印する"
+  },
+  {
+    "name": "呪封の障壁",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "debuff",
+    "description": "デバフ系の継続スキルを戦闘開始時に封印する"
+  },
+  {
+    "name": "再生拒絶",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "regen",
+    "description": "再生スキルを戦闘開始時に封印する"
+  },
+  {
+    "name": "反射破り",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "reflect",
+    "description": "反射スキルを戦闘開始時に封印する"
+  },
+  {
+    "name": "封印の守り",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": "stun",
+    "description": "スタンスキルを戦闘開始時に封印する"
   }
-,
-{"name": "静寂の守り", "category": "passive", "effect": "blockTurnEffects", "subtype": "poison_burn", "description": "毒・火傷系の継続スキルを戦闘開始時に封印する"},
-{"name": "無音の加護", "category": "passive", "effect": "blockTurnEffects", "subtype": "buff", "description": "バフ系の継続スキルを戦闘開始時に封印する"},
-{"name": "呪封の障壁", "category": "passive", "effect": "blockTurnEffects", "subtype": "debuff", "description": "デバフ系の継続スキルを戦闘開始時に封印する"},
-{"name": "再生拒絶", "category": "passive", "effect": "blockTurnEffects", "subtype": "regen", "description": "再生スキルを戦闘開始時に封印する"},
-{"name": "反射破り", "category": "passive", "effect": "blockTurnEffects", "subtype": "reflect", "description": "反射スキルを戦闘開始時に封印する"},
-{"name": "封印の守り", "category": "passive", "effect": "blockTurnEffects", "subtype": "stun", "description": "スタンスキルを戦闘開始時に封印する"}
-]
+];

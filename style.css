@@ -440,19 +440,28 @@ button:active {
   margin: auto;
   width: 80%;
   max-width: 700px;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  box-shadow: 0 0 20px rgba(139, 0, 0, 0.5);
   animation: glow 3s infinite alternate;
 }
 
 @keyframes glow {
   from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
-  to { box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); }
+  to { box-shadow: 0 0 30px rgba(139, 0, 0, 0.5); }
 }
 
 #titleScreen h1 {
-  color: gold;
-  text-shadow: 0 0 10px gold;
-  animation: flicker 2s infinite;
+  color: #cc0000; /* 血の赤 */
+  text-shadow:
+    2px 2px 5px #660000,
+    -2px -2px 5px #660000,
+    0 0 10px #990000,
+    0 0 20px #660000;
+  animation: bloodFlicker 2s infinite;
+}
+
+@keyframes bloodFlicker {
+  0%, 100% { opacity: 1; text-shadow: 2px 2px 5px #660000, -2px -2px 5px #660000, 0 0 10px #990000, 0 0 20px #660000; }
+  50% { opacity: 0.8; text-shadow: 2px 2px 8px #660000, -2px -2px 8px #660000, 0 0 15px #990000, 0 0 25px #660000; }
 }
 
 @keyframes flicker {
@@ -462,15 +471,15 @@ button:active {
 
 #titleScreen button {
   background-color: rgba(0, 0, 0, 0.5);
-  border: 1px solid gold;
-  color: gold;
+  border: 1px solid darkred;
+  color: darkred;
   padding: 10px 20px;
   margin-top: 10px;
   transition: all 0.3s;
 }
 
 #titleScreen button:hover {
-  background-color: gold;
+  background-color: #cc0000;
   color: black;
 }
 
