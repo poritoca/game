@@ -635,6 +635,10 @@ window.startBattle = function() {
   }
 
   //alert('計算後のenemyattackの値は: ' +enemy.attack);
+	
+	
+
+
 
   // 前回の効果をクリア
   player.effects = [];
@@ -642,6 +646,8 @@ window.startBattle = function() {
   updateStats();
   const log = [];
 
+  applyPassiveSeals(player, enemy, log);	
+	
   let streakBonus = 1 + currentStreak * 0.02;
 
   //alert('現在のstreakBonusの値は: ' + streakBonus);
@@ -656,10 +662,13 @@ window.startBattle = function() {
   player.battleStats = {};
   enemy.battleStats = {};
   // ターン制バトル開始
-	applyPassiveSeals(player, enemy, log);
 	
   while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
     log.push(`\n-- ${turn}ターン --`);
+		
+	  if (turn === 1) {
+     applyPassiveSeals(player, enemy, log);
+     }
 		updateSealedSkills(player);
     updateSealedSkills(enemy);
 		
@@ -1620,7 +1629,8 @@ function applyPassiveSeals(attacker, defender,log = []) {
 
     defender.skills.forEach(os => {
       const def = skillPool.find(s => s.name === os.name);
-      if (!def || def.duration < 2) return;
+      //if (!def || def.duration < 2) return;
+			if (!def) return;
 
       let typeMatch = false;
       if (!subtype) {
@@ -1633,7 +1643,7 @@ function applyPassiveSeals(attacker, defender,log = []) {
 
       if (typeMatch) {
         os.sealed = true;
-        os.sealRemaining = finalSealTurns;
+        os.sealRemaining = finalSealTurns + 1;
         sealedAny = true;
       }
     });
