@@ -132,78 +132,87 @@ export const skillPool = [
     ],
     "multiGrowthFactor": 0.6
   },
-  {
-    "name": "毒撃",
-    "category": "poison",
-    "power": 20,
-    "duration": 2,
-    "levelFactor": 0.01002,
-    "description": "相手を毒状態にする（毎ターン少しダメージ）"
-  },
-  {
-    "name": "猛毒撃",
-    "category": "poison",
-    "power": 25,
-    "duration": 4,
-    "levelFactor": 0.01002,
-    "description": "強力な毒で相手を蝕む（毎ターンダメージ）"
-  },
-  {
-    "name": "劇毒",
-    "category": "poison",
-    "power": 35,
-    "duration": 6,
-    "levelFactor": 0.01002,
-    "description": "致命的な毒で相手を蝕む（毎ターン大ダメージ）"
-  },
-  {
-    "name": "毒霧",
-    "category": "poison",
-    "power": 25,
-    "duration": 3,
-    "levelFactor": 0.01002,
-    "description": "毒の霧で相手を包み込む（毒状態付与）"
-  },
-  {
-    "name": "毒牙",
-    "category": "poison",
-    "power": 20,
-    "duration": 3,
-    "levelFactor": 0.01002,
-    "description": "猛毒の牙で噛みつき、毒状態にする"
-  },
-  {
-    "name": "猛毒花",
-    "category": "poison",
-    "power": 30,
-    "duration": 5,
-    "levelFactor": 0.01002,
-    "description": "猛毒の花粉で相手を毒状態にする"
-  },
-  {
-    "name": "致死毒",
-    "category": "poison",
-    "power": 45,
-    "duration": 6,
-    "levelFactor": 0.01002,
-    "description": "致死性の毒で相手を蝕む"
-  },
-  {
-    "name": "瘴気",
-    "category": "poison",
-    "power": 40,
-    "duration": 4,
-    "levelFactor": 0.01002,
-    "description": "瘴気を放ち相手を毒状態にする"
-  },
-  {
-    "name": "毒針",
-    "category": "poison",
-    "power": 15,
-    "duration": 2,
-    "levelFactor": 0.01002,
-    "description": "毒の棘で刺し、相手を毒状態にする"
-  },
+{
+  "name": "毒撃",
+  "category": "poison",
+  "power": 30,  // ← 強化
+  "duration": 2,
+  "levelFactor": 0.01002,
+  "growthRate": 3,
+  "description": "相手を毒状態にする（短期だが強力な成長ダメージ）"
+},
+{
+  "name": "猛毒撃",
+  "category": "poison",
+  "power": 30,  // ← 少し強化
+  "duration": 4,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "強力な毒で相手を蝕む（成長ダメージ）"
+},
+{
+  "name": "劇毒",
+  "category": "poison",
+  "power": 35,
+  "duration": 6,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "致命的な毒で相手を蝕む（継続するほど強化）"
+},
+{
+  "name": "毒霧",
+  "category": "poison",
+  "power": 28,  // ← 強化
+  "duration": 3,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "毒の霧で相手を包み込む（毒状態付与）"
+},
+{
+  "name": "毒牙",
+  "category": "poison",
+  "power": 26,  // ← 強化
+  "duration": 3,
+  "levelFactor": 0.01002,
+  "growthRate": 2,
+  "description": "猛毒の牙で噛みつき、毒状態にする"
+},
+{
+  "name": "猛毒花",
+  "category": "poison",
+  "power": 30,
+  "duration": 5,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "猛毒の花粉で相手を毒状態にする"
+},
+{
+  "name": "致死毒",
+  "category": "poison",
+  "power": 45,
+  "duration": 6,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "致死性の毒で相手を蝕む"
+},
+{
+  "name": "瘴気",
+  "category": "poison",
+  "power": 40,
+  "duration": 4,
+  "levelFactor": 0.01002,
+  "growthRate": 1.5,
+  "description": "瘴気を放ち相手を毒状態にする"
+},
+{
+  "name": "毒針",
+  "category": "poison",
+  "power": 25,  // ← 強化
+  "duration": 2,
+  "levelFactor": 0.01002,
+  "growthRate": 3,
+  "description": "毒の棘で刺し、相手を毒状態にする"
+},
   {
     "name": "火傷",
     "category": "burn",

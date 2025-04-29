@@ -377,12 +377,23 @@ window.getSkillEffect = function(skill, user, target, log) {
       }
       break;
     }
-    case 'poison': {
-      const dmg = skillData.power + skill.level * skillData.levelFactor;
-      target.effects.push({ type: '毒', damage: Math.floor(dmg), remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒 ${dmg.toFixed(1)}×${skillData.duration}ターン`);
-      break;
-    }
+case 'poison': {
+  const baseDmg = skillData.power + skill.level * skillData.levelFactor;
+  const growthRate = skillData.growthRate || 1.0;
+  const duration = skillData.duration;
+
+  const damagePerTurn = [];
+  let currentDmg = baseDmg;
+
+  for (let t = 0; t < duration; t++) {
+    damagePerTurn.push(Math.floor(currentDmg));
+    currentDmg *= growthRate;
+  }
+
+  target.effects.push({ type: '毒', damageSequence: damagePerTurn, turnIndex: 0, remaining: duration });
+  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒（初期${baseDmg.toFixed(1)}×${duration}ターン、毎ターン強化）`);
+  break;
+}
     case 'burn': {
       const dmg = skillData.power + skill.level * skillData.levelFactor;
       target.effects.push({ type: '火傷', damage: Math.floor(dmg), remaining: skillData.duration });
@@ -684,22 +695,37 @@ window.startBattle = function() {
     }
     // 継続効果の処理（毒・火傷・再生など）
     [player, enemy].forEach(ch => {
-      // 各効果を処理
-      for (let eff of ch.effects) {
-        if (eff.remaining > 0) {
-          if (eff.type === '毒' || eff.type === '火傷') {
-            ch.hp -= eff.damage;
-            log.push(`${displayName(ch.name)}は${eff.type}で${eff.damage}ダメージ`);
-            ch.battleStats[eff.type] = (ch.battleStats[eff.type] || 0) + eff.damage;
-          } else if (eff.type === 'regen') {
-            const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
-            ch.hp += heal;
-            if (heal > 0) log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
-          }
-          // ターン経過させる
-          eff.remaining--;
-        }
+// 各効果を処理
+for (let eff of ch.effects) {
+  if (eff.remaining > 0) {
+    if (eff.type === '毒') {
+      let dmg = eff.damage;
+
+      // 成長型毒（growthRateあり）の場合
+      if (eff.damageSequence) {
+        dmg = eff.damageSequence[eff.turnIndex] || eff.damageSequence.at(-1);
+        eff.turnIndex++;
       }
+
+      ch.hp -= dmg;
+      log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
+      ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
+
+    } else if (eff.type === '火傷') {
+      ch.hp -= eff.damage;
+      log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
+      ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
+
+    } else if (eff.type === 'regen') {
+      const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
+      ch.hp += heal;
+      if (heal > 0) log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
+    }
+
+    // ターン経過
+    eff.remaining--;
+  }
+}
       // 効果残りターンが0になったものを除去＆ステータス戻す
       ch.effects = ch.effects.filter(eff => {
         if (eff.remaining <= 0) {
