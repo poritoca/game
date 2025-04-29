@@ -845,8 +845,8 @@ window.startBattle = function() {
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
   const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-  const skillGainChance = Math.min(1.0, 0.1 * rarity);
-  log.push(`\n新スキル獲得率（最大10%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
+  const skillGainChance = Math.min(1.0, 0.05 * rarity);
+  log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
   if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
     const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
@@ -1324,8 +1324,8 @@ window.loadGame = async function() {
     if (Math.random() < chance) {
       stopAutoBattle();
 
-      showEventOptions("白スキルをどうする？", [
-      { label: "白スキルから選んで削除", value: "select" },
+      showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
+      { label: "スキルから選んで削除", value: "select" },
       { label: "ランダムに3個削除", value: "random" },
     { label: "何もしない", value: "none" }
     ], (choice) => {
@@ -1449,7 +1449,7 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 window.drawHPGraph = function () {
-  if (isAutoBattle) return; // ← 長押し中は描画スキップ
+  //if (isAutoBattle) return; // ← 長押し中は描画スキップ
   const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
