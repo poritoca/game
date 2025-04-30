@@ -1116,25 +1116,38 @@ async function generateHash(input) {
 // セーブデータをコード化してコピー（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
-  const payload = { player, currentStreak, sslot, skillMemoryOrder:Object.entries(player.skillMemory), rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0') };
+  const payload = {
+    player, currentStreak, sslot,
+    skillMemoryOrder: Object.entries(player.skillMemory),
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0')
+  };
   const raw = JSON.stringify(payload);
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
   const code = b64 + '.' + hash;
   const box = document.getElementById('saveCodeBox');
   box.value = code;
+
   try {
     await navigator.clipboard.writeText(code);
   } catch (e) {
-    box.focus();
-    box.select();
+    box.focus(); box.select();
   }
-  // テキストファイルとして保存
+
+  // ファイル名にキャラ名＋日時を使用
+  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
+  const now = new Date();
+  const timestamp = now.toLocaleString('ja-JP', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(/[^\d]/g, '');
+  const filename = `${charName}_${timestamp}.txt`;
+
   const blob = new Blob([code], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'rpg_save.txt';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
