@@ -135,20 +135,24 @@ export const skillPool = [
 {
   "name": "毒撃",
   "category": "poison",
-  "power": 30,  // ← 強化
+  "power": 30,
   "duration": 2,
   "levelFactor": 0.01002,
   "growthRate": 3,
-  "description": "相手を毒状態にする（短期だが強力な成長ダメージ）"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "相手を毒状態にする（スキルLvに応じてATK影響が大きくなる）"
 },
 {
   "name": "猛毒撃",
   "category": "poison",
-  "power": 30,  // ← 少し強化
+  "power": 30,
   "duration": 4,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "強力な毒で相手を蝕む（成長ダメージ）"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "強力な毒で蝕む（成長＋ATK依存）"
 },
 {
   "name": "劇毒",
@@ -157,25 +161,31 @@ export const skillPool = [
   "duration": 6,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "致命的な毒で相手を蝕む（継続するほど強化）"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "致命的な毒（成長＋ATK依存）"
 },
 {
   "name": "毒霧",
   "category": "poison",
-  "power": 28,  // ← 強化
+  "power": 28,
   "duration": 3,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "毒の霧で相手を包み込む（毒状態付与）"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "毒の霧で相手を包み込む（成長＋ATK依存）"
 },
 {
   "name": "毒牙",
   "category": "poison",
-  "power": 26,  // ← 強化
+  "power": 26,
   "duration": 3,
   "levelFactor": 0.01002,
   "growthRate": 2,
-  "description": "猛毒の牙で噛みつき、毒状態にする"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "猛毒の牙（成長＋ATK依存）"
 },
 {
   "name": "猛毒花",
@@ -184,7 +194,9 @@ export const skillPool = [
   "duration": 5,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "猛毒の花粉で相手を毒状態にする"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "猛毒の花粉（成長＋ATK依存）"
 },
 {
   "name": "致死毒",
@@ -193,7 +205,9 @@ export const skillPool = [
   "duration": 6,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "致死性の毒で相手を蝕む"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "致死性の毒（成長＋ATK依存）"
 },
 {
   "name": "瘴気",
@@ -202,73 +216,91 @@ export const skillPool = [
   "duration": 4,
   "levelFactor": 0.01002,
   "growthRate": 1.5,
-  "description": "瘴気を放ち相手を毒状態にする"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "瘴気で蝕む（成長＋ATK依存）"
 },
 {
   "name": "毒針",
   "category": "poison",
-  "power": 25,  // ← 強化
+  "power": 25,
   "duration": 2,
   "levelFactor": 0.01002,
   "growthRate": 3,
-  "description": "毒の棘で刺し、相手を毒状態にする"
+  "atkFactorBase": 0.02,
+  "atkFactorMax": 0.6,
+  "description": "毒の棘で刺す（短期成長、ATK依存）"
 },
-  {
-    "name": "火傷",
-    "category": "burn",
-    "power": 105,
-    "duration": 10,
-    "levelFactor": 0.01002,
-    "description": "相手を火傷状態にする（毎ターン少しダメージ）"
-  },
-  {
-    "name": "大炎上",
-    "category": "burn",
-    "power": 120,
-    "duration": 10,
-    "levelFactor": 0.01002,
-    "description": "激しい炎で相手を火傷状態にする"
-  },
-  {
-    "name": "灼熱",
-    "category": "burn",
-    "power": 115,
-    "duration": 8,
-    "levelFactor": 0.01002,
-    "description": "灼熱の炎で相手を火傷させる"
-  },
-  {
-    "name": "業火",
-    "category": "burn",
-    "power": 125,
-    "duration": 10,
-    "levelFactor": 0.01002,
-    "description": "業火で相手を焼き尽くす（火傷状態付与）"
-  },
-  {
-    "name": "黒炎",
-    "category": "burn",
-    "power": 250,
-    "duration": 6,
-    "levelFactor": 0.01002,
-    "description": "黒い炎で相手を火傷させる"
-  },
-  {
-    "name": "煉獄炎",
-    "category": "burn",
-    "power": 145,
-    "duration": 12,
-    "levelFactor": 0.01002,
-    "description": "煉獄の炎で相手を火傷状態にする"
-  },
-  {
-    "name": "熱波",
-    "category": "burn",
-    "power": 315,
-    "duration": 4,
-    "levelFactor": 0.01002,
-    "description": "熱波を浴びせ相手を火傷させる"
-  },
+{
+  "name": "火傷",
+  "category": "burn",
+  "power": 105,
+  "duration": 10,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "火傷状態（ATK依存の固定ダメージ、スキルLvで成長）"
+},
+{
+  "name": "大炎上",
+  "category": "burn",
+  "power": 120,
+  "duration": 10,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "激しい炎で火傷状態に（ATK依存）"
+},
+{
+  "name": "灼熱",
+  "category": "burn",
+  "power": 115,
+  "duration": 8,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "灼熱の炎で火傷（ATK依存）"
+},
+{
+  "name": "業火",
+  "category": "burn",
+  "power": 125,
+  "duration": 10,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "業火で焼き尽くす（ATK依存）"
+},
+{
+  "name": "黒炎",
+  "category": "burn",
+  "power": 250,
+  "duration": 6,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "黒い炎で火傷させる（ATK依存）"
+},
+{
+  "name": "煉獄炎",
+  "category": "burn",
+  "power": 145,
+  "duration": 12,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "煉獄の炎で焼く（ATK依存）"
+},
+{
+  "name": "熱波",
+  "category": "burn",
+  "power": 315,
+  "duration": 4,
+  "levelFactor": 0.01002,
+  "atkFactorBase": 0.04,
+  "atkFactorMax": 0.8,
+  "description": "熱波で火傷（ATK依存）"
+},
   {
     "name": "吸収",
     "category": "lifesteal",
@@ -378,38 +410,42 @@ export const skillPool = [
     "duration": 3,
     "description": "防護フィールドでダメージを軽減する"
   },
-  {
-    "name": "再生",
-    "category": "regen",
-    "amount": 12,
-    "duration": 3,
-    "levelFactor": 0.01503,
-    "description": "一定ターン毎ターンHPが回復する"
-  },
-  {
-    "name": "急速再生",
-    "category": "regen",
-    "amount": 21,
-    "duration": 3,
-    "levelFactor": 0.01503,
-    "description": "急速にHPが再生する（毎ターン回復）"
-  },
-  {
-    "name": "自然治癒",
-    "category": "regen",
-    "amount": 12,
-    "duration": 5,
-    "levelFactor": 0.01503,
-    "description": "自然の力で徐々にHPが回復する"
-  },
-  {
-    "name": "祝福",
-    "category": "regen",
-    "amount": 18,
-    "duration": 4,
-    "levelFactor": 0.01503,
-    "description": "祝福の力で毎ターンHPが回復する"
-  },
+{
+  "name": "再生",
+  "category": "regen",
+  "amount": 60,
+  "duration": 6,
+  "levelFactor": 0.02,
+  "atkFactor": 0.4,
+  "description": "強化された自然再生（ATK依存）"
+},
+{
+  "name": "急速再生",
+  "category": "regen",
+  "amount": 80,
+  "duration": 6,
+  "levelFactor": 0.02,
+  "atkFactor": 0.6,
+  "description": "火傷など強い継続ダメージに対応する再生力（ATK依存）"
+},
+{
+  "name": "自然治癒",
+  "category": "regen",
+  "amount": 60,
+  "duration": 6,
+  "levelFactor": 0.02,
+  "atkFactor": 0.4,
+  "description": "自然の力で継続的に回復する（ATK依存）"
+},
+{
+  "name": "祝福",
+  "category": "regen",
+  "amount": 70,
+  "duration": 6,
+  "levelFactor": 0.02,
+  "atkFactor": 0.5,
+  "description": "祝福の力による高性能な再生（ATK依存）"
+},
   {
     "name": "反射",
     "category": "reflect",

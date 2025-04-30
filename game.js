@@ -310,14 +310,23 @@ window.updateStats = function() {
 
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
-  statusLogged = false;
-  document.getElementById('titleScreen').classList.add('hidden');
-  document.getElementById('gameScreen').classList.remove('hidden');
-	document.getElementById('battleLog').classList.remove('hidden');
-  document.getElementById("battleArea").classList.add("hidden");
-  currentStreak = 0;
-  // スキルメモリの表示を有効化
-  document.getElementById("skillMemoryContainer").style.display = "block";
+  const title = document.getElementById('titleScreen');
+  const game = document.getElementById('gameScreen');
+
+  // フェードアウト → 非表示 → ゲーム画面表示
+  title.classList.add('fade-out');
+  setTimeout(() => {
+    title.classList.add('hidden');
+    game.classList.remove('hidden');
+    game.classList.add('fade-in');
+
+    // 通常初期化処理
+    statusLogged = false;
+    document.getElementById('battleLog').classList.remove('hidden');
+    document.getElementById("battleArea").classList.add("hidden");
+    currentStreak = 0;
+    document.getElementById("skillMemoryContainer").style.display = "block";
+  }, 500); // アニメーション時間と一致
 };
 
 // 対戦モード選択画面表示
@@ -378,28 +387,48 @@ window.getSkillEffect = function(skill, user, target, log) {
       break;
     }
 case 'poison': {
-  const baseDmg = skillData.power + skill.level * skillData.levelFactor;
+  const base = skillData.power + skill.level * skillData.levelFactor;
+
+  const atkFactor = (skillData.atkFactorBase || 0) + 
+    ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
+
+  const atkBonus = user.attack * atkFactor;
+  const firstTurnDmg = base + atkBonus;
+
   const growthRate = skillData.growthRate || 1.0;
   const duration = skillData.duration;
-
   const damagePerTurn = [];
-  let currentDmg = baseDmg;
 
+  let dmg = firstTurnDmg;
   for (let t = 0; t < duration; t++) {
-    damagePerTurn.push(Math.floor(currentDmg));
-    currentDmg *= growthRate;
+    damagePerTurn.push(Math.floor(dmg));
+    dmg *= growthRate;
   }
 
-  target.effects.push({ type: '毒', damageSequence: damagePerTurn, turnIndex: 0, remaining: duration });
-  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒（初期${baseDmg.toFixed(1)}×${duration}ターン、毎ターン強化）`);
+  target.effects.push({
+    type: '毒',
+    damageSequence: damagePerTurn,
+    turnIndex: 0,
+    remaining: duration
+  });
+
+  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒（ATK補正あり、初期${Math.floor(firstTurnDmg)}×${duration}ターン）`);
   break;
 }
-    case 'burn': {
-      const dmg = skillData.power + skill.level * skillData.levelFactor;
-      target.effects.push({ type: '火傷', damage: Math.floor(dmg), remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に火傷 ${dmg.toFixed(1)}×${skillData.duration}ターン`);
-      break;
-    }
+case 'burn': {
+  const base = skillData.power + skill.level * skillData.levelFactor;
+
+  const atkFactor = (skillData.atkFactorBase || 0) + 
+    ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
+
+  const atkBonus = user.attack * atkFactor;
+  const dmg = Math.floor(base + atkBonus);
+
+  target.effects.push({ type: '火傷', damage: dmg, remaining: skillData.duration });
+
+  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に火傷（${dmg}×${skillData.duration}ターン）`);
+  break;
+}
     case 'lifesteal': {
       let dmg = Math.max(0, user.attack - target.defense / 2);
       const barrierEff = target.effects.find(e => e.type === 'barrier');
@@ -441,12 +470,17 @@ case 'seal': {
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ軽減バリア展開`);
       break;
     }
-    case 'regen': {
-      const healPerTurn = Math.floor(skillData.amount + skillData.levelFactor * skill.level);
-      user.effects.push({ type: 'regen', heal: healPerTurn, remaining: skillData.duration });
-      log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン毎ターン${healPerTurn}HP回復`);
-      break;
-    }
+case 'regen': {
+  const baseHeal = skillData.amount + skillData.levelFactor * skill.level;
+  const atkFactor = skillData.atkFactor || 0; // skills.jsに記載（例: 0.02）
+  const atkBonus = user.attack * atkFactor;
+  const healPerTurn = Math.floor(baseHeal + atkBonus);
+
+  user.effects.push({ type: 'regen', heal: healPerTurn, atkFactor: atkFactor, remaining: skillData.duration });
+
+  log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン毎ターン${healPerTurn}HP回復（ATK補正含む）`);
+  break;
+}
     case 'reflect': {
       user.effects.push({ type: 'reflect', percent: skillData.reflectPercent, remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ反射状態`);
@@ -568,8 +602,28 @@ case 'berserk': {
   const originalAttack = user.attack;
   const originalDefense = user.defense;
 
-  user.attack = Math.floor(user.attack * attackFactor);
-  user.defense = Math.floor(user.defense * defenseFactor);
+if (!user._originalStats) {
+  user._originalStats = {
+    attack: user.attack,
+    defense: user.defense,
+    speed: user.speed,
+    maxHp: user.maxHp
+  };
+}
+
+// 一度元のステータスに戻す
+user.attack = user._originalStats.attack;
+user.defense = user._originalStats.defense;
+
+// そこから再計算
+const newAttack = Math.floor(user.attack * attackFactor);
+const newDefense = Math.floor(user.defense * defenseFactor);
+
+user.attack = newAttack;
+user.defense = newDefense;
+
+user.effects.push({ type: 'buff', stat: 'attack', original: user._originalStats.attack, remaining: duration });
+user.effects.push({ type: 'debuff', stat: 'defense', original: user._originalStats.defense, remaining: duration });
 
   user.effects.push({ type: 'buff', stat: 'attack', original: originalAttack, remaining: duration });
   user.effects.push({ type: 'debuff', stat: 'defense', original: originalDefense, remaining: duration });
@@ -866,17 +920,23 @@ for (let eff of ch.effects) {
   player.effects = [];
 
   // スキル熟練度チェック（5回使用でLvアップ）
-  player.skills.forEach(sk => {
-    if (sk.uses >= 5 && sk.level < 999) {
+// スキル熟練度チェック（5回使用でLvアップ）
+player.skills.forEach(sk => {
+  if (sk.uses >= 5) {
+    // スキルLv999以下は確実に上がる。それ以上は確率で上がる（レベル上限なし）
+    const isBeyondCap = sk.level >= 999;
+    const chance = isBeyondCap ? 1 / 2500 : 1.0;
+
+    if (Math.random() < chance) {
       sk.level++;
       sk.uses = 0;
       player.skillMemory[sk.name] = sk.level;
+
       log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
       drawSkillMemoryList();
     }
-    else {
-    }
-  });
+  }
+});
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
   const rarity = enemy.rarity * (1 + currentStreak * 0.01);
@@ -1085,36 +1145,56 @@ window.exportSaveCode = async function() {
 window.importSaveCode = async function() {
   document.getElementById("skillMemoryList").classList.remove("hidden");
   const input = document.getElementById('saveData').value.trim();
+
   try {
     const parts = input.split('.');
     if (parts.length !== 2) throw new Error('形式が不正です');
     const [b64, hash] = parts;
     const computed = await generateHash(b64);
     if (computed !== hash) throw new Error('署名不一致');
+
     let raw = '';
-  try { raw = decodeURIComponent(escape(atob(b64))); } catch (e) { throw new Error('デコード失敗'); }
-  const parsed = JSON.parse(raw);
-  player = parsed.player;
-  if (!player.growthBonus) {
-    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    try {
+      raw = decodeURIComponent(escape(atob(b64)));
+    } catch (e) {
+      throw new Error('デコード失敗');
+    }
+
+    const parsed = JSON.parse(raw);
+    player = parsed.player;
+
+    if (!player.growthBonus) {
+      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    }
+
+    currentStreak = parsed.currentStreak || 0;
+    localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
+    enemy = makeCharacter('敵' + Math.random());
+    updateStats();
+
+    // タイトル画面をアニメーションで非表示 → ゲーム画面表示
+    const title = document.getElementById('titleScreen');
+    const game = document.getElementById('gameScreen');
+    title.classList.add('fade-out');
+
+    setTimeout(() => {
+      title.classList.add('hidden');
+      game.classList.remove('hidden');
+      game.classList.add('fade-in');
+      document.getElementById("battleArea").classList.add("hidden");
+
+      // 表示更新
+      const streakDisplay = document.getElementById('currentStreakDisplay');
+      if (streakDisplay) streakDisplay.textContent = '連勝数：' + currentStreak;
+
+      const rebirthDisplay = document.getElementById('rebirthCountDisplay');
+      if (rebirthDisplay) rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
+    }, 500);
+
+  } catch (e) {
+    // エラー時はアラート（必要に応じて変更可能）
+    alert('セーブデータの読み込みに失敗しました：' + e.message);
   }
-  currentStreak = parsed.currentStreak || 0;
-  localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
-  enemy = makeCharacter('敵' + Math.random());
-  //alert('[A005] [A732] enemy生成: ' + JSON.stringify(enemy?.baseStats));
-  updateStats();
-  document.getElementById('titleScreen').classList.add('hidden');
-  document.getElementById('gameScreen').classList.remove('hidden');
-  document.getElementById("battleArea").classList.add("hidden");
-  // 連勝数・転生回数表示更新（必要なら）
-  if (document.getElementById('currentStreakDisplay')) {
-    document.getElementById('currentStreakDisplay').textContent = '連勝数：' + currentStreak;
-  }
-  if (document.getElementById('rebirthCountDisplay')) {
-    document.getElementById('rebirthCountDisplay').textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
-  }
-} catch (e) {
-}
 };
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
@@ -1484,13 +1564,14 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 window.drawHPGraph = function () {
-  //if (isAutoBattle) return; // ← 長押し中は描画スキップ
   const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const maxTurns = hpHistory.length || 1;
-  const stepX = canvas.width / (maxTurns - 1);
+  if (!hpHistory || hpHistory.length < 2) return; // データ不足なら描画しない
+
+  const maxTurns = hpHistory.length;
+  const stepX = canvas.width / Math.max(1, (maxTurns - 1));
 
   // グリッド線
   ctx.strokeStyle = 'white';
@@ -1536,10 +1617,11 @@ window.drawHPGraph = function () {
   ctx.fill();
 
   // === アニメーションする光沢 ===
-  hpShineOffset += 2;
-  if (hpShineOffset > canvas.width) hpShineOffset = -100;
+  window.hpShineOffset ??= -100;
+  window.hpShineOffset += 2;
+  if (window.hpShineOffset > canvas.width) window.hpShineOffset = -100;
 
-  const shineGrad = ctx.createLinearGradient(hpShineOffset, 0, hpShineOffset + 100, 0);
+  const shineGrad = ctx.createLinearGradient(window.hpShineOffset, 0, window.hpShineOffset + 100, 0);
   shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
   shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.15)');
   shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
@@ -1579,13 +1661,6 @@ window.drawHPGraph = function () {
   ctx.font = '12px sans-serif';
   ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
   ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
-  ctx.save();
-  ctx.translate(5, canvas.height / 2 + 20);
-  ctx.rotate(-Math.PI / 2);
-  ctx.restore();
-
-  // 次フレームへ再描画
-  requestAnimationFrame(window.drawHPGraph);
 };
 
 function showCustomAlert(message, duration = 200, bgColor = '#222', textColor = '#fff') {
