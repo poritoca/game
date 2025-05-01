@@ -1824,7 +1824,7 @@ function applyPassiveSeals(attacker, defender,log = []) {
     });
 
     if (sealedAny) {
-      log.push(`\n${displayName(attacker.name)}のパッシブスキル「${passive.name}」が発動！（${finalSealTurns}ターン封印）`);
+      log.push(`${displayName(attacker.name)}のパッシブスキル「${passive.name}」が発動！（${finalSealTurns}ターン封印）`);
     }
   });
 }
