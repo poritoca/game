@@ -789,7 +789,7 @@ window.initialAndSlotSkills = [
   applyPassiveSeals(player, enemy, log);	
 	
 const factor = Math.pow(1.1, currentStreak);
-log.push(`敵のステータス倍率: ${factor.toFixed(2)}倍（基礎倍率1.00 × 1.10^${currentStreak}）`);
+log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
