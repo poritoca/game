@@ -11,7 +11,11 @@ const levelTurnBonusSettings = [
 window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifesteal'];
 
 function decideSkillsToUse(actor, maxActivations) {
-  const usableSkills = actor.skills.filter(skill => !skill.sealed);
+const usableSkills = actor.skills.filter(skill => {
+  const data = skillPool.find(s => s.name === skill.name);
+  const isPassive = data?.category === 'passive';
+  return !skill.sealed && !isPassive;
+});
   const skillSelectionBias = 2.0;
   const skillNamesInMemoryOrder = Object.keys(actor.skillMemory || {});
 
@@ -64,7 +68,10 @@ function decideSkillsToUse(actor, maxActivations) {
   }
 
   if (actor === player) {
-    window.lastChosenSkillNames = selectedNames;
+window.lastChosenSkillNames = selectedNames.filter(name => {
+  const def = skillPool.find(s => s.name === name);
+  return def?.category !== 'passive';
+});
     window.lastOffensiveSkills = finalSkills
       .filter(sk => {
         const data = skillPool.find(s => s.name === sk.name);
@@ -316,7 +323,7 @@ window.formatSkills = function(c) {
     let priority = 2;
 
     if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(skillName)) {
-      color = 'deepskyblue';
+      color = 'white';
       priority = 0;
     } else if (category === 'passive') {
       color = 'gold';
@@ -709,10 +716,18 @@ window.startBattle = function() {
     const entries = Object.entries(player.skillMemory);
     const firstThree = entries.slice(0, 3);
     const lastX = (sslot > 0) ? entries.slice(-sslot) : []; // ★ここで条件分岐！
-    window.initialAndSlotSkills = [
-    ...firstThree.map(e => e[0]),
-    ...lastX.map(e => e[0])
-    ];
+
+// ★修正後（passive を除外）
+window.initialAndSlotSkills = [
+  ...firstThree.map(e => e[0]).filter(name => {
+    const def = skillPool.find(s => s.name === name);
+    return def?.category !== 'passive';
+  }),
+  ...lastX.map(e => e[0]).filter(name => {
+    const def = skillPool.find(s => s.name === name);
+    return def?.category !== 'passive';
+  })
+];
   }
   drawSkillMemoryList();
   enemy = makeCharacter('敵' + Math.random());
@@ -773,12 +788,8 @@ window.startBattle = function() {
 
   applyPassiveSeals(player, enemy, log);	
 	
-  let streakBonus = 1 + currentStreak * 0.02;
-
-  //alert('現在のstreakBonusの値は: ' + streakBonus);
-
-  const adjustedRarity = (enemy.rarity * streakBonus).toFixed(2);
-  log.push(`敵のステータス倍率（Rarity）: ${adjustedRarity}倍（基礎 ${enemy.rarity.toFixed(2)} × 連勝補正 ${streakBonus.toFixed(2)}）`);
+const factor = Math.pow(1.1, currentStreak);
+log.push(`敵のステータス倍率: ${factor.toFixed(2)}倍（基礎倍率1.00 × 1.10^${currentStreak}）`);
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
@@ -835,7 +846,7 @@ for (let eff of ch.effects) {
       ch.hp += heal;
       if (heal > 0) log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
     }
-
+		
     // ターン経過
     eff.remaining--;
   }
@@ -929,6 +940,27 @@ for (let eff of ch.effects) {
         }
       }
     }
+		
+		
+const safeRatio = (hp, maxHp) => {
+  if (maxHp <= 0) return 0;
+  const raw = hp / maxHp;
+  return Math.max(0, Math.min(1, raw));
+};
+
+const playerRatio = Math.ceil(safeRatio(player.hp, player.maxHp) * 10);
+const enemyRatio = Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 10);
+
+const bar = (filled, total = 10) => {
+  const safeFilled = Math.max(0, Math.min(total, filled));
+  const filledPart = "■".repeat(safeFilled);
+  const emptyPart = "□".repeat(total - safeFilled);
+  return filledPart + emptyPart;
+};
+
+log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
+log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
+		
     turn++;
   }
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
@@ -1256,8 +1288,12 @@ window.importSaveCode = async function() {
       document.getElementById("battleArea").classList.add("hidden");
 
       // 表示更新
-      const streakDisplay = document.getElementById('currentStreakDisplay');
-      if (streakDisplay) streakDisplay.textContent = '連勝数：' + currentStreak;
+const streakDisplay = document.getElementById('currentStreakDisplay');
+if (streakDisplay) {
+  const baseBoost = 1.02;
+  const boostMultiplier = Math.pow(baseBoost, currentStreak);
+  streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
+}
 
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
       if (rebirthDisplay) rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
@@ -1791,7 +1827,7 @@ window.downloadBattleLogs = function() {
 };
 
 // パッシブスキルによる封印処理
-function applyPassiveSeals(attacker, defender,log = []) {
+function applyPassiveSeals(attacker, defender, log = []) {
   attacker.skills.forEach(passive => {
     const passiveDef = skillPool.find(s => s.name === passive.name);
     if (!passiveDef || passiveDef.category !== "passive" || passiveDef.effect !== "blockTurnEffects") {
@@ -1804,12 +1840,13 @@ function applyPassiveSeals(attacker, defender,log = []) {
 
     defender.skills.forEach(os => {
       const def = skillPool.find(s => s.name === os.name);
-      //if (!def || def.duration < 2) return;
-			if (!def) return;
+      if (!def) return;
 
       let typeMatch = false;
-      if (!subtype) {
-        typeMatch = true;
+
+      // --- ここが修正部分 ---
+      if (Array.isArray(subtype)) {
+        typeMatch = subtype.includes(def.category);
       } else if (subtype === "poison_burn") {
         typeMatch = def.category === "poison" || def.category === "burn";
       } else {

@@ -934,11 +934,11 @@ export const skillPool = [
     "subtype": "reflect",
     "description": "反射スキルを戦闘開始時に封印する"
   },
-  {
-    "name": "封印の守り",
-    "category": "passive",
-    "effect": "blockTurnEffects",
-    "subtype": "stun",
-    "description": "スタンスキルを戦闘開始時に封印する"
-  }
+ {
+  "name": "封印の守り",
+  "category": "passive",
+  "effect": "blockTurnEffects",
+  "subtype": ["stun", "paralyze", "sleep"],
+  "description": "スタン系・痺れ系・睡眠系スキルを戦闘開始時に封印する"
+}
 ];
