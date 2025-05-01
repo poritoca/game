@@ -8,40 +8,82 @@ const levelTurnBonusSettings = [
 
 
 // スキル発動可否を個別に判定し、優先度順に決める関数
+window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifesteal'];
+
 function decideSkillsToUse(actor, maxActivations) {
-  const usableSkills = actor.skills.filter(skill => !skill.sealed); // 封印されてないスキル
-  const decidedSkills = [];
+  const usableSkills = actor.skills.filter(skill => !skill.sealed);
+  const skillSelectionBias = 2.0;
+  const skillNamesInMemoryOrder = Object.keys(actor.skillMemory || {});
 
-  // スキルを priority（高い順）、同じならspeed（高い順）で並べ替える
-  usableSkills.sort((a, b) => {
-    const aData = skillPool.find(s => s.name === a.name);
-    const bData = skillPool.find(s => s.name === b.name);
-
-    const aPriority = aData?.priority ?? -1;
-    const bPriority = bData?.priority ?? -1;
-
-    if (bPriority !== aPriority) {
-      return bPriority - aPriority; // priority高い順
-    }
-    return (b.speed || 0) - (a.speed || 0); // speed高い順（高い方優先）
+  // プレイヤーが1つでも攻撃スキルを所持しているか
+  const hasAnyOffensive = usableSkills.some(sk => {
+    const data = skillPool.find(s => s.name === sk.name);
+    return window.offensiveSkillCategories.includes(data?.category);
   });
 
-  for (const skill of usableSkills) {
-    const skillData = skillPool.find(s => s.name === skill.name);
-    const activationRate = skillData?.activationRate ?? 0.8; // デフォルト80%
+  let finalSkills = [];
+  let selectedNames = [];
 
-    if (Math.random() < activationRate) {
-      decidedSkills.push(skill);
-      if (decidedSkills.length >= maxActivations) {
-        break; // 最大発動数に達したら終了
+  // 再抽選は最大5回まで（攻撃スキルがある場合のみ）
+  const maxRetries = hasAnyOffensive ? 5 : 1;
+
+  for (let retry = 0; retry < maxRetries; retry++) {
+    const weightedSkills = [];
+    usableSkills.forEach(skill => {
+      const index = skillNamesInMemoryOrder.indexOf(skill.name);
+      const position = index >= 0 ? index : skillNamesInMemoryOrder.length;
+      const weight = Math.pow(skillNamesInMemoryOrder.length - position, skillSelectionBias);
+      const count = Math.ceil(weight);
+      for (let i = 0; i < count; i++) weightedSkills.push(skill);
+    });
+
+    const shuffled = [...weightedSkills].sort(() => Math.random() - 0.5);
+    const uniqueCandidates = Array.from(new Set(shuffled));
+
+    finalSkills = [];
+    selectedNames = [];
+
+    for (const sk of uniqueCandidates) {
+      const skillData = skillPool.find(s => s.name === sk.name);
+      const activationRate = skillData?.activationRate ?? 0.8;
+      if (Math.random() < activationRate) {
+        finalSkills.push(sk);
+        selectedNames.push(sk.name);
+        if (finalSkills.length >= maxActivations) break;
       }
     }
+
+    // 選ばれた中に攻撃スキルがあるかチェック
+    const hasOffense = finalSkills.some(sk => {
+      const data = skillPool.find(s => s.name === sk.name);
+      return window.offensiveSkillCategories.includes(data?.category);
+    });
+
+    // 攻撃スキルがあれば確定、または最大リトライに達したら終了
+    if (!hasAnyOffensive || hasOffense || retry === maxRetries - 1) break;
   }
 
-  return decidedSkills;
+  if (actor === player) {
+    window.lastChosenSkillNames = selectedNames;
+    window.lastOffensiveSkills = finalSkills
+      .filter(sk => {
+        const data = skillPool.find(s => s.name === sk.name);
+        return window.offensiveSkillCategories.includes(data?.category);
+      })
+      .map(sk => sk.name);
+  }
+
+  finalSkills.sort((a, b) => {
+    const aData = skillPool.find(s => s.name === a.name);
+    const bData = skillPool.find(s => s.name === b.name);
+    const ap = aData?.priority ?? -1;
+    const bp = bData?.priority ?? -1;
+    if (bp !== ap) return bp - ap;
+    return (b.speed || 0) - (a.speed || 0);
+  });
+
+  return finalSkills;
 }
-
-
 
 
 // 設定に基づいてターン数ボーナスを返す関数
@@ -149,6 +191,7 @@ let hpHistory = [];
 let sslot = 0;
 let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
+window.lastChosenSkillNames = [];  // 戦闘ごとの抽選結果
 
 
 
@@ -214,9 +257,10 @@ window.recordHP = function() {
 
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
-  const isPlayer = (c === player); // ← ここで「プレイヤーか？」を判定！
+   const isPlayer = (c === player);
   const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
-  
+  const safeHp = Math.max(0, c.hp);
+
   return `
     <div class="name-and-streak">
       <div class="player-name"><strong>${displayName(c.name)}</strong></div>
@@ -231,7 +275,7 @@ window.formatStats = function(c) {
       <li>ATK: ${c.attack}</li>
       <li>DEF: ${c.defense}</li>
       <li>SPD: ${c.speed}</li>
-      <li>HP: ${c.hp} / ${c.maxHp}</li>
+      <li>HP: ${safeHp} / ${c.maxHp}</li>
     </ul>
   `;
 };
@@ -299,13 +343,18 @@ window.formatSkills = function(c) {
 
 // ステータス表示の更新
 window.updateStats = function() {
+  // HPが最大を超えている場合は補正（戦闘後や回復バグ防止）
+  if (player.hp > player.maxHp) player.hp = player.maxHp;
+  if (enemy.hp > enemy.maxHp) enemy.hp = enemy.maxHp;
+  if (player.hp < 0) player.hp = 0;
+  if (enemy.hp < 0) enemy.hp = 0;
+
   const pHtml = `<div>${formatStats(player)}</div><div>${formatSkills(player)}</div>`;
   const eHtml = `<div>${formatStats(enemy)}</div><div>${formatSkills(enemy)}</div>`;
   document.getElementById('playerStats').innerHTML = pHtml;
   document.getElementById('enemyStats').innerHTML = eHtml;
   drawCharacterImage(displayName(player.name), 'playerImg');
   drawCharacterImage(displayName(enemy.name), 'enemyImg');
-
 };
 
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
@@ -709,6 +758,17 @@ window.startBattle = function() {
   player.effects = [];
   enemy.effects = [];
   updateStats();
+	
+	
+	  // 戦闘後に baseStats + growthBonus に再初期化
+  if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
+	
   const log = [];
 
   applyPassiveSeals(player, enemy, log);	
@@ -874,14 +934,7 @@ for (let eff of ch.effects) {
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
   recordHP();
 
-  // 戦闘後に baseStats + growthBonus に再初期化
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
+
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
 
@@ -977,13 +1030,19 @@ player.skills.forEach(sk => {
   streakBonus = 1;
   log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
   saveBattleLog(log);
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+if (player.baseStats && player.growthBonus) {
+  player.attack = player.baseStats.attack + player.growthBonus.attack;
+  player.defense = player.baseStats.defense + player.growthBonus.defense;
+  player.speed = player.baseStats.speed + player.growthBonus.speed;
+  player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+
+  // HPは勝利時のみ最大に回復。敗北時は回復しない
+  if (playerWon) {
     player.hp = player.maxHp;
+  } else {
+    player.hp = Math.max(0, player.hp); // 敗北後の残りHPがマイナスなら0に
   }
+}
 
   // スキル記憶更新（最高Lv保持）
   for (const sk of player.skills) {
@@ -1020,7 +1079,7 @@ for (let key in player.battleStats) {
   log.push(`${key}：${player.battleStats[key]}`);
 }
 
-if (player.hp > player.maxHp) player.hp = player.maxHp;
+//if (player.hp > player.maxHp) player.hp = player.maxHp;
 
 log.push(`
 現在の連勝数: ${currentStreak}`);
@@ -1507,38 +1566,40 @@ function drawSkillMemoryList() {
     const category = skillDef?.category || "others";
     const desc = skillDef?.description || "";
 
-    // 色決め
+    // 色決め（基本表示色）
     let color = "white";
     if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(name)) {
       color = "deepskyblue"; // 初期スキル
     } else if (category === "passive") {
-      color = "gold"; // パッシブスキル
+      color = "gold"; // パッシブ
     } else {
-      color = categoryColors[category] || "white"; // 通常カテゴリ
+      color = categoryColors[category] || "white";
     }
 
-    // 色＋タイトル説明付きでHTML化
     li.innerHTML = `<span style="color:${color}" title="${desc}">${name} Lv${level}</span>`;
-
     li.setAttribute("data-name", name);
     li.setAttribute("data-level", level);
     li.setAttribute("draggable", "true");
 
-    // ドラッグ開始
+    // 発光クラス付与（色分けあり）
+const isOwnedPassive = player.skills.some(s => s.name === name && category === "passive");
+if (isOwnedPassive) {
+  li.classList.add("passive-skill");
+} else if (window.lastChosenSkillNames?.includes(name)) {
+  li.classList.add("chosen-skill");
+}
+
+    // ドラッグ操作
     li.ondragstart = e => {
       e.dataTransfer.setData("text/plain", name);
     };
-
-    // ドラッグ中
     li.ondragover = e => {
       e.preventDefault();
       li.style.border = "2px dashed #888";
     };
-
     li.ondragleave = () => {
       li.style.border = "";
     };
-
     li.ondrop = e => {
       e.preventDefault();
       const draggedName = e.dataTransfer.getData("text/plain");

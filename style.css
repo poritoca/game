@@ -657,3 +657,23 @@ button:active {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* 戦闘で選ばれたスキル → 青に光る */
+#skillMemoryList li.chosen-skill {
+  animation: glowChosen 1s infinite alternate;
+  border-color: #00bfff;
+}
+@keyframes glowChosen {
+  from { box-shadow: 0 0 5px #00bfff; }
+  to   { box-shadow: 0 0 15px #00bfff; }
+}
+
+/* パッシブスキル → 金に光る */
+#skillMemoryList li.passive-skill {
+  animation: glowPassive 1s infinite alternate;
+  border-color: gold;
+}
+@keyframes glowPassive {
+  from { box-shadow: 0 0 5px gold; }
+  to   { box-shadow: 0 0 15px gold; }
+}
