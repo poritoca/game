@@ -973,7 +973,8 @@ if (playerWon && Math.random() < finalRate) {
   if (playerWon) {
     currentStreak++;
 
-    showCustomAlert(`\n勝利：${displayName(enemy.name)}に勝利\n現在連勝数：${currentStreak}`,2000);
+    const message = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
+    showCustomAlert(message, 2000);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1038,7 +1039,7 @@ player.skills.forEach(sk => {
 
   //stopAutoBattle()
 
-  showCustomAlert(`\n敗北：${displayName(enemy.name)}に敗北\n最終連勝数：${currentStreak}`,4000, "#ff4d4d", "#fff");
+ showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 4000, "#ff4d4d", "#fff");
 
   currentStreak = 0;
   streakBonus = 1;
@@ -1763,19 +1764,15 @@ window.drawHPGraph = function () {
   ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
 };
 
-function showCustomAlert(message, duration = 200, bgColor = '#222', textColor = '#fff') {
-  const alertBox = document.getElementById("customAlert");
-  alertBox.textContent = message;
-  alertBox.style.display = "block";
-  alertBox.style.opacity = 0.8;
-  alertBox.style.backgroundColor = bgColor;
-  alertBox.style.color = textColor;
+function showCustomAlert(message, duration = 2000, bgColor = "#333", textColor = "#fff") {
+  const alertEl = document.getElementById('customAlert');
+  alertEl.innerHTML = message;  // ← innerText ではなく innerHTML
+  alertEl.style.display = 'block';
+  alertEl.style.backgroundColor = bgColor;
+  alertEl.style.color = textColor;
 
   setTimeout(() => {
-    alertBox.style.opacity = 0;
-    setTimeout(() => {
-      alertBox.style.display = "none";
-    }, 500);
+    alertEl.style.display = 'none';
   }, duration);
 }
 
