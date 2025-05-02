@@ -1,9 +1,16 @@
 
 // スキルレベルに応じてターン数ボーナスを決める設定
 const levelTurnBonusSettings = [
-  { level: 999, bonus: 2 },
-  { level: 500, bonus: 1 },
-  { level: 0, bonus: 0 },
+  { level: 9999, bonus: 9 },
+  { level: 7999, bonus: 8 },
+  { level: 5999, bonus: 7 },
+  { level: 3999, bonus: 6 },
+  { level: 2999, bonus: 5 },
+  { level: 1999, bonus: 4 },
+  { level: 1499, bonus: 3 },	
+  { level: 999,  bonus: 2 },
+  { level: 500,  bonus: 1 },
+  { level: 0,    bonus: 0 },
 ];
 
 
@@ -655,31 +662,12 @@ case 'berserk': {
   const attackFactor = 2.0 + (skill.level || 1) * 0.0005;
   const defenseFactor = Math.max(0.1, 0.5 - (skill.level || 1) * 0.0002);
 
+  // 既存のbuff/debuffと同じ方式で、元の値を保存
   const originalAttack = user.attack;
   const originalDefense = user.defense;
 
-if (!user._originalStats) {
-  user._originalStats = {
-    attack: user.attack,
-    defense: user.defense,
-    speed: user.speed,
-    maxHp: user.maxHp
-  };
-}
-
-// 一度元のステータスに戻す
-user.attack = user._originalStats.attack;
-user.defense = user._originalStats.defense;
-
-// そこから再計算
-const newAttack = Math.floor(user.attack * attackFactor);
-const newDefense = Math.floor(user.defense * defenseFactor);
-
-user.attack = newAttack;
-user.defense = newDefense;
-
-user.effects.push({ type: 'buff', stat: 'attack', original: user._originalStats.attack, remaining: duration });
-user.effects.push({ type: 'debuff', stat: 'defense', original: user._originalStats.defense, remaining: duration });
+  user.attack = Math.floor(user.attack * attackFactor);
+  user.defense = Math.floor(user.defense * defenseFactor);
 
   user.effects.push({ type: 'buff', stat: 'attack', original: originalAttack, remaining: duration });
   user.effects.push({ type: 'debuff', stat: 'defense', original: originalDefense, remaining: duration });
@@ -698,6 +686,11 @@ window.startBattle = function() {
   document.getElementById("battleLog").classList.remove("hidden");
 	
   drawSkillMemoryList();
+	
+	if (isWaitingGrowth) {
+  alert('ステータス上昇を選んでください！');
+  return;
+}
 
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
@@ -810,14 +803,7 @@ log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍�
 		
     recordHP();
 
-    // バフ・デバフを戦闘後にリセット
-    if (player._originalStats) {
-      player.attack = player._originalStats.attack;
-      player.defense = player._originalStats.defense;
-      player.speed = player._originalStats.speed;
-      player.maxHp = player._originalStats.maxHp;
-      // if (player.hp > player.maxHp) player.hp = player.maxHp;
-    }
+		
     // 継続効果の処理（毒・火傷・再生など）
     [player, enemy].forEach(ch => {
 // 各効果を処理
@@ -969,9 +955,13 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
+	
+const baseRate = 0.08; // 元の8%
+const streakFactor = Math.pow(0.125, currentStreak / 100); // 100連勝で1.25/10
+const finalRate = baseRate * streakFactor;
 
-  if (playerWon && Math.random() < effectiveRarity * 0.03) {
-    isWaitingGrowth = true;
+if (playerWon && Math.random() < finalRate) {
+  isWaitingGrowth = true;
     document.getElementById('growthSelect').style.display = 'block';
   } else if (playerWon) {
     const logEl = document.getElementById('battleLog');
@@ -980,14 +970,6 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
 
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
-  // バフ・デバフを戦闘後にリセット
-  if (player._originalStats) {
-    player.attack = player._originalStats.attack;
-    player.defense = player._originalStats.defense;
-    player.speed = player._originalStats.speed;
-    player.maxHp = player._originalStats.maxHp;
-    //  if (player.hp > player.maxHp) player.hp = player.maxHp;
-  }
   if (playerWon) {
     currentStreak++;
 
@@ -1207,6 +1189,14 @@ async function generateHash(input) {
 // セーブデータをコード化してコピー（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
+	
+	if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
   const payload = {
     player, currentStreak, sslot,
     skillMemoryOrder: Object.entries(player.skillMemory),
@@ -1539,8 +1529,8 @@ window.loadGame = async function() {
       return true;
     });
 
-    if (whiteSkills.length < 5) {
-      return; // 白スキルが5個未満なら何も起こさない
+    if (whiteSkills.length < 3) {
+      return; // 白スキルが3個未満なら何も起こさない
     }
 
     const chance = 0.1; // 10%の確率
