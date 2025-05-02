@@ -243,21 +243,39 @@ window.displayName = function(name) {
 
 let isWaitingGrowth = false;
 
+// 追加：成長ボーナス倍率
+window.growthMultiplier = 1;
+
+// 成長選択時
 window.chooseGrowth = function(stat) {
-  const growthAmount = Math.floor(enemy[stat] * 0.08); // 成長量8%
+  const baseAmount = Math.floor(enemy[stat] * 0.08);
+  const growthAmount = baseAmount * window.growthMultiplier;
   if (!player.growthBonus) {
     player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
   }
   player.growthBonus[stat] += growthAmount;
   player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
-  // 戦闘ログにも書き込み
-  const logEl = document.getElementById('battleLog');
-  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}) 上昇\n`;
+  const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
+  showCustomAlert(message, 2500);  // ← 追加：カスタムアラート表示
 
-  document.getElementById('growthSelect').style.display = 'none';
-  isWaitingGrowth = false; // バトル再開許可
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
+
+  window.growthMultiplier = 1;  // リセット
+  isWaitingGrowth = false;
 };
+
+window.skipGrowth = function() {
+  window.growthMultiplier = Math.min(window.growthMultiplier * 2, 256);
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n今回は成長をスキップ。次回成長値は倍率x${window.growthMultiplier}になります（最大256倍）。\n`;
+
+  showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2500);  // ← 追加
+
+  isWaitingGrowth = false;
+};
+
 
 // キャラクターオブジェクト生成（初期ステータスとランダム3スキル）
 
@@ -957,12 +975,28 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
   const effectiveRarity = enemy.rarity * streakBonus;
 	
 const baseRate = 0.08; // 元の8%
-const streakFactor = Math.pow(0.125, currentStreak / 100); // 100連勝で1.25/10
+const streakFactor = Math.pow(0.07, currentStreak / 100); // 100連勝で0.07/100
 const finalRate = baseRate * streakFactor;
-
+// 100連勝で0.07/100 × 0.08
 if (playerWon && Math.random() < finalRate) {
   isWaitingGrowth = true;
-    document.getElementById('growthSelect').style.display = 'block';
+
+showEventOptions("成長選択", [
+  { label: "攻撃を上げる", value: 'attack' },
+  { label: "防御を上げる", value: 'defense' },
+  { label: "速度を上げる", value: 'speed' },
+  { label: "HPを上げる", value: 'maxHp' },
+  { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
+], (chosen) => {
+  if (chosen === 'skip') {
+    window.skipGrowth();
+  } else {
+    window.chooseGrowth(chosen);
+  }
+
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
+});
   } else if (playerWon) {
     const logEl = document.getElementById('battleLog');
     logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
@@ -1041,6 +1075,7 @@ player.skills.forEach(sk => {
 
  showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 4000, "#ff4d4d", "#fff");
 
+  window.growthMultiplier = 1;
   currentStreak = 0;
   streakBonus = 1;
   log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
@@ -1148,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
-      }, 150); // 連打間隔（ミリ秒）調整可
+      }, 100); // 連打間隔（ミリ秒）調整可
     }
   }
 
@@ -1200,6 +1235,7 @@ window.exportSaveCode = async function() {
   }
   const payload = {
     player, currentStreak, sslot,
+    growthMultiplier: window.growthMultiplier, // ← 追加
     skillMemoryOrder: Object.entries(player.skillMemory),
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0')
   };
@@ -1259,8 +1295,10 @@ window.importSaveCode = async function() {
     player = parsed.player;
 
     if (!player.growthBonus) {
-      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+        player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
     }
+
+    window.growthMultiplier = parsed.growthMultiplier || 1; // ← 追加
 
     currentStreak = parsed.currentStreak || 0;
     localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
@@ -1665,7 +1703,8 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 window.drawHPGraph = function () {
-  const canvas = document.getElementById('hpChart');
+  if (isAutoBattle) return;
+	const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
