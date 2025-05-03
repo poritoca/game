@@ -976,8 +976,10 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
 	
 const baseRate = 0.08; // 元の8%
 const streakFactor = Math.pow(0.07, currentStreak / 100); // 100連勝で0.07/100
-const finalRate = baseRate * streakFactor;
-// 100連勝で0.07/100 × 0.08
+const rawFinalRate = baseRate * streakFactor;
+const minGuaranteedRate = 0.0005; // 最低保証値 0.05%
+const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
+
 if (playerWon && Math.random() < finalRate) {
   isWaitingGrowth = true;
 
