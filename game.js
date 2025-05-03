@@ -257,7 +257,7 @@ window.chooseGrowth = function(stat) {
   player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
   const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
-  showCustomAlert(message, 2500);  // ← 追加：カスタムアラート表示
+  showCustomAlert(message, 2000);  // ← 追加：カスタムアラート表示
 
   const logEl = document.getElementById('battleLog');
   logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
@@ -271,7 +271,7 @@ window.skipGrowth = function() {
   const logEl = document.getElementById('battleLog');
   logEl.textContent += `\n今回は成長をスキップ。次回成長値は倍率x${window.growthMultiplier}になります（最大256倍）。\n`;
 
-  showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2500);  // ← 追加
+  showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2000);  // ← 追加
 
   isWaitingGrowth = false;
 };
@@ -1010,7 +1010,7 @@ showEventOptions("成長選択", [
     currentStreak++;
 
     const message = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-    showCustomAlert(message, 2000);
+    showCustomAlert(message, 200);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1075,7 +1075,7 @@ player.skills.forEach(sk => {
 
   //stopAutoBattle()
 
- showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 4000, "#ff4d4d", "#fff");
+ showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 400, "#ff4d4d", "#fff");
 
   window.growthMultiplier = 1;
   currentStreak = 0;
@@ -1583,19 +1583,19 @@ window.loadGame = async function() {
       { label: "ランダムに3個削除", value: "random" },
     { label: "何もしない", value: "none" }
     ], (choice) => {
-      if (choice === "select") {
-        showWhiteSkillSelector(selectedName => {
-          deleteSkillByName(selectedName);
-          updateStats();
-          showCustomAlertTap(`${selectedName} を削除しました！`);
-        });
-      } else if (choice === "random") {
-        const deleted = deleteRandomWhiteSkills(3);
-        updateStats();
-        showCustomAlertTap(`${deleted.join(", ")} を削除しました！`);
-      } else if (choice === "none") {
-        showCustomAlertTap("今回はスキルを削除しませんでした！");
-      }
+if (choice === "select") {
+  showWhiteSkillSelector(selectedName => {
+    deleteSkillByName(selectedName);
+    updateStats();
+    showCustomAlert(`${selectedName} を削除しました！`, 3000);
+  });
+} else if (choice === "random") {
+  const deleted = deleteRandomWhiteSkills(3);
+  updateStats();
+  showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
+} else if (choice === "none") {
+  showCustomAlert("今回はスキルを削除しませんでした！", 3000);
+}
     });
   }
 };
@@ -1805,17 +1805,45 @@ window.drawHPGraph = function () {
   ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
 };
 
-function showCustomAlert(message, duration = 2000, bgColor = "#333", textColor = "#fff") {
-  const alertEl = document.getElementById('customAlert');
-  alertEl.innerHTML = message;  // ← innerText ではなく innerHTML
-  alertEl.style.display = 'block';
-  alertEl.style.backgroundColor = bgColor;
-  alertEl.style.color = textColor;
+window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff") {
+    const container = document.getElementById('customAlertContainer');
+    const alert = document.createElement('div');
 
-  setTimeout(() => {
-    alertEl.style.display = 'none';
-  }, duration);
-}
+    alert.style.background = background;
+    alert.style.color = color;
+    alert.style.padding = '12px 20px';
+    alert.style.border = '2px solid #fff';
+    alert.style.borderRadius = '8px';
+    alert.style.fontSize = '16px';
+    alert.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+    alert.style.opacity = '0';
+    alert.style.transition = 'opacity 0.3s';
+    alert.style.position = 'absolute';
+    alert.style.top = '0';
+    alert.style.left = '50%';
+    alert.style.transform = 'translateX(-50%)';
+    alert.style.pointerEvents = 'none';
+    alert.style.minWidth = '200px';    // ← 最小幅
+    alert.style.maxWidth = '80vw';     // ← 最大幅
+    alert.style.textAlign = 'center';  // ← テキスト中央寄せ
+
+    alert.innerHTML = message;
+
+    container.appendChild(alert);
+
+    // フェードイン
+    setTimeout(() => {
+        alert.style.opacity = '1';
+    }, 10);
+
+    // 指定時間後にフェードアウト＆削除
+    setTimeout(() => {
+        alert.style.opacity = '0';
+        setTimeout(() => {
+            container.removeChild(alert);
+        }, 300);
+    }, duration);
+};
 
 // 全戦闘ログ保存用
 window.allBattleLogs = [];
