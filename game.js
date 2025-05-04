@@ -978,10 +978,10 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
 	
-const baseRate = 0.08; // 元の8%
-const streakFactor = Math.pow(0.07, currentStreak / 100); // 100連勝で0.07/100
+const baseRate = 0.10; // 元の10%
+const streakFactor = Math.pow(0.1, currentStreak / 100); // 100連勝で0.1/100
 const rawFinalRate = baseRate * streakFactor;
-const minGuaranteedRate = 0.0005; // 最低保証値 0.05%
+const minGuaranteedRate = 0.005; // 最低保証値 0.05%
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
 if (playerWon && Math.random() < finalRate) {
@@ -1014,7 +1014,7 @@ showEventOptions("成長選択", [
     currentStreak++;
 
     const message = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-    showCustomAlert(message, 400);
+    showCustomAlert(message, 800);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1079,7 +1079,7 @@ player.skills.forEach(sk => {
 
   //stopAutoBattle()
 
- showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 400, "#ff4d4d", "#fff");
+ showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 800, "#ff4d4d", "#fff");
 
   window.growthMultiplier = 1;
   currentStreak = 0;
@@ -1806,7 +1806,6 @@ window.drawHPGraph = function () {
 
 // 修正版 showCustomAlert 関数
 window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff") {
-    // すでにある alert を消さず、新しい要素を作る
     const container = document.getElementById('customAlertContainer');
     const alert = document.createElement('div');
 
@@ -1823,11 +1822,11 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
     alert.style.top = '0';
     alert.style.left = '50%';
     alert.style.transform = 'translateX(-50%)';
-    alert.style.pointerEvents = 'auto'; // 他要素の選択を邪魔しない
+    alert.style.pointerEvents = 'auto';
     alert.style.minWidth = '200px';
     alert.style.maxWidth = '80vw';
     alert.style.textAlign = 'center';
-    alert.style.zIndex = '10000'; // 最前面に出す
+    alert.style.zIndex = '10000';
 
     alert.innerHTML = message;
 
@@ -1838,7 +1837,7 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
         alert.style.opacity = '1';
     }, 10);
 
-    // 指定時間後にフェードアウト＆削除（他要素には影響しない）
+    // フェードアウト＆削除
     setTimeout(() => {
         alert.style.opacity = '0';
         setTimeout(() => {
