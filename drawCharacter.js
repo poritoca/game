@@ -69,6 +69,20 @@ export function drawCharacterImage(name, canvasId) {
         const rngShield = mulberry32(hashString(name + 'shield'));
         const rngSword = mulberry32(hashString(name + 'sword'));
 
+        const rngShieldWave = mulberry32(hashString(name + 'shieldWave'));
+        const rngSwordWave = mulberry32(hashString(name + 'swordWave'));
+
+        const shieldWaveColor = [
+            Math.floor(rngShieldWave() * 255),
+            Math.floor(rngShieldWave() * 255),
+            Math.floor(rngShieldWave() * 255)
+        ];
+        const swordWaveColor = [
+            Math.floor(rngSwordWave() * 255),
+            Math.floor(rngSwordWave() * 255),
+            Math.floor(rngSwordWave() * 255)
+        ];
+
         const helmetBase = getMetallicBaseColor(rngHelmet);
         const armorBase = getMetallicBaseColor(rngArmor);
         const shieldBase = getMetallicBaseColor(rngShield);
@@ -87,11 +101,9 @@ export function drawCharacterImage(name, canvasId) {
                 }
 
                 let baseColor, gradientFactor;
-                let isTargetPart = false;
                 if (isNear(r, g, b, 100, 100, 120)) {
                     baseColor = helmetBase;
                     gradientFactor = ((originalWidth - x) + (originalHeight - y)) / (originalWidth + originalHeight);
-                    isTargetPart = true;
                 } else if (isNear(r, g, b, 90, 110, 70)) {
                     baseColor = armorBase;
                     gradientFactor = ((originalWidth - x) + y) / (originalWidth + originalHeight);
@@ -102,23 +114,18 @@ export function drawCharacterImage(name, canvasId) {
                 ) {
                     baseColor = shieldBase;
                     gradientFactor = (x + (originalHeight - y)) / (originalWidth + originalHeight);
-                    isTargetPart = true;
+                    partMask[y * originalWidth + x] = 2; // 盾
                 } else if (isNear(r, g, b, 200, 200, 200)) {
                     baseColor = swordBase;
                     gradientFactor = (x + y) / (originalWidth + originalHeight);
-                    isTargetPart = true;
+                    partMask[y * originalWidth + x] = 3; // 剣
                 }
 
                 if (baseColor) {
                     const metallicFactor = 0.4 + Math.abs(gradientFactor - 0.5) * 2.4;
-
                     data[idx] = Math.min(255, Math.floor(baseColor[0] * metallicFactor));
                     data[idx + 1] = Math.min(255, Math.floor(baseColor[1] * metallicFactor));
                     data[idx + 2] = Math.min(255, Math.floor(baseColor[2] * metallicFactor));
-                }
-
-                if (isTargetPart) {
-                    partMask[y * originalWidth + x] = 1;
                 }
             }
         }
@@ -139,18 +146,8 @@ export function drawCharacterImage(name, canvasId) {
         ctx.drawImage(tempCanvas, 0, 0, originalWidth, originalHeight, 0, 0, smallWidth, smallHeight);
 
         let animationOffset = 0;
-        let frameCounter = 0;
-        let startTime = performance.now();
 
-        function animateGoldWave(timestamp) {
-            if (timestamp - startTime >= 2000) return; // 停止条件: 10秒間
-
-            frameCounter++;
-           // if (frameCounter % 3 !== 0) {
-                //requestAnimationFrame(animateGoldWave);
-             //   return;
-          //  }
-
+        function animateWave() {
             ctx.clearRect(0, 0, smallWidth, smallHeight);
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(tempCanvas, 0, 0, originalWidth, originalHeight, 0, 0, smallWidth, smallHeight);
@@ -162,12 +159,15 @@ export function drawCharacterImage(name, canvasId) {
                 for (let x = 0; x < smallWidth; x++) {
                     const idx = (y * smallWidth + x) * 4;
                     const maskIdx = Math.floor(y / smallHeight * originalHeight) * originalWidth + Math.floor(x / smallWidth * originalWidth);
+                    const part = partMask[maskIdx];
 
-                    if (partMask[maskIdx] === 1) {
+                    if (part === 2 || part === 3) {
                         const wave = Math.sin((x + y + animationOffset) * 0.1);
                         if (wave > 0.5) {
-                            waveData[idx] = Math.min(255, waveData[idx] + 80);
-                            waveData[idx + 1] = Math.min(255, waveData[idx + 1] + 60);
+                            const color = (part === 2) ? shieldWaveColor : swordWaveColor;
+                            waveData[idx] = Math.min(255, waveData[idx] + color[0] * 0.3);
+                            waveData[idx + 1] = Math.min(255, waveData[idx + 1] + color[1] * 0.3);
+                            waveData[idx + 2] = Math.min(255, waveData[idx + 2] + color[2] * 0.3);
                         }
                     }
                 }
@@ -178,9 +178,9 @@ export function drawCharacterImage(name, canvasId) {
             animationOffset += 1;
             if (animationOffset > smallWidth + smallHeight) animationOffset = 0;
 
-            requestAnimationFrame(animateGoldWave);
+            requestAnimationFrame(animateWave);
         }
 
-        requestAnimationFrame(animateGoldWave);
+        requestAnimationFrame(animateWave);
     };
 }
