@@ -146,10 +146,10 @@ export function drawCharacterImage(name, canvasId) {
             if (timestamp - startTime >= 2000) return; // 停止条件: 10秒間
 
             frameCounter++;
-            if (frameCounter % 3 !== 0) {
-                requestAnimationFrame(animateGoldWave);
-                return;
-            }
+           // if (frameCounter % 3 !== 0) {
+                //requestAnimationFrame(animateGoldWave);
+             //   return;
+          //  }
 
             ctx.clearRect(0, 0, smallWidth, smallHeight);
             ctx.imageSmoothingEnabled = false;
