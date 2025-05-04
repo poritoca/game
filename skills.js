@@ -78,7 +78,7 @@ export const skillPool = [
   {
     "name": "五連撃",
     "category": "multi",
-    "baseHits": 1,
+    "baseHits": 4,
     "description": "5回連続で攻撃を行う",
     "extraHits": 1,
     "extraHitsTriggerLevel": 100,
@@ -92,7 +92,7 @@ export const skillPool = [
   {
     "name": "百烈拳",
     "category": "multi",
-    "baseHits": 1,
+    "baseHits": 5,
     "description": "猛烈な連打を浴びせる（5回攻撃）",
     "extraHits": 1,
     "extraHitsTriggerLevel": 10,

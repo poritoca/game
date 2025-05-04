@@ -450,25 +450,52 @@ window.getSkillEffect = function(skill, user, target, log) {
   const skillData = skillPool.find(sk => sk.name === skill.name);
   if (!skillData) return;
   switch (skillData.category) {
-    case 'multi': {
-      let dmg = Math.max(0, user.attack - target.defense / 2);
-      const barrierEff = target.effects.find(e => e.type === 'barrier');
-      if (barrierEff) {
-        dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
-      }
-      const baseHits = skillData.baseHits || 1;
-      let hits = baseHits;
-      if (skillData.extraHits && skill.level >= (skillData.extraHitsTriggerLevel || 9999)) {
+case 'multi': {
+    let baseDmg = Math.max(0, user.attack);
+    const baseHits = skillData.baseHits || 1;
+    let hits = baseHits;
+    if (skillData.extraHits && skill.level >= (skillData.extraHitsTriggerLevel || 9999)) {
         hits += skillData.extraHits;
-      }
-      for (let i = 0; i < hits; i++) {
-        // ダメージ算出（バリア軽減後）
-        target.hp -= dmg;
-        totalDamage += dmg;
-        log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ (${i + 1}回目)`);
-      }
-      break;
     }
+
+    // ダメージ補正（例：+6% per hit）
+    let totalDmg = baseDmg * (1 + hits * 0.06);
+
+    const barrierEff = target.effects.find(e => e.type === 'barrier');
+    if (barrierEff) {
+        totalDmg = Math.max(0, Math.floor(totalDmg * (1 - barrierEff.reduction)));
+    }
+
+    const splitBaseDmg = Math.floor(totalDmg / hits);
+    let remaining = totalDmg - splitBaseDmg * hits;  // 端数補正
+
+    // 命中率調整（95% - 5% × (hits - 1)、下限50%）
+    const baseAccuracy = Math.max(0.5, 0.95 - (hits - 1) * 0.05);
+
+    for (let i = 0; i < hits; i++) {
+        if (Math.random() < baseAccuracy) {
+            // 乱数補正（0.7 ～ 1.3）
+            const randFactor = 0.7 + Math.random() * 0.6;
+            let rawHitDmg = splitBaseDmg * randFactor;
+
+            // 防御計算
+            let hitDmg = Math.max(0, Math.floor(rawHitDmg - target.defense / 2));
+
+            // 端数補正
+            if (remaining > 0) {
+                hitDmg += 1;
+                remaining -= 1;
+            }
+
+            target.hp -= hitDmg;
+            totalDamage += hitDmg;
+            log.push(`${displayName(user.name)}の${skill.name}：${hitDmg}ダメージ (${i + 1}回目)`);
+        } else {
+            log.push(`${displayName(user.name)}の${skill.name}：攻撃を外した (${i + 1}回目)`);
+        }
+    }
+    break;
+}
 case 'poison': {
   const base = skillData.power + skill.level * skillData.levelFactor;
 
