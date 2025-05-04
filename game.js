@@ -978,10 +978,11 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
 	
-const baseRate = 0.10; // 元の10%
-const streakFactor = Math.pow(0.1, currentStreak / 100); // 100連勝で0.1/100
+const baseRate = 0.1
+//const baseRate = isAutoBattle ? 0.05 : 0.20;//オートバトルで確率下げ
+const streakFactor = Math.pow(0.06, currentStreak / 100);
 const rawFinalRate = baseRate * streakFactor;
-const minGuaranteedRate = 0.005; // 最低保証値 0.05%
+const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
 if (playerWon && Math.random() < finalRate) {
@@ -1013,8 +1014,12 @@ showEventOptions("成長選択", [
   if (playerWon) {
     currentStreak++;
 
-    const message = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-    showCustomAlert(message, 800);
+  let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
+  if (window.growthMultiplier !== 1) {
+    victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
+  }
+
+showCustomAlert(victoryMessage, 800);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1079,7 +1084,12 @@ player.skills.forEach(sk => {
 
   //stopAutoBattle()
 
- showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}`, 800, "#ff4d4d", "#fff");
+let resetMessage = '';
+if (window.growthMultiplier !== 1) {
+  resetMessage = `<br>成長倍率リセット：→ x1`;
+}
+
+showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}`, 800, "#ff4d4d", "#fff");
 
   window.growthMultiplier = 1;
   currentStreak = 0;
