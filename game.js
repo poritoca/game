@@ -297,10 +297,7 @@ window.formatStats = function(c) {
     <div class="name-and-streak">
       <div class="player-name"><strong>${displayName(c.name)}</strong></div>
       ${isPlayer ? `
-      <div class="streak-counter">
-        ${currentStreak}連勝<br>
-        (最大${maxStreak}連勝)
-      </div>
+				
       ` : ``}
     </div>
     <ul style="padding-left: 20px;">
@@ -375,9 +372,13 @@ window.formatSkills = function(c) {
 
 // ステータス表示の更新
 window.updateStats = function() {
-  // HPが最大を超えている場合は補正（戦闘後や回復バグ防止）
+  if (isAutoBattle) return;  // オートバトル中は描画スキップ
+
+  if (!player || !enemy) return;  // 安全確認：nullなら中断
+
   if (player.hp > player.maxHp) player.hp = player.maxHp;
   if (enemy.hp > enemy.maxHp) enemy.hp = enemy.maxHp;
+
   if (player.hp < 0) player.hp = 0;
   if (enemy.hp < 0) enemy.hp = 0;
 
@@ -385,10 +386,11 @@ window.updateStats = function() {
   const eHtml = `<div>${formatStats(enemy)}</div><div>${formatSkills(enemy)}</div>`;
   document.getElementById('playerStats').innerHTML = pHtml;
   document.getElementById('enemyStats').innerHTML = eHtml;
-  drawCharacterImage(displayName(player.name), 'playerImg');
-  drawCharacterImage(displayName(enemy.name), 'enemyImg');
-};
 
+  // 修正ポイント：
+  drawCharacterImage(displayName(player.name), 'playerCanvas');
+  drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
+};
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
   const title = document.getElementById('titleScreen');
@@ -705,6 +707,8 @@ window.startBattle = function() {
 	
   drawSkillMemoryList();
 	
+	window.eventTriggered = false;
+	
 	if (isWaitingGrowth) {
   alert('ステータス上昇を選んでください！');
   return;
@@ -1010,7 +1014,7 @@ showEventOptions("成長選択", [
     currentStreak++;
 
     const message = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-    showCustomAlert(message, 200);
+    showCustomAlert(message, 400);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1193,6 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isAutoBattle = false; // ← 長押し終了
     clearInterval(battleInterval);
     battleInterval = null;
+		updateStats();  // ボタンを離したときに最新情報を描画
   }
   window.stopAutoBattle = stopAutoBattle;
 
@@ -1450,19 +1455,7 @@ window.loadGame = async function() {
   };
 
   // ここからイベント関連
-  // 【タップして閉じるカスタムアラート】（新しい関数）
-  window.showCustomAlertTap = function(message) {
-    const alertBox = document.getElementById('customAlert');
-    alertBox.textContent = message;
-    alertBox.style.display = 'block';
-
-    const hide = () => {
-      alertBox.style.display = 'none';
-      alertBox.removeEventListener('click', hide);
-    };
-
-    alertBox.addEventListener('click', hide);
-  };
+	
 
   // 【選択肢イベントポップアップを表示する】
   window.showEventOptions = function(title, options, onSelect) {
@@ -1560,48 +1553,54 @@ window.loadGame = async function() {
     return selected.map(s => s.name);
   };
 
-  // 【バトル後にイベント発生を判定して処理する】
-  window.maybeTriggerEvent = function() {
-    const whiteSkills = player.skills.filter(s => {
-      const found = skillPool.find(sk => sk.name === s.name);
-      if (!found) return false;
-      if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-      if (found.category === 'passive') return false;
-      return true;
-    });
+window.eventTriggered = false;  // イベント発生フラグを初期化
 
-    if (whiteSkills.length < 3) {
-      return; // 白スキルが3個未満なら何も起こさない
-    }
+// 【バトル後にイベント発生を判定して処理する】
+window.maybeTriggerEvent = function() {
+  if (window.eventTriggered) return;  // すでにイベントが発生していたらスキップ
 
-    const chance = 0.1; // 10%の確率
-    if (Math.random() < chance) {
-      stopAutoBattle();
+  const whiteSkills = player.skills.filter(s => {
+    const found = skillPool.find(sk => sk.name === s.name);
+    if (!found) return false;
+    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+    if (found.category === 'passive') return false;
+    return true;
+  });
 
-      showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
+  if (whiteSkills.length < 3) {
+    return; // 白スキルが3個未満なら何も起こさない
+  }
+
+  const chance = 0.1; // 10%の確率
+  if (Math.random() < chance) {
+    window.eventTriggered = true;  // イベント発生を記録
+    stopAutoBattle();
+
+    showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
       { label: "スキルから選んで削除", value: "select" },
       { label: "ランダムに3個削除", value: "random" },
-    { label: "何もしない", value: "none" }
+      { label: "何もしない", value: "none" }
     ], (choice) => {
-if (choice === "select") {
-  showWhiteSkillSelector(selectedName => {
-    deleteSkillByName(selectedName);
-    updateStats();
-    showCustomAlert(`${selectedName} を削除しました！`, 3000);
-  });
-} else if (choice === "random") {
-  const deleted = deleteRandomWhiteSkills(3);
-  updateStats();
-  showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
-} else if (choice === "none") {
-  showCustomAlert("今回はスキルを削除しませんでした！", 3000);
-}
+      if (choice === "select") {
+        showWhiteSkillSelector(selectedName => {
+          deleteSkillByName(selectedName);
+          updateStats();
+          showCustomAlert(`${selectedName} を削除しました！`, 3000);
+        });
+      } else if (choice === "random") {
+        const deleted = deleteRandomWhiteSkills(3);
+        updateStats();
+        showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
+      } else if (choice === "none") {
+        showCustomAlert("今回はスキルを削除しませんでした！", 3000);
+      }
     });
   }
 };
 
 function drawSkillMemoryList() {
-  const list = document.getElementById("skillMemoryList");
+  if (isAutoBattle) return;
+	const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
   list.innerHTML = "";
 
@@ -1805,7 +1804,9 @@ window.drawHPGraph = function () {
   ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
 };
 
+// 修正版 showCustomAlert 関数
 window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff") {
+    // すでにある alert を消さず、新しい要素を作る
     const container = document.getElementById('customAlertContainer');
     const alert = document.createElement('div');
 
@@ -1822,10 +1823,11 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
     alert.style.top = '0';
     alert.style.left = '50%';
     alert.style.transform = 'translateX(-50%)';
-    alert.style.pointerEvents = 'none';
-    alert.style.minWidth = '200px';    // ← 最小幅
-    alert.style.maxWidth = '80vw';     // ← 最大幅
-    alert.style.textAlign = 'center';  // ← テキスト中央寄せ
+    alert.style.pointerEvents = 'auto'; // 他要素の選択を邪魔しない
+    alert.style.minWidth = '200px';
+    alert.style.maxWidth = '80vw';
+    alert.style.textAlign = 'center';
+    alert.style.zIndex = '10000'; // 最前面に出す
 
     alert.innerHTML = message;
 
@@ -1836,11 +1838,13 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
         alert.style.opacity = '1';
     }, 10);
 
-    // 指定時間後にフェードアウト＆削除
+    // 指定時間後にフェードアウト＆削除（他要素には影響しない）
     setTimeout(() => {
         alert.style.opacity = '0';
         setTimeout(() => {
-            container.removeChild(alert);
+            if (alert.parentElement) {
+                container.removeChild(alert);
+            }
         }, 300);
     }, duration);
 };
