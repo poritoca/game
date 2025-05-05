@@ -810,9 +810,9 @@ enemy = makeCharacter('敵' + Math.random());
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
-const specialSkillThreshold = 800;
+const specialSkillThreshold = 999;
 const maxSpecialSkillLevel = 3000;
-const statMultiplierMin = 0.7;
+const statMultiplierMin = 0.8;
 const statMultiplierMax = 1.2;
 const specialChance = window.getSpecialChance();
 
@@ -902,7 +902,7 @@ if (hasSpecialSkill) {
 	
 const factor = Math.pow(1.1, currentStreak);
 if (window.specialMode === 'brutal') {
-    log.push(`[鬼畜モード挑戦中（勝利時連勝数10増加）]`);
+    log.push(`[鬼畜モード挑戦中（勝利時連勝数5増加）]`);
 } else {
     log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
 }
@@ -1116,7 +1116,7 @@ showEventOptions("成長選択", [
 
   if (playerWon) {
     if (window.specialMode === 'brutal') {
-        currentStreak += 10;
+        currentStreak += 5;
     } else {
         currentStreak += 1;
     }
