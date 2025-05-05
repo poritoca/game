@@ -734,12 +734,14 @@ window.startBattle = function() {
 	
   drawSkillMemoryList();
 	
-	window.eventTriggered = false;
+  window.eventTriggered = false;
+  
+  const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 	
-	if (isWaitingGrowth) {
-  alert('ステータス上昇を選んでください！');
-  return;
-}
+  if (customAlertVisible && isWaitingGrowth) {
+    alert('ステータス上昇を選んでください！');
+    return;
+  }
 
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {

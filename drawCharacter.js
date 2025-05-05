@@ -35,11 +35,18 @@ function getMetallicBaseColor(rng) {
     return palette[idx];
 }
 
+let animationFrameIds = {}; // アニメーションID管理用オブジェクト
+
 export function drawCharacterImage(name, canvasId) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // 前回のアニメーションを停止（重要）
+    if (animationFrameIds[canvasId]) {
+        cancelAnimationFrame(animationFrameIds[canvasId]);
+    }
 
     const img = new Image();
     img.src = 'warrior_base.png';
@@ -58,11 +65,8 @@ export function drawCharacterImage(name, canvasId) {
         const data = imageData.data;
 
         const partMask = new Uint8Array(originalWidth * originalHeight);
-
         const bgIdx = 0;
-        const bgR = data[bgIdx];
-        const bgG = data[bgIdx + 1];
-        const bgB = data[bgIdx + 2];
+        const bgR = data[bgIdx], bgG = data[bgIdx + 1], bgB = data[bgIdx + 2];
 
         const rngHelmet = mulberry32(hashString(name + 'helmet'));
         const rngArmor = mulberry32(hashString(name + 'armor'));
@@ -91,9 +95,7 @@ export function drawCharacterImage(name, canvasId) {
         for (let y = 0; y < originalHeight; y++) {
             for (let x = 0; x < originalWidth; x++) {
                 const idx = (y * originalWidth + x) * 4;
-                const r = data[idx];
-                const g = data[idx + 1];
-                const b = data[idx + 2];
+                const r = data[idx], g = data[idx + 1], b = data[idx + 2];
 
                 if (isNear(r, g, b, bgR, bgG, bgB, 20)) {
                     data[idx + 3] = 0;
@@ -114,11 +116,11 @@ export function drawCharacterImage(name, canvasId) {
                 ) {
                     baseColor = shieldBase;
                     gradientFactor = (x + (originalHeight - y)) / (originalWidth + originalHeight);
-                    partMask[y * originalWidth + x] = 2; // 盾
+                    partMask[y * originalWidth + x] = 2;
                 } else if (isNear(r, g, b, 200, 200, 200)) {
                     baseColor = swordBase;
                     gradientFactor = (x + y) / (originalWidth + originalHeight);
-                    partMask[y * originalWidth + x] = 3; // 剣
+                    partMask[y * originalWidth + x] = 3;
                 }
 
                 if (baseColor) {
@@ -131,19 +133,13 @@ export function drawCharacterImage(name, canvasId) {
         }
 
         tempCtx.putImageData(imageData, 0, 0);
-
         const scale = 0.1;
         const smallWidth = Math.floor(originalWidth * scale);
         const smallHeight = Math.floor(originalHeight * scale);
-
         canvas.width = smallWidth;
         canvas.height = smallHeight;
         canvas.style.width = smallWidth + 'px';
         canvas.style.height = smallHeight + 'px';
-
-        ctx.clearRect(0, 0, smallWidth, smallHeight);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(tempCanvas, 0, 0, originalWidth, originalHeight, 0, 0, smallWidth, smallHeight);
 
         let animationOffset = 0;
 
@@ -174,13 +170,11 @@ export function drawCharacterImage(name, canvasId) {
             }
 
             ctx.putImageData(waveImageData, 0, 0);
+            animationOffset = (animationOffset + 1) % (smallWidth + smallHeight);
 
-            animationOffset += 1;
-            if (animationOffset > smallWidth + smallHeight) animationOffset = 0;
-
-            requestAnimationFrame(animateWave);
+            animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
         }
 
-        requestAnimationFrame(animateWave);
+        animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
     };
 }
