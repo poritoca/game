@@ -774,41 +774,75 @@ window.initialAndSlotSkills = [
 ];
   }
   drawSkillMemoryList();
-  enemy = makeCharacter('敵' + Math.random());
+	
+	
+	
+	
+	
+// 敵を生成（乱数シード用に名前へMath.random()を渡す）
+enemy = makeCharacter('敵' + Math.random());
 
-  enemy.skills.forEach(skill => {
-    // ★修正ポイント：倍率を1にする！
-    const rarityBase = Math.floor(enemy.rarity * 1);  // ★ここ！
-    let randomBoost = 0;
+// 元の名前から安全なカタカナ部分を抽出
+const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
-    if (currentStreak >= 10) {
-      randomBoost = Math.floor(Math.pow(Math.random(), 8) * 300);
+const specialSkillThreshold = 800;
+const maxSpecialSkillLevel = 2000;
+const statMultiplierMin = 0.8;
+const statMultiplierMax = 1.2;
+const specialChance = 0.02;  // 特殊敵出現確率20%
+
+let hasSpecialSkill = false;
+let specialSkillName = '';
+
+// スキルレベル調整＆特殊スキル判定
+enemy.skills.forEach(skill => {
+    if (!hasSpecialSkill && Math.random() < specialChance) {
+        const randHigh = Math.random();
+        const specialLevel = specialSkillThreshold + Math.floor(
+            (maxSpecialSkillLevel - specialSkillThreshold) * Math.pow(randHigh, 5)
+        );
+        skill.level = specialLevel;
+        specialSkillName = skill.name;
+        hasSpecialSkill = true;
     }
+});
 
-    const finalLevel = Math.min(999, rarityBase + randomBoost);
-    skill.level = Math.max(1, finalLevel);
-  });
-	
-  //alert('[A001] [A396] enemy生成: ' + JSON.stringify(enemy?.baseStats));
-  // 連勝数に応じた敵の強化
+// 名前修正
+if (hasSpecialSkill) {
+    enemy.name = `${specialSkillName}${originalKanaName}`;
+} else {
+    enemy.name = originalKanaName;
+}
 
-  //alert('計算前のenemyattackの値は: ' +enemy.attack);
-  //alert('計算前のcurrentの値は: ' +currentStreak);
+// ステータス調整
+if (hasSpecialSkill) {
+    const atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    const def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    const spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    const hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
 
-  if (currentStreak > 0) {
-    const factor = Math.pow(1.1, currentStreak);
+    // baseStatsも更新（getEffectiveStat参照用）
+    enemy.baseStats.attack = atk;
+    enemy.baseStats.defense = def;
+    enemy.baseStats.speed = spd;
+    enemy.baseStats.maxHp = hpMax;
 
-    //alert('計算中のfactorの値は: ' +factor);
+    enemy.attack = atk;
+    enemy.defense = def;
+    enemy.speed = spd;
+    enemy.maxHp = hpMax;
+    enemy.hp = hpMax;
 
-    enemy.attack = Math.floor(getEffectiveStat(enemy, 'attack') * factor);
-    enemy.defense = Math.floor(getEffectiveStat(enemy, 'defense') * factor);
-    enemy.speed = Math.floor(getEffectiveStat(enemy, 'speed') * factor);
-    enemy.maxHp = Math.floor(enemy.maxHp * factor);
-    enemy.hp = enemy.maxHp;
-  }
-
-  //alert('計算後のenemyattackの値は: ' +enemy.attack);
-	
+} else {
+    if (currentStreak > 0) {
+        const factor = Math.pow(1.1, currentStreak);
+        enemy.attack = Math.floor(getEffectiveStat(enemy, 'attack') * factor);
+        enemy.defense = Math.floor(getEffectiveStat(enemy, 'defense') * factor);
+        enemy.speed = Math.floor(getEffectiveStat(enemy, 'speed') * factor);
+        enemy.maxHp = Math.floor(enemy.maxHp * factor);
+        enemy.hp = enemy.maxHp;
+    }
+}
 	
 
 

@@ -141,40 +141,48 @@ export function drawCharacterImage(name, canvasId) {
         canvas.style.width = smallWidth + 'px';
         canvas.style.height = smallHeight + 'px';
 
-        let animationOffset = 0;
+let animationOffset = 0;
+let startTime = performance.now();  // 開始時間を記録
 
-        function animateWave() {
-            ctx.clearRect(0, 0, smallWidth, smallHeight);
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(tempCanvas, 0, 0, originalWidth, originalHeight, 0, 0, smallWidth, smallHeight);
+function animateWave(timestamp) {
+    const elapsed = timestamp - startTime;
+    if (elapsed >= 2000) {  // 2秒（2000ミリ秒）経過したら停止
+        cancelAnimationFrame(animationFrameIds[canvasId]);
+        return;
+    }
 
-            const waveImageData = ctx.getImageData(0, 0, smallWidth, smallHeight);
-            const waveData = waveImageData.data;
+    ctx.clearRect(0, 0, smallWidth, smallHeight);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tempCanvas, 0, 0, originalWidth, originalHeight, 0, 0, smallWidth, smallHeight);
 
-            for (let y = 0; y < smallHeight; y++) {
-                for (let x = 0; x < smallWidth; x++) {
-                    const idx = (y * smallWidth + x) * 4;
-                    const maskIdx = Math.floor(y / smallHeight * originalHeight) * originalWidth + Math.floor(x / smallWidth * originalWidth);
-                    const part = partMask[maskIdx];
+    const waveImageData = ctx.getImageData(0, 0, smallWidth, smallHeight);
+    const waveData = waveImageData.data;
 
-                    if (part === 2 || part === 3) {
-                        const wave = Math.sin((x + y + animationOffset) * 0.1);
-                        if (wave > 0.5) {
-                            const color = (part === 2) ? shieldWaveColor : swordWaveColor;
-                            waveData[idx] = Math.min(255, waveData[idx] + color[0] * 0.3);
-                            waveData[idx + 1] = Math.min(255, waveData[idx + 1] + color[1] * 0.3);
-                            waveData[idx + 2] = Math.min(255, waveData[idx + 2] + color[2] * 0.3);
-                        }
-                    }
+    for (let y = 0; y < smallHeight; y++) {
+        for (let x = 0; x < smallWidth; x++) {
+            const idx = (y * smallWidth + x) * 4;
+            const maskIdx = Math.floor(y / smallHeight * originalHeight) * originalWidth + Math.floor(x / smallWidth * originalWidth);
+            const part = partMask[maskIdx];
+
+            if (part === 2 || part === 3) {
+                const wave = Math.sin((x + y + animationOffset) * 0.1);
+                if (wave > 0.5) {
+                    const color = (part === 2) ? shieldWaveColor : swordWaveColor;
+                    waveData[idx] = Math.min(255, waveData[idx] + color[0] * 0.3);
+                    waveData[idx + 1] = Math.min(255, waveData[idx + 1] + color[1] * 0.3);
+                    waveData[idx + 2] = Math.min(255, waveData[idx + 2] + color[2] * 0.3);
                 }
             }
-
-            ctx.putImageData(waveImageData, 0, 0);
-            animationOffset = (animationOffset + 1) % (smallWidth + smallHeight);
-
-            animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
         }
+    }
 
-        animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
+    ctx.putImageData(waveImageData, 0, 0);
+    animationOffset = (animationOffset + 1) % (smallWidth + smallHeight);
+
+    animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
+}
+
+// 開始時に performance.now() を使って時間基準で呼ぶ
+animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
     };
 }
