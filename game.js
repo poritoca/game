@@ -17,6 +17,31 @@ const levelTurnBonusSettings = [
 // スキル発動可否を個別に判定し、優先度順に決める関数
 window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifesteal'];
 
+// 特殊敵出現率制御
+window.specialMode = 'normal'; // normal or brutal
+
+window.getSpecialChance = function() {
+    return window.specialMode === 'brutal' ? 1.0 : 0.03;
+};
+
+// UIボタンの処理
+window.toggleSpecialMode = function() {
+    const btn = document.getElementById('specialModeButton');
+
+    if (window.specialMode === 'normal') {
+        window.specialMode = 'brutal';
+        btn.textContent = '鬼畜モード';
+        btn.classList.remove('normal-mode');
+        btn.classList.add('brutal-mode');
+    } else {
+        window.specialMode = 'normal';
+        btn.textContent = '通常モード';
+        btn.classList.remove('brutal-mode');
+        btn.classList.add('normal-mode');
+    }
+};
+
+
 function decideSkillsToUse(actor, maxActivations) {
 const usableSkills = actor.skills.filter(skill => {
   const data = skillPool.find(s => s.name === skill.name);
@@ -789,7 +814,7 @@ const specialSkillThreshold = 800;
 const maxSpecialSkillLevel = 3000;
 const statMultiplierMin = 0.7;
 const statMultiplierMax = 1.2;
-const specialChance = 0.03;  // 特殊敵出現確率%
+const specialChance = window.getSpecialChance();
 
 let hasSpecialSkill = false;
 let specialSkillName = '';
@@ -797,6 +822,7 @@ let specialSkillName = '';
 // スキルレベル調整＆特殊スキル判定
 enemy.skills.forEach(skill => {
     if (!hasSpecialSkill && Math.random() < specialChance) {
+        // 特殊スキル枠（1つだけ高い特別スキル）
         const randHigh = Math.random();
         const specialLevel = specialSkillThreshold + Math.floor(
             (maxSpecialSkillLevel - specialSkillThreshold) * Math.pow(randHigh, 5)
@@ -804,6 +830,14 @@ enemy.skills.forEach(skill => {
         skill.level = specialLevel;
         specialSkillName = skill.name;
         hasSpecialSkill = true;
+    } else {
+        // その他スキル：連勝数に応じてスキルレベルの上限を調整
+        const streakFactor = Math.min(currentStreak / 100, 1);  // 連勝数0～100を0～1に正規化
+        const maxPossibleLevel = 1 + Math.floor(998 * streakFactor);  // 最大レベルは連勝数に比例
+
+        const rand = Math.random();
+        const level = 1 + Math.floor((maxPossibleLevel - 1) * Math.pow(rand, 3));  // 高レベルほど低確率
+        skill.level = level;
     }
 });
 
@@ -867,7 +901,11 @@ if (hasSpecialSkill) {
   applyPassiveSeals(player, enemy, log);	
 	
 const factor = Math.pow(1.1, currentStreak);
-log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
+if (window.specialMode === 'brutal') {
+    log.push(`[鬼畜モード挑戦中（勝利時連勝数10増加）]`);
+} else {
+    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
+}
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
@@ -1041,8 +1079,10 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
 	
-const baseRate = 0.1
-//const baseRate = isAutoBattle ? 0.05 : 0.20;//オートバトルで確率下げ
+let baseRate = 0.1;
+if (window.specialMode === 'brutal') {
+    baseRate = 0.001; // 鬼畜モードでは基礎確率を低下
+}
 const streakFactor = Math.pow(0.06, currentStreak / 100);
 const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
@@ -1075,7 +1115,11 @@ showEventOptions("成長選択", [
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
   if (playerWon) {
-    currentStreak++;
+    if (window.specialMode === 'brutal') {
+        currentStreak += 10;
+    } else {
+        currentStreak += 1;
+    }
 
   let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
   if (window.growthMultiplier !== 1) {

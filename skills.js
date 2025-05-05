@@ -38,7 +38,7 @@ export const skillPool = [
   {
     "name": "三連撃",
     "category": "multi",
-    "baseHits": 1,
+    "baseHits": 2,
     "description": "3回連続で攻撃を行う",
     "extraHits": 1,
     "extraHitsTriggerLevel": 100,
@@ -66,7 +66,7 @@ export const skillPool = [
     "name": "乱舞",
     "category": "multi",
     "baseHits": 2,
-    "description": "激しい連続攻撃を行う（4回攻撃）",
+    "description": "激しい連続攻撃を行う（3回攻撃）",
     "extraHits": 1,
     "extraHitsTriggerLevel": 200,
     "multiGrowthLevels": [
@@ -121,7 +121,7 @@ export const skillPool = [
   {
     "name": "乱打",
     "category": "multi",
-    "baseHits": 1,
+    "baseHits": 3,
     "description": "相手を乱れ撃つ（4回攻撃）",
     "extraHits": 1,
     "extraHitsTriggerLevel": 100,

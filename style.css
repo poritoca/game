@@ -727,3 +727,21 @@ canvas {
   background: transparent;
   z-index: 2;
 }
+
+#specialModeButton.normal-mode {
+    background-color: #007BFF;
+    color: white;
+    box-shadow: 0 0 10px #007BFF;
+    font-size: 1.2em;
+    font-weight: bold;
+    padding: 10px 20px;
+}
+
+#specialModeButton.brutal-mode {
+    background-color: #FF4136;
+    color: white;
+    box-shadow: 0 0 10px #FF4136;
+    font-size: 1.2em;
+    font-weight: bold;
+    padding: 10px 20px;
+}
