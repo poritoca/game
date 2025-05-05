@@ -786,10 +786,10 @@ enemy = makeCharacter('敵' + Math.random());
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
 const specialSkillThreshold = 800;
-const maxSpecialSkillLevel = 2000;
-const statMultiplierMin = 0.8;
+const maxSpecialSkillLevel = 3000;
+const statMultiplierMin = 0.7;
 const statMultiplierMax = 1.2;
-const specialChance = 0.02;  // 特殊敵出現確率20%
+const specialChance = 0.15;  // 特殊敵出現確率15%
 
 let hasSpecialSkill = false;
 let specialSkillName = '';
@@ -1098,20 +1098,19 @@ showCustomAlert(victoryMessage, 800);
   // スキル熟練度チェック（5回使用でLvアップ）
 // スキル熟練度チェック（5回使用でLvアップ）
 player.skills.forEach(sk => {
-  if (sk.uses >= 5) {
-    // スキルLv999以下は確実に上がる。それ以上は確率で上がる（レベル上限なし）
     const isBeyondCap = sk.level >= 999;
-    const chance = isBeyondCap ? 1 / 2500 : 1.0;
 
-    if (Math.random() < chance) {
-      sk.level++;
-      sk.uses = 0;
-      player.skillMemory[sk.name] = sk.level;
+    // レベル999未満なら20%アップ、それ以上なら低確率（例: 1/2500）
+    const levelUpChance = isBeyondCap ? 1 / 2500 : 0.2;
 
-      log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
-      drawSkillMemoryList();
+    if (Math.random() < levelUpChance) {
+        sk.level++;
+        player.skillMemory[sk.name] = sk.level;
+
+        log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
+        drawSkillMemoryList();
+
     }
-  }
 });
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
