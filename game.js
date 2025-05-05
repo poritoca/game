@@ -789,7 +789,7 @@ const specialSkillThreshold = 800;
 const maxSpecialSkillLevel = 3000;
 const statMultiplierMin = 0.7;
 const statMultiplierMax = 1.2;
-const specialChance = 0.15;  // 特殊敵出現確率15%
+const specialChance = 0.03;  // 特殊敵出現確率%
 
 let hasSpecialSkill = false;
 let specialSkillName = '';
