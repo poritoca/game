@@ -156,7 +156,7 @@ function decideSkillsToUse(actor, maxActivations) {
 
         for (const sk of uniqueCandidates) {
             const skillData = skillPool.find(s => s.name === sk.name);
-            const activationRate = skillData?.activationRate ?? 0.8;
+            const activationRate = skillData?.activationRate ?? 1.0;
             if (Math.random() < activationRate) {
                 finalSkills.push(sk);
                 selectedNames.push(sk.name);
