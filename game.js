@@ -13,6 +13,22 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+// 共通のクリーンアップ関数を作る
+window.clearEventPopup = function() {
+    const popup = document.getElementById('eventPopup');
+    const optionsEl = document.getElementById('eventPopupOptions');
+    const selectContainer = document.getElementById('eventPopupSelectContainer');
+    const selectEl = document.getElementById('eventPopupSelect');
+    const selectBtn = document.getElementById('eventPopupSelectBtn');
+
+    optionsEl.innerHTML = '';  // ボタン類消去
+    selectEl.innerHTML = '';   // セレクト項目消去
+    selectContainer.style.display = 'none';
+    popup.style.display = 'none';
+
+    // ボタンの onclick 解除（念のため）
+    selectBtn.onclick = null;
+};
 
 // スキル発動可否を個別に判定し、優先度順に決める関数
 window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifesteal'];
@@ -69,6 +85,11 @@ skillDeleteButton.addEventListener('click', () => {
             window.skillDeleteUsesLeft--;
             updateSkillDeleteButton();
             showCustomAlert(`${selectedName} を削除しました！`, 3000);
+						// アラートを出した後、念のため container をクリーンアップ
+            const container = document.getElementById('customAlertContainer');
+            if (container.children.length === 0) {
+              container.innerHTML = '';
+            }
         });
     }
 });
@@ -334,6 +355,7 @@ window.growthMultiplier = 1;
 
 // 成長選択時
 window.chooseGrowth = function(stat) {
+	
   const baseAmount = Math.floor(enemy[stat] * 0.08);
   const growthAmount = baseAmount * window.growthMultiplier;
   if (!player.growthBonus) {
@@ -1669,6 +1691,7 @@ window.makeCharacter = function(name) {
 
   // 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
+	  clearEventPopup();
     const popup = document.getElementById('eventPopup');
     const titleEl = document.getElementById('eventPopupTitle');
     const optionsEl = document.getElementById('eventPopupOptions');
@@ -1693,6 +1716,7 @@ window.showEventOptions = function(title, options, onSelect) {
 
   // 【白スキルを選んで削除するポップアップ】
 window.showWhiteSkillSelector = function(callback) {
+	  clearEventPopup();
     const popup = document.getElementById('eventPopup');
     const titleEl = document.getElementById('eventPopupTitle');
     const optionsEl = document.getElementById('eventPopupOptions');
@@ -2055,6 +2079,10 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
         setTimeout(() => {
             if (alert.parentElement) {
                 container.removeChild(alert);
+            }
+            // もし container が完全に空なら innerHTML をクリア
+            if (container.children.length === 0) {
+                container.innerHTML = '';
             }
         }, 300);
     }, duration);
