@@ -41,6 +41,12 @@ window.toggleSpecialMode = function() {
     }
 };
 
+function hasOffensiveSkill(char) {
+    return char.skills.some(sk => {
+        const data = skillPool.find(s => s.name === sk.name);
+        return window.offensiveSkillCategories.includes(data?.category);
+    });
+}
 
 function decideSkillsToUse(actor, maxActivations) {
 const usableSkills = actor.skills.filter(skill => {
@@ -754,7 +760,11 @@ case 'berserk': {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
-  document.getElementById("battleArea").classList.remove("hidden");
+  
+	  if (window.specialMode === 'brutal') {
+    skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
+}
+	document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
 	
   drawSkillMemoryList();
@@ -799,13 +809,11 @@ window.initialAndSlotSkills = [
 ];
   }
   drawSkillMemoryList();
-	
-	
-	
-	
-	
-// 敵を生成（乱数シード用に名前へMath.random()を渡す）
-enemy = makeCharacter('敵' + Math.random());
+
+// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
+do {
+    enemy = makeCharacter('敵' + Math.random());
+} while (!hasOffensiveSkill(enemy));
 
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
@@ -833,7 +841,7 @@ enemy.skills.forEach(skill => {
     } else {
         // その他スキル：連勝数に応じてスキルレベルの上限を調整
         const streakFactor = Math.min(currentStreak / 100, 1);  // 連勝数0～100を0～1に正規化
-        const maxPossibleLevel = 1 + Math.floor(998 * streakFactor);  // 最大レベルは連勝数に比例
+        const maxPossibleLevel = 1 + Math.floor(2998 * streakFactor);  // 最大レベルは連勝数に比例
 
         const rand = Math.random();
         const level = 1 + Math.floor((maxPossibleLevel - 1) * Math.pow(rand, 3));  // 高レベルほど低確率
@@ -1158,8 +1166,11 @@ player.skills.forEach(sk => {
 });
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
-  const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-  const skillGainChance = Math.min(1.0, 0.05 * rarity);
+const rarity = enemy.rarity * (1 + currentStreak * 0.01);
+let skillGainChance = Math.min(1.0, 0.05 * rarity);
+if (window.specialMode === 'brutal') {
+    skillGainChance = 0.5;  // 鬼畜モードで2倍にする
+}
   log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
   if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
@@ -1425,7 +1436,10 @@ window.importSaveCode = async function() {
 
     currentStreak = parsed.currentStreak || 0;
     localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
+// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
+do {
     enemy = makeCharacter('敵' + Math.random());
+} while (!hasOffensiveSkill(enemy));
     updateStats();
 
     // タイトル画面をアニメーションで非表示 → ゲーム画面表示
@@ -1492,7 +1506,10 @@ window.loadGame = async function() {
         player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
       }
       currentStreak = parsed.currentStreak || 0;
-      enemy = makeCharacter('敵' + Math.random());
+// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
+do {
+    enemy = makeCharacter('敵' + Math.random());
+} while (!hasOffensiveSkill(enemy));
       //alert('[A006] [A778] enemy生成: ' + JSON.stringify(enemy?.baseStats));
       updateStats();
       //document.getElementById('titleScreen').classList.add('hidden');
@@ -1530,45 +1547,63 @@ window.loadGame = async function() {
     } else {
     }
   });
-  window.makeCharacter = function(name) {
+window.makeCharacter = function(name) {
     const rand = seededRandom(name);
     const multiplier = getRarityMultiplierFromRand(rand);
 
-    const skills = [];
-    const used = new Set();
-    while (skills.length < 3) {
-      const s = skillPool[Math.floor(rand() * skillPool.length)];
-      if (!used.has(s.name)) {
-        used.add(s.name);
-        skills.push({ name: s.name, level: 1, uses: 0 });
-      }
+    const baseStats = {
+        attack: Math.floor((80 + Math.floor(rand() * 40)) * multiplier),
+        defense: Math.floor((40 + Math.floor(rand() * 30)) * multiplier),
+        speed: Math.floor((30 + Math.floor(rand() * 20)) * multiplier),
+        maxHp: Math.floor(300 * multiplier)
+    };
+
+    let skillCount = 3; // 通常は3個
+
+    if (window.specialMode === 'brutal') {
+        // 鬼畜モード時、スキル数を3～8個に（多いほど低確率）
+        const probabilities = [0.4, 0.3, 0.15, 0.08, 0.04, 0.02]; // 4,5,6,7,8個の確率
+        const randomValue = Math.random();
+        let cumulative = 0;
+        for (let i = 0; i < probabilities.length; i++) {
+            cumulative += probabilities[i];
+            if (randomValue < cumulative) {
+                skillCount = 4 + i;
+                break;
+            }
+        }
     }
 
-    const baseStats = {
-      attack: Math.floor((80 + Math.floor(rand() * 40)) * multiplier),
-      defense: Math.floor((40 + Math.floor(rand() * 30)) * multiplier),
-      speed: Math.floor((30 + Math.floor(rand() * 20)) * multiplier),
-      maxHp: Math.floor(300 * multiplier)
-    };
+    const skills = [];
+    const used = new Set();
+    const shuffledPool = [...skillPool].sort(() => 0.5 - Math.random());
+
+    for (let i = 0; i < skillCount && i < shuffledPool.length; i++) {
+        const s = shuffledPool[i];
+        if (!used.has(s.name)) {
+            used.add(s.name);
+            skills.push({ name: s.name, level: 1, uses: 0 });
+        }
+    }
 
     const memory = {};
     for (let sk of skills) memory[sk.name] = sk.level;
 
     return {
-      name,
-      baseStats,
-      attack: baseStats.attack,
-      defense: baseStats.defense,
-      speed: baseStats.speed,
-      hp: baseStats.maxHp,
-      maxHp: baseStats.maxHp,
-      rarity: multiplier,
-      skills,
-      battleStats: {},
-      effects: [],
-      skillMemory: memory
+        name,
+        baseStats,
+        attack: baseStats.attack,
+        defense: baseStats.defense,
+        speed: baseStats.speed,
+        hp: baseStats.maxHp,
+        maxHp: baseStats.maxHp,
+        rarity: multiplier,
+        skills,
+        battleStats: {},
+        effects: [],
+        skillMemory: memory
     };
-  };
+};
 
   // ここからイベント関連
 	
