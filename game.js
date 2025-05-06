@@ -1236,7 +1236,7 @@ if (Math.random() < skillGainChance) {
         const savedLv = player.skillMemory[newSkill.name] || 1;
         player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
         log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
-        showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1500, "#a8ffb0", "#000");
+        showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1000, "#a8ffb0", "#000");
         if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
             drawSkillMemoryList();
         }
@@ -1676,12 +1676,7 @@ window.showEventOptions = function(title, options, onSelect) {
     titleEl.textContent = title;
     optionsEl.innerHTML = '';
 
-    // --- ここが追加部分 ---
-    const hasCancel = options.some(opt => opt.value === null);
-    if (!hasCancel) {
-        options.push({ label: 'キャンセル', value: null });
-    }
-    // ----------------------
+		
 
     options.forEach(opt => {
         const btn = document.createElement('button');
