@@ -24,6 +24,8 @@ window.getSpecialChance = function() {
     return window.specialMode === 'brutal' ? 1.0 : 0.03;
 };
 
+window.skillDeleteUsesLeft = 3;  // ゲーム開始時に3回
+
 // UIボタンの処理
 window.toggleSpecialMode = function() {
     const btn = document.getElementById('specialModeButton');
@@ -41,6 +43,38 @@ window.toggleSpecialMode = function() {
     }
 };
 
+const skillDeleteButton = document.getElementById('skillDeleteButton');
+
+function updateSkillDeleteButton() {
+    skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
+    if (window.skillDeleteUsesLeft > 0) {
+        skillDeleteButton.style.backgroundColor = 'blue';
+        skillDeleteButton.disabled = false;
+    } else {
+        skillDeleteButton.style.backgroundColor = 'gray';
+        skillDeleteButton.disabled = true;
+    }
+}
+
+skillDeleteButton.addEventListener('click', () => {
+    if (window.skillDeleteUsesLeft > 0) {
+        showWhiteSkillSelector(selectedName => {
+					  if (!selectedName) {
+        showCustomAlert("キャンセルしました！", 2000);
+        return;  // null のときは何もしない
+    }
+
+            deleteSkillByName(selectedName);
+            updateStats();
+            window.skillDeleteUsesLeft--;
+            updateSkillDeleteButton();
+            showCustomAlert(`${selectedName} を削除しました！`, 3000);
+        });
+    }
+});
+
+updateSkillDeleteButton();
+
 function hasOffensiveSkill(char) {
     return char.skills.some(sk => {
         const data = skillPool.find(s => s.name === sk.name);
@@ -49,85 +83,106 @@ function hasOffensiveSkill(char) {
 }
 
 function decideSkillsToUse(actor, maxActivations) {
-const usableSkills = actor.skills.filter(skill => {
-  const data = skillPool.find(s => s.name === skill.name);
-  const isPassive = data?.category === 'passive';
-  return !skill.sealed && !isPassive;
-});
-  const skillSelectionBias = 2.0;
-  const skillNamesInMemoryOrder = Object.keys(actor.skillMemory || {});
+    if (!actor.usedSkillNames) actor.usedSkillNames = new Set();
 
-  // プレイヤーが1つでも攻撃スキルを所持しているか
-  const hasAnyOffensive = usableSkills.some(sk => {
-    const data = skillPool.find(s => s.name === sk.name);
-    return window.offensiveSkillCategories.includes(data?.category);
-  });
-
-  let finalSkills = [];
-  let selectedNames = [];
-
-  // 再抽選は最大5回まで（攻撃スキルがある場合のみ）
-  const maxRetries = hasAnyOffensive ? 5 : 1;
-
-  for (let retry = 0; retry < maxRetries; retry++) {
-    const weightedSkills = [];
-    usableSkills.forEach(skill => {
-      const index = skillNamesInMemoryOrder.indexOf(skill.name);
-      const position = index >= 0 ? index : skillNamesInMemoryOrder.length;
-      const weight = Math.pow(skillNamesInMemoryOrder.length - position, skillSelectionBias);
-      const count = Math.ceil(weight);
-      for (let i = 0; i < count; i++) weightedSkills.push(skill);
+    const usableSkills = actor.skills.filter(skill => {
+        const data = skillPool.find(s => s.name === skill.name);
+        const isPassive = data?.category === 'passive';
+        return !skill.sealed && !isPassive;
     });
 
-    const shuffled = [...weightedSkills].sort(() => Math.random() - 0.5);
-    const uniqueCandidates = Array.from(new Set(shuffled));
+    let availableSkills = usableSkills;
 
-    finalSkills = [];
-    selectedNames = [];
-
-    for (const sk of uniqueCandidates) {
-      const skillData = skillPool.find(s => s.name === sk.name);
-      const activationRate = skillData?.activationRate ?? 0.8;
-      if (Math.random() < activationRate) {
-        finalSkills.push(sk);
-        selectedNames.push(sk.name);
-        if (finalSkills.length >= maxActivations) break;
-      }
+    // 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
+    if (window.specialMode === 'brutal') {
+        availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
+        if (availableSkills.length === 0) {
+            actor.usedSkillNames.clear();
+            availableSkills = [...usableSkills];
+        }
     }
 
-    // 選ばれた中に攻撃スキルがあるかチェック
-    const hasOffense = finalSkills.some(sk => {
-      const data = skillPool.find(s => s.name === sk.name);
-      return window.offensiveSkillCategories.includes(data?.category);
-    });
+    const skillSelectionBias = 2.0;
+    const skillNamesInMemoryOrder = Object.keys(actor.skillMemory || {});
 
-    // 攻撃スキルがあれば確定、または最大リトライに達したら終了
-    if (!hasAnyOffensive || hasOffense || retry === maxRetries - 1) break;
-  }
-
-  if (actor === player) {
-window.lastChosenSkillNames = selectedNames.filter(name => {
-  const def = skillPool.find(s => s.name === name);
-  return def?.category !== 'passive';
-});
-    window.lastOffensiveSkills = finalSkills
-      .filter(sk => {
+    // プレイヤーが1つでも攻撃スキルを所持しているか
+    const hasAnyOffensive = availableSkills.some(sk => {
         const data = skillPool.find(s => s.name === sk.name);
         return window.offensiveSkillCategories.includes(data?.category);
-      })
-      .map(sk => sk.name);
-  }
+    });
 
-  finalSkills.sort((a, b) => {
-    const aData = skillPool.find(s => s.name === a.name);
-    const bData = skillPool.find(s => s.name === b.name);
-    const ap = aData?.priority ?? -1;
-    const bp = bData?.priority ?? -1;
-    if (bp !== ap) return bp - ap;
-    return (b.speed || 0) - (a.speed || 0);
-  });
+    let finalSkills = [];
+    let selectedNames = [];
 
-  return finalSkills;
+    // 再抽選は最大5回まで（攻撃スキルがある場合のみ）
+    const maxRetries = hasAnyOffensive ? 5 : 1;
+
+    for (let retry = 0; retry < maxRetries; retry++) {
+        const weightedSkills = [];
+        availableSkills.forEach(skill => {
+            const index = skillNamesInMemoryOrder.indexOf(skill.name);
+            const position = index >= 0 ? index : skillNamesInMemoryOrder.length;
+            const weight = Math.pow(skillNamesInMemoryOrder.length - position, skillSelectionBias);
+            const count = Math.ceil(weight);
+            for (let i = 0; i < count; i++) weightedSkills.push(skill);
+        });
+
+        const shuffled = [...weightedSkills].sort(() => Math.random() - 0.5);
+        const uniqueCandidates = Array.from(new Set(shuffled));
+
+        finalSkills = [];
+        selectedNames = [];
+
+        for (const sk of uniqueCandidates) {
+            const skillData = skillPool.find(s => s.name === sk.name);
+            const activationRate = skillData?.activationRate ?? 0.8;
+            if (Math.random() < activationRate) {
+                finalSkills.push(sk);
+                selectedNames.push(sk.name);
+                if (finalSkills.length >= maxActivations) break;
+            }
+        }
+
+        // 選ばれた中に攻撃スキルがあるかチェック
+        const hasOffense = finalSkills.some(sk => {
+            const data = skillPool.find(s => s.name === sk.name);
+            return window.offensiveSkillCategories.includes(data?.category);
+        });
+
+        // 攻撃スキルがあれば確定、または最大リトライに達したら終了
+        if (!hasAnyOffensive || hasOffense || retry === maxRetries - 1) break;
+    }
+
+    // 鬼畜モードなら使ったスキルを記録
+    if (window.specialMode === 'brutal') {
+        for (const sk of finalSkills) {
+            actor.usedSkillNames.add(sk.name);
+        }
+    }
+
+    if (actor === player) {
+        window.lastChosenSkillNames = selectedNames.filter(name => {
+            const def = skillPool.find(s => s.name === name);
+            return def?.category !== 'passive';
+        });
+        window.lastOffensiveSkills = finalSkills
+            .filter(sk => {
+                const data = skillPool.find(s => s.name === sk.name);
+                return window.offensiveSkillCategories.includes(data?.category);
+            })
+            .map(sk => sk.name);
+    }
+
+    finalSkills.sort((a, b) => {
+        const aData = skillPool.find(s => s.name === a.name);
+        const bData = skillPool.find(s => s.name === b.name);
+        const ap = aData?.priority ?? -1;
+        const bp = bData?.priority ?? -1;
+        if (bp !== ap) return bp - ap;
+        return (b.speed || 0) - (a.speed || 0);
+    });
+
+    return finalSkills;
 }
 
 
@@ -809,6 +864,7 @@ window.initialAndSlotSkills = [
 ];
   }
   drawSkillMemoryList();
+  player.effects = [];
 
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
 do {
@@ -1169,22 +1225,23 @@ player.skills.forEach(sk => {
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
 let skillGainChance = Math.min(1.0, 0.05 * rarity);
 if (window.specialMode === 'brutal') {
-    skillGainChance = 0.5;  // 鬼畜モードで2倍にする
+    skillGainChance = 0.2;  // 鬼畜モードで2倍にする
 }
   log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
-  if (Math.random() < skillGainChance) {
+if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
     const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
     if (enemyOwned.length > 0) {
-      const newSkill = enemyOwned[Math.floor(Math.random() * enemyOwned.length)];
-      const savedLv = player.skillMemory[newSkill.name] || 1;
-      player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
-      log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
-      if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
-        drawSkillMemoryList();
-      }
+        const newSkill = enemyOwned[Math.floor(Math.random() * enemyOwned.length)];
+        const savedLv = player.skillMemory[newSkill.name] || 1;
+        player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
+        log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
+        showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1500, "#a8ffb0", "#000");
+        if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
+            drawSkillMemoryList();
+        }
     }
-  }
+}
 
   // Rarity倍率ベースで変数を増やす（超低確率）
   const chance = enemy.rarity / 100000;
@@ -1210,6 +1267,8 @@ showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数
 
   window.growthMultiplier = 1;
   currentStreak = 0;
+	window.skillDeleteUsesLeft = 3;
+updateSkillDeleteButton();  // ボタン表示もリセット
   streakBonus = 1;
   log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
   saveBattleLog(log);
@@ -1316,7 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
-      }, 100); // 連打間隔（ミリ秒）調整可
+      }, 150); // 連打間隔（ミリ秒）調整可
     }
   }
 
@@ -1609,34 +1668,36 @@ window.makeCharacter = function(name) {
 	
 
   // 【選択肢イベントポップアップを表示する】
-  window.showEventOptions = function(title, options, onSelect) {
+window.showEventOptions = function(title, options, onSelect) {
     const popup = document.getElementById('eventPopup');
     const titleEl = document.getElementById('eventPopupTitle');
     const optionsEl = document.getElementById('eventPopupOptions');
-    const selectContainer = document.getElementById('eventPopupSelectContainer');
-    const selectEl = document.getElementById('eventPopupSelect');
-    const selectBtn = document.getElementById('eventPopupSelectBtn');
 
     titleEl.textContent = title;
     optionsEl.innerHTML = '';
-    selectContainer.style.display = 'none';
 
-    options.forEach((opt) => {
-      const btn = document.createElement('button');
-      btn.textContent = opt.label;
-      btn.style.margin = '5px';
-      btn.addEventListener('click', () => {
-        popup.style.display = 'none';
-        onSelect(opt.value);
-      });
-      optionsEl.appendChild(btn);
+    // --- ここが追加部分 ---
+    const hasCancel = options.some(opt => opt.value === null);
+    if (!hasCancel) {
+        options.push({ label: 'キャンセル', value: null });
+    }
+    // ----------------------
+
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.textContent = opt.label;
+        btn.onclick = () => {
+            popup.style.display = 'none';
+            onSelect(opt.value);
+        };
+        optionsEl.appendChild(btn);
     });
 
     popup.style.display = 'block';
-  };
+};
 
   // 【白スキルを選んで削除するポップアップ】
-  window.showWhiteSkillSelector = function(callback) {
+window.showWhiteSkillSelector = function(callback) {
     const popup = document.getElementById('eventPopup');
     const titleEl = document.getElementById('eventPopupTitle');
     const optionsEl = document.getElementById('eventPopupOptions');
@@ -1648,105 +1709,110 @@ window.makeCharacter = function(name) {
     selectEl.innerHTML = '';
 
     const whiteSkills = player.skills.filter(s => {
-      const found = skillPool.find(sk => sk.name === s.name);
-      if (!found) return false;
-      if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-      if (found.category === 'passive') return false;
-      return true;
+        const found = skillPool.find(sk => sk.name === s.name);
+        if (!found) return false;
+        if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+        if (found.category === 'passive') return false;
+        return true;
     });
 
     if (whiteSkills.length === 0) {
-      popup.style.display = 'none';
-      showCustomAlert("削除できる白スキルがありません！");
-      return;
+        popup.style.display = 'none';
+        showCustomAlert("削除できる白スキルがありません！");
+        return;
     }
 
     whiteSkills.forEach(s => {
-      const option = document.createElement('option');
-      option.value = s.name;
-      option.textContent = `${s.name} Lv${s.level}`;
-      selectEl.appendChild(option);
+        const option = document.createElement('option');
+        option.value = s.name;
+        option.textContent = `${s.name} Lv${s.level}`;
+        selectEl.appendChild(option);
     });
 
     selectBtn.onclick = () => {
-      const selectedName = selectEl.value;
-      popup.style.display = 'none';
-      callback(selectedName);
+        const selectedName = selectEl.value;
+        popup.style.display = 'none';
+        callback(selectedName);
     };
 
     titleEl.textContent = "消す白スキルを選んでください";
     selectContainer.style.display = 'block';
+
     popup.style.display = 'block';
-  };
-
-  // 【指定したスキル名を削除する】
-  window.deleteSkillByName = function(skillName) {
+};
+// 【指定したスキル名を削除する】
+window.deleteSkillByName = function(skillName) {
     player.skills = player.skills.filter(s => s.name !== skillName);
-  };
+};
 
-  // 【白スキルからランダムに最大3個削除する】
-  window.deleteRandomWhiteSkills = function(count) {
+// 【白スキルからランダムに最大3個削除する】
+window.deleteRandomWhiteSkills = function(count) {
     const whiteSkills = player.skills.filter(s => {
-      const found = skillPool.find(sk => sk.name === s.name);
-      if (!found) return false;
-      if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-      if (found.category === 'passive') return false;
-      return true;
+        const found = skillPool.find(sk => sk.name === s.name);
+        if (!found) return false;
+        if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+        if (found.category === 'passive') return false;
+        return true;
     });
 
     const shuffled = whiteSkills.sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, count);
 
     selected.forEach(s => {
-      deleteSkillByName(s.name);
+        deleteSkillByName(s.name);
     });
 
     return selected.map(s => s.name);
-  };
+};
 
 window.eventTriggered = false;  // イベント発生フラグを初期化
 
 // 【バトル後にイベント発生を判定して処理する】
 window.maybeTriggerEvent = function() {
-  if (window.eventTriggered) return;  // すでにイベントが発生していたらスキップ
+    if (window.eventTriggered) return;  // すでにイベントが発生していたらスキップ
 
-  const whiteSkills = player.skills.filter(s => {
-    const found = skillPool.find(sk => sk.name === s.name);
-    if (!found) return false;
-    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-    if (found.category === 'passive') return false;
-    return true;
-  });
-
-  if (whiteSkills.length < 3) {
-    return; // 白スキルが3個未満なら何も起こさない
-  }
-
-  const chance = 0.1; // 10%の確率
-  if (Math.random() < chance) {
-    window.eventTriggered = true;  // イベント発生を記録
-    stopAutoBattle();
-
-    showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
-      { label: "スキルから選んで削除", value: "select" },
-      { label: "ランダムに3個削除", value: "random" },
-      { label: "何もしない", value: "none" }
-    ], (choice) => {
-      if (choice === "select") {
-        showWhiteSkillSelector(selectedName => {
-          deleteSkillByName(selectedName);
-          updateStats();
-          showCustomAlert(`${selectedName} を削除しました！`, 3000);
-        });
-      } else if (choice === "random") {
-        const deleted = deleteRandomWhiteSkills(3);
-        updateStats();
-        showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
-      } else if (choice === "none") {
-        showCustomAlert("今回はスキルを削除しませんでした！", 3000);
-      }
+    const whiteSkills = player.skills.filter(s => {
+        const found = skillPool.find(sk => sk.name === s.name);
+        if (!found) return false;
+        if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+        if (found.category === 'passive') return false;
+        return true;
     });
-  }
+
+    if (whiteSkills.length < 3) {
+        return; // 白スキルが3個未満なら何も起こさない
+    }
+
+    const chance = 0.1; // 10%の確率
+    if (Math.random() < chance) {
+        window.eventTriggered = true;  // イベント発生を記録
+        stopAutoBattle();
+
+        showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
+            { label: "スキルから選んで削除", value: "select" },
+            { label: "ランダムに3個削除", value: "random" },
+            { label: "何もしない", value: "none" }
+        ], (choice) => {
+            if (choice === "select") {
+                showWhiteSkillSelector(selectedName => {
+                    
+								    if (!selectedName) {
+        showCustomAlert("キャンセルしました！", 2000);
+        return;  // null のときは何もしない
+    }
+	deleteSkillByName(selectedName);
+                    updateStats();
+                    showCustomAlert(`${selectedName} を削除しました！`, 3000);
+                });
+            } else if (choice === "random") {
+                const deleted = deleteRandomWhiteSkills(3);
+                updateStats();
+                showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
+            } else if (choice === "none") {
+                showCustomAlert("今回はスキルを削除しませんでした！", 3000);
+            }
+        });
+    }
 };
 
 function drawSkillMemoryList() {
@@ -1965,7 +2031,7 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
     alert.style.padding = '12px 20px';
     alert.style.border = '2px solid #fff';
     alert.style.borderRadius = '8px';
-    alert.style.fontSize = '16px';
+    alert.style.fontSize = '12px';
     alert.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
     alert.style.opacity = '0';
     alert.style.transition = 'opacity 0.3s';
