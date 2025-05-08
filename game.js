@@ -1629,7 +1629,14 @@ do {
     }
   });
 window.makeCharacter = function(name) {
-    const rand = seededRandom(name);
+    
+	  if (player) {
+    player.usedSkillNames = new Set();
+}
+    if (enemy) {
+    enemy.usedSkillNames = new Set();
+}
+	  const rand = seededRandom(name);
     const multiplier = getRarityMultiplierFromRand(rand);
 
     const baseStats = {
