@@ -1632,7 +1632,7 @@ async function generateHash(input) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// セーブデータをコード化してコピー（base64 + SHA-256）
+// セーブデータをコード化してコピー 保存（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
 	
@@ -1682,6 +1682,8 @@ window.exportSaveCode = async function() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
+
+
 
 // セーブコードの読み込み（入力値から復元）
 window.importSaveCode = async function() {
@@ -2051,44 +2053,44 @@ window.maybeTriggerEvent = function() {
 
 function drawSkillMemoryList() {
   if (isAutoBattle) return;
-	const list = document.getElementById("skillMemoryList");
+  const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
   list.innerHTML = "";
 
   const categoryColors = {
-    "multi": "#ff4d4d",
-    "poison": "#9933cc",
-    "burn": "#ff6600",
-    "lifesteal": "#66ccff",
-    "skillSeal": "#9999ff",
-    "barrier": "#66ff66",
-    "regen": "#66ff99",
-    "reflect": "#ffff66",
-    "evasion": "#ff99cc",
-    "buff": "#ffd700",
-    "debuff": "#cc66ff",
-    "heal": "#00ffcc",
-    "damage": "#ff3333",
-    "stun": "#ff99cc",
-    "buffExtension": "#00ccff",
-    "debuffExtension": "#cc66ff",
-    "berserk": "#ff3333",
-    "passive": "gold",
-    "others": "#cccccc"
+    "multi": "#ff4d4d", "poison": "#9933cc", "burn": "#ff6600", "lifesteal": "#66ccff",
+    "skillSeal": "#9999ff", "barrier": "#66ff66", "regen": "#66ff99", "reflect": "#ffff66",
+    "evasion": "#ff99cc", "buff": "#ffd700", "debuff": "#cc66ff", "heal": "#00ffcc",
+    "damage": "#ff3333", "stun": "#ff99cc", "buffExtension": "#00ccff",
+    "debuffExtension": "#cc66ff", "berserk": "#ff3333", "passive": "gold", "others": "#cccccc"
   };
 
-  Object.entries(player.skillMemory).forEach(([name, level]) => {
+  const ownedSkillNames = player.skills.map(sk => sk.name);
+  const memoryEntries = Object.entries(player.skillMemory);
+
+  const owned = [];
+  const others = [];
+  for (const entry of memoryEntries) {
+    if (ownedSkillNames.includes(entry[0])) {
+      owned.push(entry);
+    } else {
+      others.push(entry);
+    }
+  }
+
+  const sortedEntries = [...owned, ...others];
+
+  sortedEntries.forEach(([name, level]) => {
     const li = document.createElement("li");
     const skillDef = skillPool.find(s => s.name === name);
     const category = skillDef?.category || "others";
     const desc = skillDef?.description || "";
 
-    // 色決め（基本表示色）
     let color = "white";
     if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(name)) {
-      color = "deepskyblue"; // 初期スキル
+      color = "deepskyblue";
     } else if (category === "passive") {
-      color = "gold"; // パッシブ
+      color = "gold";
     } else {
       color = categoryColors[category] || "white";
     }
@@ -2098,15 +2100,17 @@ function drawSkillMemoryList() {
     li.setAttribute("data-level", level);
     li.setAttribute("draggable", "true");
 
-    // 発光クラス付与（色分けあり）
-const isOwnedPassive = player.skills.some(s => s.name === name && category === "passive");
-if (isOwnedPassive) {
-  li.classList.add("passive-skill");
-} else if (window.lastChosenSkillNames?.includes(name)) {
-  li.classList.add("chosen-skill");
-}
+    const isOwnedPassive = player.skills.some(s => s.name === name && category === "passive");
+    if (isOwnedPassive) {
+      li.classList.add("passive-skill");
+    } else if (window.lastChosenSkillNames?.includes(name)) {
+      li.classList.add("chosen-skill");
+    }
 
-    // ドラッグ操作
+    if (ownedSkillNames.includes(name)) {
+      li.classList.add("owned-skill"); // ← 覚えているスキルには背景強調クラス
+    }
+
     li.ondragstart = e => {
       e.dataTransfer.setData("text/plain", name);
     };

@@ -104,14 +104,24 @@
 
   <canvas id="hpChart" width="600" height="100"></canvas>
   <button id="startBattleBtn">バトル！（長押可）</button>
-	
-	<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+
 
 		<!-- アイテムメモリー表示欄 -->
+		
+  <h3>アイテム</h3>
 <div id="itemMemoryContainer">
-  <h3>アイテムメモリー</h3>
+
   <ul id="itemMemoryList"></ul>
 </div>
+
+<h3>スキル</h3>
+  <div id="skillMemoryContainer" style="display: none;">
+    
+    <ul id="skillMemoryList"></ul>
+
+			<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+  </div>
+	
 	
   <pre id="battleLog" style="height:200px;"></pre>
 
@@ -126,19 +136,32 @@
     </div>
   </div>
 
-  <div id="skillMemoryContainer" style="display: none;">
-    <h3>スキルメモリ順（高使用率順、ドラッグで並替可能。ただし攻撃スキルは優先して最低1つ選ばれる）</h3>
-    <ul id="skillMemoryList"></ul>
-  </div>
-	
-
+<div class="quick-guide">
+  <p>
+    〘簡易説明〙<br>アイテムは自動で使用され、一部を除き使用後一定確率で消失。タップで削除可能。<br>
+    色は発動回数、形容詞は発動率、名詞は壊れやすさを表す。<br>
+    取得時にランダムに全スキルから1つスキルが選ばれ、アイテムにより発動する。<br>
+    レベル上昇済みスキルのスキルレベルは連動する。
+  </p>
+  <p>
+    スキル一覧はドラッグで並替可能で、並び順が高使用率順となる。所持スキルは前に自動で移動する。攻撃スキルは優先して最低1つ選出。
+  </p>
+  <p>
+    通常モードはキャラクターを成長させやすく、鬼畜モードではアイテム入手可能（通常モードでもアイテム使用は可能）。<br>
+    戦闘の仕様が少し異なる。
+  </p>
+</div>
 
   <button id="downloadLogsBtn">バトルログ出力</button>
 
   <div id="saveControls">
     <button id="saveCodeBtn">保存</button>
+		
+		<h3>コード表示欄</h3>
     <input type="text" id="saveCodeBox" readonly>
+
   </div>
+	
 </div>
 
 <script type="module" src="game.js"></script>
