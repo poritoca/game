@@ -107,6 +107,12 @@
 	
 	<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
 
+		<!-- アイテムメモリー表示欄 -->
+<div id="itemMemoryContainer">
+  <h3>アイテムメモリー</h3>
+  <ul id="itemMemoryList"></ul>
+</div>
+	
   <pre id="battleLog" style="height:200px;"></pre>
 
   <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
@@ -124,6 +130,8 @@
     <h3>スキルメモリ順（高使用率順、ドラッグで並替可能。ただし攻撃スキルは優先して最低1つ選ばれる）</h3>
     <ul id="skillMemoryList"></ul>
   </div>
+	
+
 
   <button id="downloadLogsBtn">バトルログ出力</button>
 

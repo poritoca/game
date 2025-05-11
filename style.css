@@ -745,3 +745,50 @@ canvas {
     font-weight: bold;
     padding: 10px 20px;
 }
+
+#itemMemoryContainer {
+  margin-top: 20px;
+  padding: 10px;
+  background: linear-gradient(135deg, #222, #111);
+  border: 2px solid #444;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+}
+
+#itemMemoryContainer h3 {
+  margin: 0 0 10px;
+  font-size: 1em;
+  color: #fff;
+  text-shadow: 0 0 5px #fff;
+}
+
+#itemMemoryList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+#itemMemoryList li {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #333, #111);
+  border: 1px solid #666;
+  border-radius: 6px;
+  color: #fff;
+  cursor: move;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  transition: transform 0.2s;
+  user-select: none;
+}
+
+#itemMemoryList li:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 10px rgba(255, 215, 0, 0.6);
+}
+
+

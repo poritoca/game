@@ -36,6 +36,78 @@ window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifeste
 // 特殊敵出現率制御
 window.specialMode = 'normal'; // normal or brutal
 
+
+const itemColors = [
+  { word: '赤い', usesPerBattle: 1 },
+  { word: '青い', usesPerBattle: 2 },
+  { word: '緑の', usesPerBattle: 2 },
+  { word: '黄の', usesPerBattle: 2 },
+  { word: '黒い', usesPerBattle: 1 },
+  { word: '白い', usesPerBattle: 3 },
+  { word: '銀色の', usesPerBattle: 3 },
+  { word: '金色の', usesPerBattle: 4 },
+  { word: '紫の', usesPerBattle: 2 },
+  { word: '橙の', usesPerBattle: 2 },
+  { word: '藍色の', usesPerBattle: 2 },
+  { word: '透明な', usesPerBattle: Infinity },
+  { word: '虹色の', usesPerBattle: Infinity }
+];
+
+const itemNouns = [
+  { word: '壷', breakChance: 0.06, dropRateMultiplier: 0.4 },
+  { word: '札', breakChance: 0.05, dropRateMultiplier: 0.45 },
+  { word: '結晶', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '石', breakChance: 0.03, dropRateMultiplier: 0.65 },
+  { word: '鉱石', breakChance: 0.04, dropRateMultiplier: 0.55 },
+  { word: '歯車', breakChance: 0.05, dropRateMultiplier: 0.5 },
+  { word: '羽根', breakChance: 0.07, dropRateMultiplier: 0.35 },
+  { word: '巻物', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '鏡', breakChance: 0.02, dropRateMultiplier: 0.68 },
+  { word: '炎', breakChance: 0.06, dropRateMultiplier: 0.3 },
+  { word: '氷塊', breakChance: 0.05, dropRateMultiplier: 0.38 },
+  { word: '枝', breakChance: 0.06, dropRateMultiplier: 0.4 },
+  { word: '勾玉', breakChance: 0.007, dropRateMultiplier: 0.2 },
+  { word: '仮面', breakChance: 0.04, dropRateMultiplier: 0.5 },
+  { word: '珠', breakChance: 0.02, dropRateMultiplier: 0.8 },
+  { word: '箱', breakChance: 0.04, dropRateMultiplier: 0.6 },
+  { word: '盾', breakChance: 0.01, dropRateMultiplier: 0.85 },
+  { word: '剣', breakChance: 0.05, dropRateMultiplier: 0.5 },
+  { word: '書', breakChance: 0.06, dropRateMultiplier: 0.4 },
+  { word: '砂時計', breakChance: 0.07, dropRateMultiplier: 0.35 },
+  { word: '宝石', breakChance: 0.005, dropRateMultiplier: 0.2 },
+  { word: '瓶', breakChance: 0.06, dropRateMultiplier: 0.38 },
+  { word: '種', breakChance: 0.02, dropRateMultiplier: 0.7 },
+  { word: '薬草', breakChance: 0.07, dropRateMultiplier: 0.3 },
+  { word: '鉄片', breakChance: 0.05, dropRateMultiplier: 0.45 },
+  { word: '骨', breakChance: 0.05, dropRateMultiplier: 0.4 },
+  { word: '音叉', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '面', breakChance: 0.02, dropRateMultiplier: 0.75 },
+  { word: '鏡石', breakChance: 0.01, dropRateMultiplier: 0.9 },
+  { word: '符', breakChance: 0.03, dropRateMultiplier: 0.65 },
+  { word: '灯', breakChance: 0.05, dropRateMultiplier: 0.5 },
+  { word: '鐘', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '骨片', breakChance: 0.04, dropRateMultiplier: 0.55 },
+  { word: '巻貝', breakChance: 0.06, dropRateMultiplier: 0.25 },
+  { word: '球', breakChance: 0.008, dropRateMultiplier: 0.95 },
+  { word: '珠玉', breakChance: 0.0, dropRateMultiplier: 0.02 },
+  { word: '護符', breakChance: 0.03, dropRateMultiplier: 0.68 },
+  { word: '錫杖', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '光球', breakChance: 0.002, dropRateMultiplier: 0.1 }
+];
+
+const itemAdjectives = [
+  { word: '煤けた', activationRate: 0.1, dropRate: 0.025 },
+  { word: '冷たい', activationRate: 0.25, dropRate: 0.01 },
+  { word: '重い', activationRate: 0.2, dropRate: 0.008 },
+  { word: '鋭い', activationRate: 0.35, dropRate: 0.006 },
+  { word: '輝く', activationRate: 0.38, dropRate: 0.003 },
+  { word: '神秘的な', activationRate: 0.42, dropRate: 0.0015 },
+  { word: '伝説の', activationRate: 0.6, dropRate: 0.0005 },
+  { word: '超越した', activationRate: 0.8, dropRate: 0.0002 },
+  { word: '神の', activationRate: 1.0, dropRate: 0.0001 }
+];
+
+
 window.getSpecialChance = function() {
     return window.specialMode === 'brutal' ? 1.0 : 0.03;
 };
@@ -48,7 +120,7 @@ window.toggleSpecialMode = function() {
 
     if (window.specialMode === 'normal') {
         window.specialMode = 'brutal';
-        btn.textContent = '鬼畜モード';
+        btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
         btn.classList.remove('normal-mode');
         btn.classList.add('brutal-mode');
     } else {
@@ -299,6 +371,62 @@ function getRarityMultiplierFromRand(randFunc) {
   return 1.0 + (max - 1.0) * Math.pow(1 - seed, power);
 }
 
+function maybeGainItemMemory() {
+    if (window.specialMode !== 'brutal') return;
+    if (!player || !player.skills || player.skills.length === 0) return;
+    if (player.itemMemory.length >= 3) return;
+
+    function pickItemAdjective() {
+        const shuffled = [...itemAdjectives].sort(() => Math.random() - 0.5);
+        for (const adj of shuffled) {
+            if (Math.random() < adj.dropRate) return adj;
+        }
+        return null;
+    }
+
+function pickItemAdjectiveWithNoun(noun) {
+    const shuffled = [...itemAdjectives].sort(() => Math.random() - 0.5);
+    for (const adj of shuffled) {
+        const effectiveDropRate = adj.dropRate * (noun.dropRateMultiplier || 1.0);
+        if (Math.random() < effectiveDropRate) return adj;
+    }
+    return null;
+}
+
+
+
+    const allSkills = skillPool.filter(s => s.category !== 'passive');
+    const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
+
+    const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
+    const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
+		
+		const adjective = pickItemAdjectiveWithNoun(nounData);
+    if (!adjective) return;
+
+    const newItem = {
+        color: colorData.word,
+        adjective: adjective.word,
+        noun: nounData.word,
+        skillName: skill.name,
+        activationRate: adjective.activationRate,
+        usesPerBattle: colorData.usesPerBattle,
+        breakChance: nounData.breakChance,
+        remainingUses: colorData.usesPerBattle
+    };
+
+    player.itemMemory.push(newItem);
+    drawItemMemoryList();
+
+    showCustomAlert(
+        `新アイテム入手！ ${newItem.color}${newItem.adjective}${newItem.noun}（${newItem.skillName}）`,
+        8000,
+        "#ffa",
+        "#000"
+    );
+		drawItemMemoryList();
+}
+
 // RPGシミュレーター メインロジック（日本語UI、スキル100種以上対応）
 import { skillPool } from './skills.js';
 import { drawCharacterImage } from './drawCharacter.js';
@@ -335,6 +463,8 @@ window.seededRandom = function(seed) {
 
 // ゲーム内で表示する名前（敵の場合はランダムカナ名に変換）
 window.displayName = function(name) {
+  if (typeof name !== 'string') return '？？？';
+
   if (name.startsWith('敵')) {
     const kana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモラリルレロヤユヨワン';
     let seed = 0;
@@ -513,6 +643,13 @@ window.startNewGame = function() {
 
     // 通常初期化処理
     statusLogged = false;
+		
+		if (!player) {
+  player = {};
+}
+if (!player.itemMemory) {
+  player.itemMemory = [];
+}
     document.getElementById('battleLog').classList.remove('hidden');
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
@@ -547,6 +684,7 @@ updateStats();
 };
 
 // スキル効果を適用（カテゴリ別に処理）
+
 window.getSkillEffect = function(skill, user, target, log) {
   if (skill.sealed) {
     log.push(`${displayName(user.name)}のスキル「${skill.name}」は封印されているため発動できない`);
@@ -557,6 +695,9 @@ window.getSkillEffect = function(skill, user, target, log) {
   skill.uses = (skill.uses || 0) + 1;
   const skillData = skillPool.find(sk => sk.name === skill.name);
   if (!skillData) return;
+	
+	skill.level = (typeof skill.level === 'number' && !isNaN(skill.level)) ? skill.level : 1;
+	
   switch (skillData.category) {
 case 'multi': {
     let baseDmg = Math.max(0, user.attack);
@@ -841,10 +982,19 @@ window.startBattle = function() {
 	  if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
 }
-	document.getElementById("battleArea").classList.remove("hidden");
+	
+
+document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
 	
-  drawSkillMemoryList();
+
+	if (player.itemMemory) {
+  player.itemMemory.forEach(item => {
+    item.remainingUses = item.usesPerBattle;
+  });
+}
+	drawSkillMemoryList();
+  drawItemMemoryList();
 	
   window.eventTriggered = false;
   
@@ -860,9 +1010,14 @@ window.startBattle = function() {
     const tmpChar = makeCharacter(name);
     player = {
       ...tmpChar,
-    growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 }
+    growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 },
+		itemMemory: []
   };
   
+	if (!player.itemMemory) {
+    player.itemMemory = [];
+}
+	
   try {
   } catch (e) {
   }}
@@ -885,7 +1040,8 @@ window.initialAndSlotSkills = [
   })
 ];
   }
-  drawSkillMemoryList();
+drawSkillMemoryList();
+drawItemMemoryList();
   player.effects = [];
 
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
@@ -1106,6 +1262,38 @@ for (let eff of ch.effects) {
             }
           }
         }
+				
+				
+				// プレイヤーのアイテムメモリー発動
+// プレイヤーのアイテムメモリー発動（1ターンに1度のみ）
+let triggeredItemsThisTurn = new Set();
+
+for (let i = player.itemMemory.length - 1; i >= 0; i--) {
+  const item = player.itemMemory[i];
+  const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
+
+  // このターンで既に発動済みならスキップ
+  if (triggeredItemsThisTurn.has(itemKey)) continue;
+
+  if (item.remainingUses <= 0) continue;
+  if (Math.random() >= item.activationRate) continue;
+
+  const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
+  if (skill) {
+    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
+    getSkillEffect({ ...skill, level: skill.level || 1 }, player, enemy, log);
+
+    item.remainingUses--;
+    triggeredItemsThisTurn.add(itemKey);
+
+    if (Math.random() < item.breakChance) {
+      log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+      player.itemMemory.splice(i, 1);
+      drawItemMemoryList();
+    }
+  }
+}
+				
       } else {
         // 通常攻撃
         // 回避判定
@@ -1203,6 +1391,9 @@ showEventOptions("成長選択", [
   if (playerWon) {
     if (window.specialMode === 'brutal') {
         currentStreak += 5;
+				
+				maybeGainItemMemory();
+				
     } else {
         currentStreak += 1;
     }
@@ -1238,7 +1429,8 @@ player.skills.forEach(sk => {
         player.skillMemory[sk.name] = sk.level;
 
         log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
-        drawSkillMemoryList();
+drawSkillMemoryList();
+drawItemMemoryList();
 
     }
 });
@@ -1260,7 +1452,8 @@ if (Math.random() < skillGainChance) {
         log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
         showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1000, "#a8ffb0", "#000");
         if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
-            drawSkillMemoryList();
+drawSkillMemoryList();
+drawItemMemoryList();
         }
     }
 }
@@ -1273,7 +1466,8 @@ if (Math.random() < skillGainChance) {
       log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
-  drawSkillMemoryList();
+drawSkillMemoryList();
+drawItemMemoryList();
 
 }
 } else {
@@ -1359,6 +1553,7 @@ document.getElementById('battleLog').textContent = log.join('\n');
 drawHPGraph();
 updateStats();
 drawSkillMemoryList();
+drawItemMemoryList();
 try {
 } catch (error) {
 }
@@ -1452,6 +1647,7 @@ window.exportSaveCode = async function() {
     player, currentStreak, sslot,
     growthMultiplier: window.growthMultiplier, // ← 追加
     skillMemoryOrder: Object.entries(player.skillMemory),
+		itemMemory: player.itemMemory || [],
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0')
   };
   const raw = JSON.stringify(payload);
@@ -1508,10 +1704,18 @@ window.importSaveCode = async function() {
 
     const parsed = JSON.parse(raw);
     player = parsed.player;
+		
+		
 
     if (!player.growthBonus) {
         player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
     }
+
+		if (!player.itemMemory) {
+    player.itemMemory = [];
+}
+		
+    player.itemMemory = parsed.itemMemory || [];
 
     window.growthMultiplier = parsed.growthMultiplier || 1; // ← 追加
 
@@ -1586,6 +1790,10 @@ window.loadGame = async function() {
       if (!player.growthBonus) {
         player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
       }
+			
+			player.itemMemory = player.itemMemory || [];
+			drawItemMemoryList();
+			
       currentStreak = parsed.currentStreak || 0;
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
 do {
@@ -1945,6 +2153,43 @@ function updateSkillMemoryOrder() {
 }
 
 let hpShineOffset = 0; // アニメーション用オフセット
+
+function drawItemMemoryList() {
+    if (!player || !player.itemMemory) return; // ← この行を追加して安全にする
+
+    let draggedIndex = null;
+    const list = document.getElementById('itemMemoryList');
+    list.innerHTML = '';
+
+    player.itemMemory.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName})`;
+        li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
+        li.draggable = true;
+
+        li.addEventListener('dragstart', () => {
+            draggedIndex = index;
+        });
+        li.addEventListener('dragover', e => e.preventDefault());
+        li.addEventListener('drop', () => {
+            if (draggedIndex === null || draggedIndex === index) return;
+            const temp = player.itemMemory[draggedIndex];
+            player.itemMemory[draggedIndex] = player.itemMemory[index];
+            player.itemMemory[index] = temp;
+            drawItemMemoryList();
+            draggedIndex = null;
+        });
+
+        li.addEventListener('click', () => {
+            if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
+                player.itemMemory.splice(index, 1);
+                drawItemMemoryList();
+            }
+        });
+
+        list.appendChild(li);
+    });
+}
 
 window.drawHPGraph = function () {
   if (isAutoBattle) return;
