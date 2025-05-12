@@ -814,3 +814,34 @@ canvas {
   margin: 0 0 8px;
 }
 
+.quick-guide-wrapper {
+  margin: 20px 0;
+}
+
+.quick-guide-toggle {
+  width: 100%;
+  padding: 10px;
+  font-size: 1em;
+  background: #222;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.quick-guide-content {
+  background: linear-gradient(to right, #1a1a2e, #16213e);
+  color: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #aaa;
+  padding: 16px;
+  margin-top: 10px;
+  font-size: 0.9em;
+  line-height: 1.6;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.1);
+}
+
+.quick-guide-content.hidden {
+  display: none;
+}

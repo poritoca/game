@@ -123,7 +123,12 @@
   </div>
 	
 	
-  <pre id="battleLog" style="height:200px;"></pre>
+<div class="quick-guide-wrapper">
+  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
+  <div id="quickGuideLog" class="quick-guide-content">
+    <pre id="battleLog" style="height:200px;"></pre>
+  </div>
+</div>
 
   <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
     background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
@@ -136,20 +141,56 @@
     </div>
   </div>
 
-<div class="quick-guide">
-  <p>
-    〘簡易説明〙<br>アイテムは自動で使用され、一部を除き使用後一定確率で消失。タップで削除可能。<br>
-    色は発動回数、形容詞は発動率、名詞は壊れやすさを表す。<br>
-    取得時にランダムに全スキルから1つスキルが選ばれ、アイテムにより発動する。<br>
-    レベル上昇済みスキルのスキルレベルは連動する。
-  </p>
-  <p>
-    スキル一覧はドラッグで並替可能で、並び順が高使用率順となる。所持スキルは前に自動で移動する。攻撃スキルは優先して最低1つ選出。
-  </p>
-  <p>
-    通常モードはキャラクターを成長させやすく、鬼畜モードではアイテム入手可能（通常モードでもアイテム使用は可能）。<br>
-    戦闘の仕様が少し異なる。
-  </p>
+<div class="quick-guide-wrapper">
+  <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
+  <div id="quickGuideContent" class="quick-guide-content hidden">
+    <h3>このゲームの目的</h3>
+    <p>本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたび、キャラクターは成長や新スキルの習得を経て強くなります。</p>
+
+    <h3>戦闘について</h3>
+    <p>
+      戦闘はターン制で進行します。プレイヤーと敵が交互にスキルを使用し合い、相手のHPを0にすると勝利となります。
+      所持スキルの中から一定数が自動で選ばれて発動します。
+    </p>
+
+    <h3>スキルメモリー</h3>
+    <p>
+      プレイヤーのスキルは「スキルメモリー」として記録され、使用頻度に応じて並び替えられます。<br>
+      スキルメモリー内では、覚えているスキルが自動的に前方へ移動します。<br>
+      各スキルはドラッグで並び順を手動調整でき、戦闘中の選出確率にも影響します。<br>
+      攻撃スキルは最低1つが必ず選ばれる仕様です。
+    </p>
+
+    <h3>アイテムメモリー</h3>
+    <p>
+      アイテムは戦闘中に自動発動し、所持しているだけで効果を発揮します。<br>
+      ただし、一部を除き使用後に一定確率で消失します。<br>
+      アイテムは「色」「形容詞」「名詞」から構成され、それぞれ以下を意味します：
+    </p>
+    <ul>
+      <li><strong>色：</strong>1戦で使用できる回数</li>
+      <li><strong>形容詞：</strong>スキル発動率</li>
+      <li><strong>名詞：</strong>壊れやすさ（消失確率）</li>
+    </ul>
+    <p>
+      各アイテムには自動でスキルが1つ紐づけられており、発動時にはそのスキルの効果が適用されます。<br>
+      スキルを既に所持している場合は、アイテム発動時にもスキルレベルが反映されます。
+    </p>
+
+    <h3>モードの違い</h3>
+    <ul>
+      <li><strong>通常モード：</strong>連勝ごとにキャラクターのステータスが成長しやすくなります。</li>
+      <li><strong>鬼畜モード：</strong>戦闘難度が上がる代わりに、アイテムを入手できるようになります。<br>
+        通常モードでもアイテムの使用は可能ですが、入手はできません。
+      </li>
+    </ul>
+
+    <h3>補足</h3>
+    <p>
+      戦闘ログやスキルの並び、アイテム所持状態などは画面に表示されるので、活用してください。<br>
+      セーブ機能も活用して、育てたキャラクターでさらに連勝を目指しましょう。
+    </p>
+  </div>
 </div>
 
   <button id="downloadLogsBtn">バトルログ出力</button>

@@ -12,126 +12,104 @@
 
 
 export const skillPool = [
-  {
-    "name": "連続攻撃",
-    "category": "multi",
-    "baseHits": 1,
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 100,
-    "description": "複数回攻撃を行う。Lv5以上で攻撃回数+1",
-    "multiGrowthLevels": [
-      100,
-      500,
-      999
-    ],
-    "multiGrowthFactor": 0.6
-  },
-  {
-    "name": "二連撃",
-    "category": "multi",
-    "baseHits": 2,
-    "description": "2回連続で攻撃を行う",
-    "extraHits": 0,
-    "multiGrowthLevels": [],
-    "multiGrowthFactor": 1.0
-  },
-  {
-    "name": "三連撃",
-    "category": "multi",
-    "baseHits": 2,
-    "description": "3回連続で攻撃を行う",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 100,
-    "multiGrowthLevels": [
-      100,
-      500,
-      999
-    ],
-    "multiGrowthFactor": 0.6
-  },
-  {
-    "name": "乱れ撃ち",
-    "category": "multi",
-    "baseHits": 2,
-    "description": "無数の攻撃を繰り出す（実質3回攻撃）",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 50,
-    "multiGrowthLevels": [
-      50,
-      250
-    ],
-    "multiGrowthFactor": 0.8
-  },
-  {
-    "name": "乱舞",
-    "category": "multi",
-    "baseHits": 2,
-    "description": "激しい連続攻撃を行う（3回攻撃）",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 200,
-    "multiGrowthLevels": [
-      200,
-      999
-    ],
-    "multiGrowthFactor": 0.7
-  },
-  {
-    "name": "五連撃",
-    "category": "multi",
-    "baseHits": 4,
-    "description": "5回連続で攻撃を行う",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 100,
-    "multiGrowthLevels": [
-      100,
-      500,
-      999
-    ],
-    "multiGrowthFactor": 0.6
-  },
-  {
-    "name": "百烈拳",
-    "category": "multi",
-    "baseHits": 5,
-    "description": "猛烈な連打を浴びせる（5回攻撃）",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 10,
-    "multiGrowthLevels": [
-      10,
-      50,
-      200,
-      500
-    ],
-    "multiGrowthFactor": 0.4
-  },
-  {
-    "name": "連撃",
-    "category": "multi",
-    "baseHits": 1,
-    "description": "素早く2連続で攻撃する",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 100,
-    "multiGrowthLevels": [
-      100,
-      500,
-      999
-    ],
-    "multiGrowthFactor": 0.6
-  },
-  {
-    "name": "乱打",
-    "category": "multi",
-    "baseHits": 3,
-    "description": "相手を乱れ撃つ（4回攻撃）",
-    "extraHits": 1,
-    "extraHitsTriggerLevel": 100,
-    "multiGrowthLevels": [
-      100,
-      500,
-      999
-    ],
-    "multiGrowthFactor": 0.6
-  },
+{
+  "name": "連続攻撃",
+  "category": "multi",
+  "baseHits": 1,
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 100,
+  "description": "複数回攻撃を行う。Lv5以上で攻撃回数+1",
+  "multiGrowthLevels": [100, 500, 999],
+  "multiGrowthFactor": 0.6,
+  "criticalRateMax": 0.72
+},
+{
+  "name": "二連撃",
+  "category": "multi",
+  "baseHits": 2,
+  "description": "2回連続で攻撃を行う",
+  "extraHits": 0,
+  "multiGrowthLevels": [],
+  "multiGrowthFactor": 1.0,
+  "criticalRateMax": 0.62
+},
+{
+  "name": "三連撃",
+  "category": "multi",
+  "baseHits": 2,
+  "description": "3回連続で攻撃を行う",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 100,
+  "multiGrowthLevels": [100, 500, 999],
+  "multiGrowthFactor": 0.6,
+  "criticalRateMax": 0.62
+},
+{
+  "name": "乱れ撃ち",
+  "category": "multi",
+  "baseHits": 2,
+  "description": "無数の攻撃を繰り出す（実質3回攻撃）",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 50,
+  "multiGrowthLevels": [50, 250],
+  "multiGrowthFactor": 0.8,
+  "criticalRateMax": 0.68
+},
+{
+  "name": "乱舞",
+  "category": "multi",
+  "baseHits": 2,
+  "description": "激しい連続攻撃を行う（3回攻撃）",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 200,
+  "multiGrowthLevels": [200, 999],
+  "multiGrowthFactor": 0.7,
+  "criticalRateMax": 0.80
+},
+{
+  "name": "五連撃",
+  "category": "multi",
+  "baseHits": 4,
+  "description": "5回連続で攻撃を行う",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 100,
+  "multiGrowthLevels": [100, 500, 999],
+  "multiGrowthFactor": 0.6,
+  "criticalRateMax": 0.72
+},
+{
+  "name": "百烈拳",
+  "category": "multi",
+  "baseHits": 5,
+  "description": "猛烈な連打を浴びせる（5回攻撃）",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 10,
+  "multiGrowthLevels": [10, 50, 200, 500],
+  "multiGrowthFactor": 0.4,
+  "criticalRateMax": 0.74
+},
+{
+  "name": "連撃",
+  "category": "multi",
+  "baseHits": 1,
+  "description": "素早く2連続で攻撃する",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 100,
+  "multiGrowthLevels": [100, 500, 999],
+  "multiGrowthFactor": 0.6,
+  "criticalRateMax": 0.56
+},
+{
+  "name": "乱打",
+  "category": "multi",
+  "baseHits": 3,
+  "description": "相手を乱れ撃つ（4回攻撃）",
+  "extraHits": 1,
+  "extraHitsTriggerLevel": 100,
+  "multiGrowthLevels": [100, 500, 999],
+  "multiGrowthFactor": 0.6,
+  "criticalRateMax": 0.95
+},
 {
   "name": "毒撃",
   "category": "poison",

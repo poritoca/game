@@ -30,6 +30,17 @@ window.clearEventPopup = function() {
     selectBtn.onclick = null;
 };
 
+
+window.toggleQuickGuideLog = function () {
+  const content = document.getElementById("quickGuideLog");
+  content.classList.toggle("hidden");
+};
+
+window.toggleQuickGuide = function () {
+  const content = document.getElementById("quickGuideContent");
+  content.classList.toggle("hidden");
+};
+
 // スキル発動可否を個別に判定し、優先度順に決める関数
 window.offensiveSkillCategories = ['damage', 'multi', 'poison', 'burn', 'lifesteal'];
 
@@ -707,8 +718,9 @@ case 'multi': {
         hits += skillData.extraHits;
     }
 
-    // ダメージ補正（例：+6% per hit）
-    let totalDmg = baseDmg * (1 + hits * 0.06);
+    const growthBonus = skillData.multiGrowthFactor || 0;
+    const growthPower = 1 + (skill.level / 1000) * growthBonus;
+    let totalDmg = baseDmg * (1 + hits * 0.2) * growthPower;
 
     const barrierEff = target.effects.find(e => e.type === 'barrier');
     if (barrierEff) {
@@ -716,21 +728,24 @@ case 'multi': {
     }
 
     const splitBaseDmg = Math.floor(totalDmg / hits);
-    let remaining = totalDmg - splitBaseDmg * hits;  // 端数補正
+    let remaining = totalDmg - splitBaseDmg * hits;
 
-    // 命中率調整（95% - 5% × (hits - 1)、下限50%）
     const baseAccuracy = Math.max(0.5, 0.95 - (hits - 1) * 0.05);
+
+    const critMax = skillData.criticalRateMax || 0; // 例：0.3（最大30%）
+    const critRate = critMax * (1 - Math.exp(-skill.level / 600));
 
     for (let i = 0; i < hits; i++) {
         if (Math.random() < baseAccuracy) {
-            // 乱数補正（0.7 ～ 1.3）
             const randFactor = 0.7 + Math.random() * 0.6;
             let rawHitDmg = splitBaseDmg * randFactor;
 
-            // 防御計算
-            let hitDmg = Math.max(0, Math.floor(rawHitDmg - target.defense / 2));
+            const isCrit = Math.random() < critRate;
 
-            // 端数補正
+            let hitDmg = isCrit
+                ? Math.floor(rawHitDmg) // クリティカル時、防御無視
+                : Math.max(0, Math.floor(rawHitDmg - target.defense / 2));
+
             if (remaining > 0) {
                 hitDmg += 1;
                 remaining -= 1;
@@ -738,7 +753,9 @@ case 'multi': {
 
             target.hp -= hitDmg;
             totalDamage += hitDmg;
-            log.push(`${displayName(user.name)}の${skill.name}：${hitDmg}ダメージ (${i + 1}回目)`);
+
+            const critText = isCrit ? '（クリティカル！）' : '';
+            log.push(`${displayName(user.name)}の${skill.name}：${hitDmg}ダメージ ${critText} (${i + 1}回目)`);
         } else {
             log.push(`${displayName(user.name)}の${skill.name}：攻撃を外した (${i + 1}回目)`);
         }
@@ -2052,7 +2069,7 @@ window.maybeTriggerEvent = function() {
 };
 
 function drawSkillMemoryList() {
-  if (isAutoBattle) return;
+  //if (isAutoBattle) return;
   const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
   list.innerHTML = "";
