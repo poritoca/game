@@ -845,3 +845,12 @@ canvas {
 .quick-guide-content.hidden {
   display: none;
 }
+
+ul#itemMemoryList li {
+  transition: box-shadow 0.3s ease;
+}
+
+@keyframes glowFlash {
+  from { box-shadow: 0 0 10px rgba(255, 0, 255, 0.3); }
+  to { box-shadow: 0 0 30px rgba(255, 0, 255, 1); }
+}

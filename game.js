@@ -67,7 +67,7 @@ const itemColors = [
 const itemNouns = [
   { word: '壷', breakChance: 0.06, dropRateMultiplier: 0.4 },
   { word: '札', breakChance: 0.05, dropRateMultiplier: 0.45 },
-  { word: '結晶', breakChance: 0.03, dropRateMultiplier: 0.6 },
+  { word: '結晶', breakChance: 0.003, dropRateMultiplier: 0.6 },
   { word: '石', breakChance: 0.03, dropRateMultiplier: 0.65 },
   { word: '鉱石', breakChance: 0.04, dropRateMultiplier: 0.55 },
   { word: '歯車', breakChance: 0.05, dropRateMultiplier: 0.5 },
@@ -77,15 +77,15 @@ const itemNouns = [
   { word: '炎', breakChance: 0.06, dropRateMultiplier: 0.3 },
   { word: '氷塊', breakChance: 0.05, dropRateMultiplier: 0.38 },
   { word: '枝', breakChance: 0.06, dropRateMultiplier: 0.4 },
-  { word: '勾玉', breakChance: 0.007, dropRateMultiplier: 0.2 },
+  { word: '勾玉', breakChance: 0.001, dropRateMultiplier: 0.2 },
   { word: '仮面', breakChance: 0.04, dropRateMultiplier: 0.5 },
-  { word: '珠', breakChance: 0.02, dropRateMultiplier: 0.8 },
+  { word: '珠', breakChance: 0.002, dropRateMultiplier: 0.8 },
   { word: '箱', breakChance: 0.04, dropRateMultiplier: 0.6 },
-  { word: '盾', breakChance: 0.01, dropRateMultiplier: 0.85 },
-  { word: '剣', breakChance: 0.05, dropRateMultiplier: 0.5 },
+  { word: '盾', breakChance: 0, dropRateMultiplier: 0.08 },
+  { word: '剣', breakChance: 0, dropRateMultiplier: 0.07 },
   { word: '書', breakChance: 0.06, dropRateMultiplier: 0.4 },
   { word: '砂時計', breakChance: 0.07, dropRateMultiplier: 0.35 },
-  { word: '宝石', breakChance: 0.005, dropRateMultiplier: 0.2 },
+  { word: '宝石', breakChance: 0.0002, dropRateMultiplier: 0.1 },
   { word: '瓶', breakChance: 0.06, dropRateMultiplier: 0.38 },
   { word: '種', breakChance: 0.02, dropRateMultiplier: 0.7 },
   { word: '薬草', breakChance: 0.07, dropRateMultiplier: 0.3 },
@@ -93,17 +93,17 @@ const itemNouns = [
   { word: '骨', breakChance: 0.05, dropRateMultiplier: 0.4 },
   { word: '音叉', breakChance: 0.03, dropRateMultiplier: 0.6 },
   { word: '面', breakChance: 0.02, dropRateMultiplier: 0.75 },
-  { word: '鏡石', breakChance: 0.01, dropRateMultiplier: 0.9 },
+  { word: '鏡石', breakChance: 0.007, dropRateMultiplier: 0.2 },
   { word: '符', breakChance: 0.03, dropRateMultiplier: 0.65 },
   { word: '灯', breakChance: 0.05, dropRateMultiplier: 0.5 },
   { word: '鐘', breakChance: 0.03, dropRateMultiplier: 0.6 },
   { word: '骨片', breakChance: 0.04, dropRateMultiplier: 0.55 },
   { word: '巻貝', breakChance: 0.06, dropRateMultiplier: 0.25 },
-  { word: '球', breakChance: 0.008, dropRateMultiplier: 0.95 },
-  { word: '珠玉', breakChance: 0.0, dropRateMultiplier: 0.02 },
+  { word: '球', breakChance: 0.008, dropRateMultiplier: 0.15 },
+  { word: '珠玉', breakChance: 0, dropRateMultiplier: 0.05 },
   { word: '護符', breakChance: 0.03, dropRateMultiplier: 0.68 },
   { word: '錫杖', breakChance: 0.03, dropRateMultiplier: 0.6 },
-  { word: '光球', breakChance: 0.002, dropRateMultiplier: 0.1 }
+  { word: '光球', breakChance: 0, dropRateMultiplier: 0.16 }
 ];
 
 const itemAdjectives = [
@@ -112,9 +112,9 @@ const itemAdjectives = [
   { word: '重い', activationRate: 0.2, dropRate: 0.008 },
   { word: '鋭い', activationRate: 0.35, dropRate: 0.006 },
   { word: '輝く', activationRate: 0.38, dropRate: 0.003 },
-  { word: '神秘的な', activationRate: 0.42, dropRate: 0.0015 },
-  { word: '伝説の', activationRate: 0.6, dropRate: 0.0005 },
-  { word: '超越した', activationRate: 0.8, dropRate: 0.0002 },
+  { word: '神秘的な', activationRate: 0.42, dropRate: 0.0025 },
+  { word: '伝説の', activationRate: 0.6, dropRate: 0.002 },
+  { word: '超越した', activationRate: 0.8, dropRate: 0.001 },
   { word: '神の', activationRate: 1.0, dropRate: 0.0001 }
 ];
 
@@ -383,6 +383,8 @@ function getRarityMultiplierFromRand(randFunc) {
 }
 
 function maybeGainItemMemory() {
+	
+	
     if (window.specialMode !== 'brutal') return;
     if (!player || !player.skills || player.skills.length === 0) return;
     if (player.itemMemory.length >= 3) return;
@@ -406,36 +408,44 @@ function pickItemAdjectiveWithNoun(noun) {
 
 
 
-    const allSkills = skillPool.filter(s => s.category !== 'passive');
-    const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
+const allSkills = skillPool.filter(s => s.category !== 'passive');
+const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
 
-    const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
-    const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
-		
-		const adjective = pickItemAdjectiveWithNoun(nounData);
-    if (!adjective) return;
+const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
+const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
+const adjective = pickItemAdjectiveWithNoun(nounData);
+if (!adjective) return;
 
-    const newItem = {
-        color: colorData.word,
-        adjective: adjective.word,
-        noun: nounData.word,
-        skillName: skill.name,
-        activationRate: adjective.activationRate,
-        usesPerBattle: colorData.usesPerBattle,
-        breakChance: nounData.breakChance,
-        remainingUses: colorData.usesPerBattle
-    };
+// dropRate → glow を計算（変数がすべて揃ったあと）
+const dropRate =
+  (colorData.dropRateMultiplier || 1) *
+  (adjective.dropRateMultiplier || 1) *
+  (nounData.dropRateMultiplier || 1);
+const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
 
-    player.itemMemory.push(newItem);
-    drawItemMemoryList();
+const newItem = {
+  color: colorData.word,
+  adjective: adjective.word,
+  noun: nounData.word,
+  skillName: skill.name,
+  activationRate: adjective.activationRate,
+  usesPerBattle: colorData.usesPerBattle,
+  breakChance: nounData.breakChance,
+  remainingUses: colorData.usesPerBattle,
+  skillLevel: 1,
+  glow: glow.toFixed(2) // 保存形式を固定小数点
+};
 
-    showCustomAlert(
-        `新アイテム入手！ ${newItem.color}${newItem.adjective}${newItem.noun}（${newItem.skillName}）`,
-        8000,
-        "#ffa",
-        "#000"
-    );
-		drawItemMemoryList();
+player.itemMemory.push(newItem);
+drawItemMemoryList();
+
+showCustomAlert(
+  `新アイテム入手！ ${newItem.color}${newItem.adjective}${newItem.noun}（${newItem.skillName}）`,
+  8000,
+  "#ffa",
+  "#000"
+);
+drawItemMemoryList();
 }
 
 // RPGシミュレーター メインロジック（日本語UI、スキル100種以上対応）
@@ -1298,7 +1308,14 @@ for (let i = player.itemMemory.length - 1; i >= 0; i--) {
   const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
   if (skill) {
     log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
-    getSkillEffect({ ...skill, level: skill.level || 1 }, player, enemy, log);
+		
+getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
+
+if (item.skillLevel < 3000 && Math.random() < 0.5) {
+  item.skillLevel++;
+  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+  drawItemMemoryList();
+}
 
     item.remainingUses--;
     triggeredItemsThisTurn.add(itemKey);
@@ -1446,11 +1463,13 @@ player.skills.forEach(sk => {
         player.skillMemory[sk.name] = sk.level;
 
         log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
+				
 drawSkillMemoryList();
 drawItemMemoryList();
 
     }
 });
+
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
@@ -2023,6 +2042,7 @@ window.eventTriggered = false;  // イベント発生フラグを初期化
 // 【バトル後にイベント発生を判定して処理する】
 window.maybeTriggerEvent = function() {
     if (window.eventTriggered) return;  // すでにイベントが発生していたらスキップ
+		    if (window.specialMode === 'brutal') return; 
 
     const whiteSkills = player.skills.filter(s => {
         const found = skillPool.find(sk => sk.name === s.name);
@@ -2184,7 +2204,32 @@ function drawItemMemoryList() {
 
     player.itemMemory.forEach((item, index) => {
         const li = document.createElement('li');
-        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName})`;
+if (item.glow) {
+  const glowPower = Math.min(item.glow, 5);
+  const glowAlpha = Math.min(glowPower / 2.5, 1);  // 最大1.0
+
+  // グロー色
+  let glowColor = `rgba(255, 255, 100, ${glowAlpha})`;
+  if (glowPower >= 4.5) glowColor = `rgba(255, 100, 255, 1)`; // 最上位：ピンク系に
+  else if (glowPower >= 3.5) glowColor = `rgba(0, 255, 255, ${glowAlpha})`; // 高位：水色
+  else if (glowPower >= 2.5) glowColor = `rgba(255, 255, 0, ${glowAlpha})`; // 中位：黄
+
+  // box-shadow
+  const shadowSize = glowPower * 8;
+  li.style.boxShadow = `0 0 ${shadowSize}px ${glowColor}`;
+
+  // border強調（中位以上）
+  if (glowPower >= 2.5) {
+    li.style.border = `2px solid ${glowColor}`;
+    li.style.borderRadius = '6px';
+  }
+
+  // 最上位：点滅アニメーション
+  if (glowPower >= 4.5) {
+    li.style.animation = 'glowFlash 1s infinite alternate';
+  }
+}
+        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
         li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
         li.draggable = true;
 
