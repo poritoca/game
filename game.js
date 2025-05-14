@@ -13,6 +13,26 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+window.showConfirmationPopup = function(message, onConfirm) {
+  const popup = document.getElementById("eventPopup");
+  const title = document.getElementById("eventPopupTitle");
+  const optionsEl = document.getElementById("eventPopupOptions");
+
+  title.textContent = message;
+  optionsEl.innerHTML = "";
+
+  const okBtn = document.createElement("button");
+  okBtn.textContent = "了解";
+  okBtn.style.padding = "8px 16px";
+  okBtn.onclick = () => {
+    popup.style.display = "none";
+    if (typeof onConfirm === "function") onConfirm();
+  };
+
+  optionsEl.appendChild(okBtn);
+  popup.style.display = "block";
+};
+
 // 共通のクリーンアップ関数を作る
 window.clearEventPopup = function() {
     const popup = document.getElementById('eventPopup');
@@ -131,7 +151,7 @@ window.toggleSpecialMode = function() {
 
     if (window.specialMode === 'normal') {
         window.specialMode = 'brutal';
-        btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
+        btn.textContent = '鬼畜モード';
         btn.classList.remove('normal-mode');
         btn.classList.add('brutal-mode');
     } else {
@@ -677,6 +697,7 @@ if (!player.itemMemory) {
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
     document.getElementById("skillMemoryContainer").style.display = "block";
+		window.isFirstBattle = true;
 		startBattle();
   }, 500); // アニメーション時間と一致
 };
@@ -1231,6 +1252,14 @@ for (let eff of ch.effects) {
 		
     // ターン経過
     eff.remaining--;
+		if (window.isFirstBattle) {
+  showConfirmationPopup(
+    "作ったキャラクターが戦闘をしたよ。戦闘ログを確認してみよう。",
+    () => {
+      window.isFirstBattle = false;
+    }
+  );
+}
   }
 }
       // 効果残りターンが0になったものを除去＆ステータス戻す
@@ -1404,8 +1433,7 @@ const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
-if (playerWon && Math.random() < finalRate) {
-  isWaitingGrowth = true;
+if (playerWon && Math.random() < finalRate && !window.isFirstBattle) {
 
 showEventOptions("成長選択", [
   { label: "攻撃を上げる", value: 'attack' },

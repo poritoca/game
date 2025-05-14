@@ -124,6 +124,7 @@
   </div>
 </div>
 
+<h3>ステータス</h3>
   <div id="battleArea" class="hidden">
     <div class="status-area">
       <div class="stats-container" id="playerStats">
@@ -140,9 +141,7 @@
       <div class="stats-container" id="enemyStats"></div>
       <canvas id="enemyCanvas" width="64" height="64"></canvas>
     </div>
-
-<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
-    <label>同時発動スキル数（不足時繰り返し）:
+    <label>同時発動スキル数（通常モードのみ）:
       <select id="skillSimulCountSelect">
         <option value="1">1個</option>
         <option value="2" selected>2個</option>
@@ -151,27 +150,40 @@
         <option value="5">5個</option>
       </select>
     </label>
+
+<h3>スキル</h3>
+
+			
+  <div id="skillMemoryContainer" style="display: none;">
+    
+    <ul id="skillMemoryList"></ul>
+
+					<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+
   </div>
-
-  <canvas id="hpChart" width="600" height="100"></canvas>
-  <button id="startBattleBtn">バトル！（長押可）</button>
-
-
-		<!-- アイテムメモリー表示欄 -->
-		
+	
   <h3>アイテム</h3>
 <div id="itemMemoryContainer">
 
   <ul id="itemMemoryList"></ul>
 </div>
 
-<h3>スキル</h3>
-  <div id="skillMemoryContainer" style="display: none;">
-    
-    <ul id="skillMemoryList"></ul>
+  <h3>HPチャート</h3>
+  <canvas id="hpChart" width="600" height="100"></canvas>
+	
+	  <h3>バトルモード選択</h3>
+	
+<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
 
-			<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
   </div>
+
+
+  <button id="startBattleBtn">バトル！（長押可）</button>
+
+
+		<!-- アイテムメモリー表示欄 -->
+		
+
 	
 	
 <div class="quick-guide-wrapper">
@@ -195,10 +207,13 @@
 
   <button id="downloadLogsBtn">バトルログ出力</button>
 
+	
+			<h3>テキストデータで進捗保存</h3>
+			
   <div id="saveControls">
     <button id="saveCodeBtn">保存</button>
 		
-		<h3>コード表示欄</h3>
+
     <input type="text" id="saveCodeBox" readonly>
 
   </div>
