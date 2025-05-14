@@ -677,6 +677,7 @@ if (!player.itemMemory) {
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
     document.getElementById("skillMemoryContainer").style.display = "block";
+		startBattle();
   }, 500); // アニメーション時間と一致
 };
 
@@ -1793,6 +1794,7 @@ if (streakDisplay) {
 
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
       if (rebirthDisplay) rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
+			startBattle();
     }, 500);
 
   } catch (e) {
