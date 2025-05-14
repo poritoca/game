@@ -398,12 +398,14 @@ function maybeGainItemMemory() {
     }
 
 function pickItemAdjectiveWithNoun(noun) {
-    const shuffled = [...itemAdjectives].sort(() => Math.random() - 0.5);
-    for (const adj of shuffled) {
-        const effectiveDropRate = adj.dropRate * (noun.dropRateMultiplier || 1.0);
-        if (Math.random() < effectiveDropRate) return adj;
-    }
-    return null;
+  const streakBias = Math.pow((currentStreak / 100) + 1, 0.6);
+  const shuffled = [...itemAdjectives].sort(() => Math.random() - 0.5);
+  for (const adj of shuffled) {
+    const boostedDropRate = Math.pow(adj.dropRate, 1 / streakBias);  // レアほど上昇
+    const effectiveDropRate = boostedDropRate * (noun.dropRateMultiplier || 1.0);
+    if (Math.random() < effectiveDropRate) return adj;
+  }
+  return null;
 }
 
 
@@ -1015,9 +1017,9 @@ document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
 	
 
-	if (player.itemMemory) {
+if (player.itemMemory) {
   player.itemMemory.forEach(item => {
-    item.remainingUses = item.usesPerBattle;
+    item.remainingUses = (item.usesPerBattle === Infinity) ? Infinity : item.usesPerBattle;
   });
 }
 	drawSkillMemoryList();
@@ -1101,8 +1103,9 @@ enemy.skills.forEach(skill => {
         hasSpecialSkill = true;
     } else {
         // その他スキル：連勝数に応じてスキルレベルの上限を調整
-        const streakFactor = Math.min(currentStreak / 100, 1);  // 連勝数0～100を0～1に正規化
-        const maxPossibleLevel = 1 + Math.floor(2998 * streakFactor);  // 最大レベルは連勝数に比例
+const streakFactor = currentStreak / 100;
+const growthPower = 0.6;
+const maxPossibleLevel = Math.floor(1000 + 2000 * Math.pow(streakFactor, growthPower));
 
         const rand = Math.random();
         const level = 1 + Math.floor((maxPossibleLevel - 1) * Math.pow(rand, 3));  // 高レベルほど低確率
@@ -1297,34 +1300,38 @@ let triggeredItemsThisTurn = new Set();
 
 for (let i = player.itemMemory.length - 1; i >= 0; i--) {
   const item = player.itemMemory[i];
-  const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
-
-  // このターンで既に発動済みならスキップ
-  if (triggeredItemsThisTurn.has(itemKey)) continue;
 
   if (item.remainingUses <= 0) continue;
   if (Math.random() >= item.activationRate) continue;
 
   const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
-  if (skill) {
-    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
-		
-getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
+  if (!skill) continue;
 
-if (item.skillLevel < 3000 && Math.random() < 0.5) {
-  item.skillLevel++;
-  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
-  drawItemMemoryList();
-}
+  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
 
+  // スキル名をユニーク化（競合防止）
+  const skillClone = {
+    ...skill,
+    level: item.skillLevel || 1,
+    name: `${item.skillName}_${item.color}_${item.noun}_${i}`
+  };
+
+  getSkillEffect(skillClone, player, enemy, log);
+
+  if (item.skillLevel < 3000 && Math.random() < 0.5) {
+    item.skillLevel++;
+    log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+    drawItemMemoryList();
+  }
+
+  if (item.remainingUses !== Infinity) {
     item.remainingUses--;
-    triggeredItemsThisTurn.add(itemKey);
+  }
 
-    if (Math.random() < item.breakChance) {
-      log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-      player.itemMemory.splice(i, 1);
-      drawItemMemoryList();
-    }
+  if (Math.random() < item.breakChance) {
+    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+    player.itemMemory.splice(i, 1);
+    drawItemMemoryList();
   }
 }
 				
