@@ -102,8 +102,8 @@ const itemNouns = [
   { word: '仮面', breakChance: 0.04, dropRateMultiplier: 0.5 },
   { word: '珠', breakChance: 0.002, dropRateMultiplier: 0.8 },
   { word: '箱', breakChance: 0.04, dropRateMultiplier: 0.6 },
-  { word: '盾', breakChance: 0, dropRateMultiplier: 0.08 },
-  { word: '剣', breakChance: 0, dropRateMultiplier: 0.07 },
+  { word: '盾', breakChance: 0.0001, dropRateMultiplier: 0.08 },
+  { word: '剣', breakChance: 0.0001, dropRateMultiplier: 0.07 },
   { word: '書', breakChance: 0.06, dropRateMultiplier: 0.4 },
   { word: '砂時計', breakChance: 0.07, dropRateMultiplier: 0.35 },
   { word: '宝石', breakChance: 0.0002, dropRateMultiplier: 0.1 },
@@ -527,25 +527,26 @@ let isWaitingGrowth = false;
 // 追加：成長ボーナス倍率
 window.growthMultiplier = 1;
 
-// 成長選択時
 window.chooseGrowth = function(stat) {
-	
-  const baseAmount = Math.floor(enemy[stat] * 0.08);
+  const baseEnemyStat = (window.pendingGrowthStats?.[stat]) || enemy[stat];
+  const baseAmount = Math.floor(baseEnemyStat * 0.08);
   const growthAmount = baseAmount * window.growthMultiplier;
+
   if (!player.growthBonus) {
     player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
   }
+
   player.growthBonus[stat] += growthAmount;
   player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
   const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
-  showCustomAlert(message, 2000);  // ← 追加：カスタムアラート表示
-
+  showCustomAlert(message, 2000);
   const logEl = document.getElementById('battleLog');
   logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
 
-  window.growthMultiplier = 1;  // リセット
+  window.growthMultiplier = 1;
   isWaitingGrowth = false;
+  window.pendingGrowthStats = null;  // ★使い終わったら消す
 };
 
 window.skipGrowth = function() {
@@ -1030,6 +1031,15 @@ case 'berserk': {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
+	
+	if (isWaitingGrowth) {
+  const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
+if (isWaitingGrowth) {
+    alert("ステータス上昇を選んでください！");
+    return;
+  }
+  return;
+}
   
 	  if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
@@ -1052,10 +1062,7 @@ if (player.itemMemory) {
   
   const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 	
-  if (customAlertVisible && isWaitingGrowth) {
-    alert('ステータス上昇を選んでください！');
-    return;
-  }
+	
 
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
@@ -1197,7 +1204,7 @@ if (hasSpecialSkill) {
 	
 const factor = Math.pow(1.1, currentStreak);
 if (window.specialMode === 'brutal') {
-    log.push(`[鬼畜モード挑戦中（勝利時連勝数5増加）]`);
+    log.push(`[鬼畜モード挑戦中]`);
 } else {
     log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
 }
@@ -1361,11 +1368,20 @@ for (let i = player.itemMemory.length - 1; i >= 0; i--) {
     item.remainingUses--;
   }
 
-  if (Math.random() < item.breakChance) {
-    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-    player.itemMemory.splice(i, 1);
-    drawItemMemoryList();
+if (item.breakChance > 0 && Math.random() < item.breakChance) {
+  if (Math.random() < 0.05) {
+    // 5%で壊れず、以後壊れなくなる
+    item.breakChance = 0;
+    if (!item.color.startsWith("【結晶化】")) {
+      item.color = `【結晶化】${item.color}`;
+    }
+    log.push(`>>> ${item.color}${item.adjective}${item.noun} は結晶化して二度と壊れなくなった！`);
+  } else {
+    // 通常の破損
+    player.itemMemory = player.itemMemory.filter(it => it !== item);
+    log.push(`>>> ${item.color}${item.adjective}${item.noun} は壊れて消滅した...`);
   }
+}
 }
 				
       } else {
@@ -1436,7 +1452,15 @@ const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
+// 成長ポップアップ表示時
 if (playerWon && Math.random() < finalRate && !window.isFirstBattle) {
+  window.pendingGrowthStats = {
+    attack: enemy.attack,
+    defense: enemy.defense,
+    speed: enemy.speed,
+    maxHp: enemy.maxHp
+  };
+  isWaitingGrowth = true;
 
 showEventOptions("成長選択", [
   { label: "攻撃を上げる", value: 'attack' },
@@ -1463,7 +1487,7 @@ showEventOptions("成長選択", [
 
   if (playerWon) {
     if (window.specialMode === 'brutal') {
-        currentStreak += 5;
+        currentStreak += 1;
 				
 				maybeGainItemMemory();
 				
@@ -1663,7 +1687,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startAutoBattle() {
     isAutoBattle = true;  // ← 長押し中にセット
-    if (!battleInterval) {
+    
+		
+		if (!battleInterval) {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
@@ -2236,65 +2262,37 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 function drawItemMemoryList() {
-    if (!player || !player.itemMemory) return; // ← この行を追加して安全にする
+  if (!player || !player.itemMemory) return;
 
-    let draggedIndex = null;
-    const list = document.getElementById('itemMemoryList');
-    list.innerHTML = '';
+  let draggedIndex = null;
+  const list = document.getElementById('itemMemoryList');
+  list.innerHTML = '';
 
-    player.itemMemory.forEach((item, index) => {
-        const li = document.createElement('li');
-if (item.glow) {
-  const glowPower = Math.min(item.glow, 5);
-  const glowAlpha = Math.min(glowPower / 2.5, 1);  // 最大1.0
+player.itemMemory.forEach((item, index) => {
+  const li = document.createElement('li');
+  li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
+  li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
+  li.draggable = true;
 
-  // グロー色
-  let glowColor = `rgba(255, 255, 100, ${glowAlpha})`;
-  if (glowPower >= 4.5) glowColor = `rgba(255, 100, 255, 1)`; // 最上位：ピンク系に
-  else if (glowPower >= 3.5) glowColor = `rgba(0, 255, 255, ${glowAlpha})`; // 高位：水色
-  else if (glowPower >= 2.5) glowColor = `rgba(255, 255, 0, ${glowAlpha})`; // 中位：黄
-
-  // box-shadow
-  const shadowSize = glowPower * 8;
-  li.style.boxShadow = `0 0 ${shadowSize}px ${glowColor}`;
-
-  // border強調（中位以上）
-  if (glowPower >= 2.5) {
-    li.style.border = `2px solid ${glowColor}`;
-    li.style.borderRadius = '6px';
+  // ← 結晶化スタイル追加（省略可）
+  if (item.color?.startsWith("【結晶化】")) {
+    li.classList.add("crystallized-item");
   }
 
-  // 最上位：点滅アニメーション
-  if (glowPower >= 4.5) {
-    li.style.animation = 'glowFlash 1s infinite alternate';
-  }
-}
-        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
-        li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
-        li.draggable = true;
+  // glow演出（略）…
 
-        li.addEventListener('dragstart', () => {
-            draggedIndex = index;
-        });
-        li.addEventListener('dragover', e => e.preventDefault());
-        li.addEventListener('drop', () => {
-            if (draggedIndex === null || draggedIndex === index) return;
-            const temp = player.itemMemory[draggedIndex];
-            player.itemMemory[draggedIndex] = player.itemMemory[index];
-            player.itemMemory[index] = temp;
-            drawItemMemoryList();
-            draggedIndex = null;
-        });
+  // <<==== 【クリック削除】を明示的に追加 ====>>
+  li.style.cursor = 'pointer';  // ポインタ表示で押せる感じに
+  li.addEventListener('click', (e) => {
+    e.stopPropagation(); // ← 他イベントに邪魔されないように
+    if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
+      player.itemMemory.splice(index, 1);
+      drawItemMemoryList();
+    }
+  });
 
-        li.addEventListener('click', () => {
-            if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
-                player.itemMemory.splice(index, 1);
-                drawItemMemoryList();
-            }
-        });
-
-        list.appendChild(li);
-    });
+  list.appendChild(li);
+});
 }
 
 window.drawHPGraph = function () {

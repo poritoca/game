@@ -146,7 +146,7 @@ let startTime = performance.now();  // 開始時間を記録
 
 function animateWave(timestamp) {
     const elapsed = timestamp - startTime;
-    if (elapsed >= 2000) {  // 2秒（2000ミリ秒）経過したら停止
+    if (elapsed >= 12000) {  // 2秒（2000ミリ秒）経過したら停止
         cancelAnimationFrame(animationFrameIds[canvasId]);
         return;
     }

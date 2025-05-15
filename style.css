@@ -854,3 +854,16 @@ ul#itemMemoryList li {
   from { box-shadow: 0 0 10px rgba(255, 0, 255, 0.3); }
   to { box-shadow: 0 0 30px rgba(255, 0, 255, 1); }
 }
+
+.crystallized-item {
+  background: radial-gradient(ellipse at center, rgba(173,216,230,0.3), rgba(0,191,255,0.1));
+  border: 2px solid rgba(173, 216, 230, 0.6);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: 2px;
+  color: #b0e0ff;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(173,216,230,0.9);
+  box-shadow: 0 0 8px rgba(173,216,230,0.6);
+}
+
