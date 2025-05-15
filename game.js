@@ -13,12 +13,13 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
-window.showConfirmationPopup = function(message, onConfirm) {
+window.showConfirmationPopup = function(messageHtml, onConfirm) {
   const popup = document.getElementById("eventPopup");
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
 
-  title.textContent = message;
+  // ★ ここを textContent → innerHTML に変更
+  title.innerHTML = messageHtml;
   optionsEl.innerHTML = "";
 
   const okBtn = document.createElement("button");
@@ -1252,16 +1253,18 @@ for (let eff of ch.effects) {
 		
     // ターン経過
     eff.remaining--;
-		if (window.isFirstBattle) {
+if (window.isFirstBattle) {
   showConfirmationPopup(
-    "作ったキャラクターが戦闘をしたよ。初期スキル、キャラ画像のカラー、ステータスはキャラクター名によって異なるんだ。戦闘ログを確認してみよう。（もし気に入らなければリロードして作り直してね）",
+    `<div style="text-align:center">
+      <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
+      作ったキャラクターが戦闘をしたよ。戦闘ログを確認してみよう。
+    </div>`,
     () => {
       window.isFirstBattle = false;
     }
   );
-}
+}}
   }
-}
       // 効果残りターンが0になったものを除去＆ステータス戻す
       ch.effects = ch.effects.filter(eff => {
         if (eff.remaining <= 0) {
