@@ -1254,7 +1254,7 @@ for (let eff of ch.effects) {
     eff.remaining--;
 		if (window.isFirstBattle) {
   showConfirmationPopup(
-    "作ったキャラクターが戦闘をしたよ。戦闘ログを確認してみよう。",
+    "作ったキャラクターが戦闘をしたよ。初期スキル、キャラ画像のカラー、ステータスはキャラクター名によって異なるんだ。戦闘ログを確認してみよう。（もし気に入らなければリロードして作り直してね）",
     () => {
       window.isFirstBattle = false;
     }
@@ -1509,9 +1509,9 @@ drawItemMemoryList();
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-let skillGainChance = Math.min(1.0, 0.05 * rarity);
+let skillGainChance = Math.min(1.0, 0.02 * rarity);
 if (window.specialMode === 'brutal') {
-    skillGainChance = 0.2;  // 鬼畜モードで2倍にする
+    skillGainChance = 0.1;  // 鬼畜モードで2倍にする
 }
   log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
