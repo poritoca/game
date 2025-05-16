@@ -855,15 +855,56 @@ ul#itemMemoryList li {
   to { box-shadow: 0 0 30px rgba(255, 0, 255, 1); }
 }
 
-.crystallized-item {
-  background: radial-gradient(ellipse at center, rgba(173,216,230,0.3), rgba(0,191,255,0.1));
-  border: 2px solid rgba(173, 216, 230, 0.6);
+.toggle-btn {
+  padding: 6px 12px;
   border-radius: 6px;
-  padding: 4px 8px;
-  margin: 2px;
-  color: #b0e0ff;
+  margin: 3px;
   font-weight: bold;
-  text-shadow: 0 0 6px rgba(173,216,230,0.9);
-  box-shadow: 0 0 8px rgba(173,216,230,0.6);
+  border: 2px solid #ccc;
+  background-color: #222;
+  color: #fff;
+  cursor: pointer;
+}
+.toggle-btn.on {
+  background-color: #4caf50; /* 緑：ON */
+  color: white;
+}
+.toggle-btn.off {
+  background-color: #999; /* グレー：OFF */
+  color: black;
 }
 
+#autoBattleSettingsBox {
+  border: 2px solid #555;
+  border-radius: 8px;
+  padding: 8px;
+  background: linear-gradient(#111, #222);
+  color: #fff;
+  font-family: 'Press Start 2P', system-ui;
+  box-shadow: 0 0 8px rgba(0,255,255,0.2);
+}
+
+details summary {
+  cursor: pointer;
+  position: relative;
+  padding-left: 1.2em;
+  font-weight: bold;
+  user-select: none;
+}
+
+details summary::before {
+  content: '▶';
+  position: absolute;
+  left: 0;
+  transition: transform 0.2s;
+}
+
+/* 開いているときは矢印を下向きに */
+details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+details summary:hover {
+  color: #ffd700; /* 明るい色に変化 */
+  text-shadow: 0 0 4px #ff0;
+}

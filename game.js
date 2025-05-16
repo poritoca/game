@@ -102,8 +102,8 @@ const itemNouns = [
   { word: '仮面', breakChance: 0.04, dropRateMultiplier: 0.5 },
   { word: '珠', breakChance: 0.002, dropRateMultiplier: 0.8 },
   { word: '箱', breakChance: 0.04, dropRateMultiplier: 0.6 },
-  { word: '盾', breakChance: 0.0001, dropRateMultiplier: 0.08 },
-  { word: '剣', breakChance: 0.0001, dropRateMultiplier: 0.07 },
+  { word: '盾', breakChance: 0, dropRateMultiplier: 0.08 },
+  { word: '剣', breakChance: 0, dropRateMultiplier: 0.07 },
   { word: '書', breakChance: 0.06, dropRateMultiplier: 0.4 },
   { word: '砂時計', breakChance: 0.07, dropRateMultiplier: 0.35 },
   { word: '宝石', breakChance: 0.0002, dropRateMultiplier: 0.1 },
@@ -152,7 +152,7 @@ window.toggleSpecialMode = function() {
 
     if (window.specialMode === 'normal') {
         window.specialMode = 'brutal';
-        btn.textContent = '鬼畜モード';
+        btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
         btn.classList.remove('normal-mode');
         btn.classList.add('brutal-mode');
     } else {
@@ -199,6 +199,43 @@ skillDeleteButton.addEventListener('click', () => {
 });
 
 updateSkillDeleteButton();
+
+window.allowGrowthEvent = true;
+window.allowSkillDeleteEvent = true;
+window.allowItemInterrupt = true;  // ← 新規追加
+
+function setupToggleButtons() {
+  const growthBtn = document.getElementById('toggleGrowthEvents');
+  const skillDelBtn = document.getElementById('toggleSkillDeleteEvents');
+  const itemBtn = document.getElementById('toggleItemInterrupt');
+
+  function updateButtonState(btn, state, labelOn, labelOff) {
+    btn.classList.remove("on", "off");
+    btn.classList.add(state ? "on" : "off");
+    btn.textContent = state ? labelOn : labelOff;
+  }
+
+  growthBtn.onclick = () => {
+    window.allowGrowthEvent = !window.allowGrowthEvent;
+    updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
+  };
+
+  skillDelBtn.onclick = () => {
+    window.allowSkillDeleteEvent = !window.allowSkillDeleteEvent;
+    updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
+  };
+
+  itemBtn.onclick = () => {
+    window.allowItemInterrupt = !window.allowItemInterrupt;
+    updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+  };
+
+  updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
+  updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
+  updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+}
+
+document.addEventListener('DOMContentLoaded', setupToggleButtons);
 
 function hasOffensiveSkill(char) {
     return char.skills.some(sk => {
@@ -404,19 +441,88 @@ function getRarityMultiplierFromRand(randFunc) {
 }
 
 function maybeGainItemMemory() {
-	
-	
-    if (window.specialMode !== 'brutal') return;
-    if (!player || !player.skills || player.skills.length === 0) return;
-    if (player.itemMemory.length >= 3) return;
+  if (window.specialMode !== 'brutal') return;
+  if (!player || !player.skills || player.skills.length === 0) return;
+  if (player.itemMemory.length >= 3) return;
 
-    function pickItemAdjective() {
-        const shuffled = [...itemAdjectives].sort(() => Math.random() - 0.5);
-        for (const adj of shuffled) {
-            if (Math.random() < adj.dropRate) return adj;
-        }
-        return null;
-    }
+  const allSkills = skillPool.filter(s => s.category !== 'passive');
+  const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
+  const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
+  const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
+
+  const adjective = pickItemAdjectiveWithNoun(nounData);
+  if (!adjective) return;
+
+  const dropRate = (colorData.dropRateMultiplier || 1) * (adjective.dropRate || 1) * (nounData.dropRateMultiplier || 1);
+  const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
+
+  const newItem = {
+    color: colorData.word,
+    adjective: adjective.word,
+    noun: nounData.word,
+    skillName: skill.name,
+    activationRate: adjective.activationRate,
+    usesPerBattle: colorData.usesPerBattle,
+    breakChance: nounData.breakChance,
+    remainingUses: colorData.usesPerBattle,
+    skillLevel: 1,
+    glow: glow.toFixed(2)
+  };
+
+  player.itemMemory.push(newItem);
+  drawItemMemoryList();
+
+  const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+  showCustomAlert(`新アイテム入手！ ${itemName}（${newItem.skillName}）`, 3000, "#ffa", "#000");
+
+if (shouldPauseForItem(newItem.color, newItem.adjective, newItem.noun)) {
+  setTimeout(() => {
+    if (typeof stopAutoBattle === 'function') stopAutoBattle();
+    isAutoBattle = false;  // 念のため明示的に切る
+    showCustomAlert(`>>> フィルター条件により停止！`, 3000, "#ff8", "#000");
+  }, 500);
+}
+}
+
+		
+		
+function setupItemFilters() {
+  const colorBox = document.getElementById('filterColorOptions');
+  const adjBox = document.getElementById('filterAdjectiveOptions');
+  const nounBox = document.getElementById('filterNounOptions');
+
+  const createCheckbox = (value, type) => {
+    const label = document.createElement('label');
+    label.style.display = 'inline-block';
+    label.style.marginRight = '8px';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = value;
+    cb.dataset.type = type;
+    cb.style.transform = 'scale(0.8)';
+    cb.classList.add('itemFilterCB');
+
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(value));
+    return label;
+  };
+
+  itemColors.forEach(obj => colorBox.appendChild(createCheckbox(obj.word, 'color')));
+  itemAdjectives.forEach(obj => adjBox.appendChild(createCheckbox(obj.word, 'adj')));
+  itemNouns.forEach(obj => nounBox.appendChild(createCheckbox(obj.word, 'noun')));
+}
+document.addEventListener('DOMContentLoaded', setupItemFilters);
+
+function shouldPauseForItem(color, adj, noun) {
+  const checked = type => Array.from(document.querySelectorAll(`.itemFilterCB[data-type="${type}"]:checked`)).map(cb => cb.value);
+  const colors = checked('color');
+  const adjs = checked('adj');
+  const nouns = checked('noun');
+
+  return colors.includes(color) || adjs.includes(adj) || nouns.includes(noun);
+}
+
 
 function pickItemAdjectiveWithNoun(noun) {
   const streakBias = Math.pow((currentStreak / 100) + 1, 0.6);
@@ -431,45 +537,6 @@ function pickItemAdjectiveWithNoun(noun) {
 
 
 
-const allSkills = skillPool.filter(s => s.category !== 'passive');
-const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
-
-const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
-const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
-const adjective = pickItemAdjectiveWithNoun(nounData);
-if (!adjective) return;
-
-// dropRate → glow を計算（変数がすべて揃ったあと）
-const dropRate =
-  (colorData.dropRateMultiplier || 1) *
-  (adjective.dropRateMultiplier || 1) *
-  (nounData.dropRateMultiplier || 1);
-const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
-
-const newItem = {
-  color: colorData.word,
-  adjective: adjective.word,
-  noun: nounData.word,
-  skillName: skill.name,
-  activationRate: adjective.activationRate,
-  usesPerBattle: colorData.usesPerBattle,
-  breakChance: nounData.breakChance,
-  remainingUses: colorData.usesPerBattle,
-  skillLevel: 1,
-  glow: glow.toFixed(2) // 保存形式を固定小数点
-};
-
-player.itemMemory.push(newItem);
-drawItemMemoryList();
-
-showCustomAlert(
-  `新アイテム入手！ ${newItem.color}${newItem.adjective}${newItem.noun}（${newItem.skillName}）`,
-  8000,
-  "#ffa",
-  "#000"
-);
-drawItemMemoryList();
-}
 
 // RPGシミュレーター メインロジック（日本語UI、スキル100種以上対応）
 import { skillPool } from './skills.js';
@@ -527,26 +594,25 @@ let isWaitingGrowth = false;
 // 追加：成長ボーナス倍率
 window.growthMultiplier = 1;
 
+// 成長選択時
 window.chooseGrowth = function(stat) {
-  const baseEnemyStat = (window.pendingGrowthStats?.[stat]) || enemy[stat];
-  const baseAmount = Math.floor(baseEnemyStat * 0.08);
+	
+  const baseAmount = Math.floor(enemy[stat] * 0.08);
   const growthAmount = baseAmount * window.growthMultiplier;
-
   if (!player.growthBonus) {
     player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
   }
-
   player.growthBonus[stat] += growthAmount;
   player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
   const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
-  showCustomAlert(message, 2000);
+  showCustomAlert(message, 2000);  // ← 追加：カスタムアラート表示
+
   const logEl = document.getElementById('battleLog');
   logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
 
-  window.growthMultiplier = 1;
+  window.growthMultiplier = 1;  // リセット
   isWaitingGrowth = false;
-  window.pendingGrowthStats = null;  // ★使い終わったら消す
 };
 
 window.skipGrowth = function() {
@@ -699,8 +765,8 @@ if (!player.itemMemory) {
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
     document.getElementById("skillMemoryContainer").style.display = "block";
-		window.isFirstBattle = true;
-		startBattle();
+				window.isFirstBattle = true;
+		  startBattle();
   }, 500); // アニメーション時間と一致
 };
 
@@ -1031,15 +1097,6 @@ case 'berserk': {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
-	
-	if (isWaitingGrowth) {
-  const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
-if (isWaitingGrowth) {
-    alert("ステータス上昇を選んでください！");
-    return;
-  }
-  return;
-}
   
 	  if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
@@ -1050,9 +1107,9 @@ document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
 	
 
-if (player.itemMemory) {
+	if (player.itemMemory) {
   player.itemMemory.forEach(item => {
-    item.remainingUses = (item.usesPerBattle === Infinity) ? Infinity : item.usesPerBattle;
+    item.remainingUses = item.usesPerBattle;
   });
 }
 	drawSkillMemoryList();
@@ -1062,7 +1119,10 @@ if (player.itemMemory) {
   
   const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 	
-	
+  if (customAlertVisible && isWaitingGrowth) {
+    alert('ステータス上昇を選んでください！');
+    return;
+  }
 
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
@@ -1204,7 +1264,7 @@ if (hasSpecialSkill) {
 	
 const factor = Math.pow(1.1, currentStreak);
 if (window.specialMode === 'brutal') {
-    log.push(`[鬼畜モード挑戦中]`);
+    log.push(`[鬼畜モード挑戦中（勝利時連勝数5増加）]`);
 } else {
     log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
 }
@@ -1340,48 +1400,35 @@ let triggeredItemsThisTurn = new Set();
 
 for (let i = player.itemMemory.length - 1; i >= 0; i--) {
   const item = player.itemMemory[i];
+  const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
+
+  // このターンで既に発動済みならスキップ
+  if (triggeredItemsThisTurn.has(itemKey)) continue;
 
   if (item.remainingUses <= 0) continue;
   if (Math.random() >= item.activationRate) continue;
 
   const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
-  if (!skill) continue;
+  if (skill) {
+    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
+		
+getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
 
-  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
-
-  // スキル名をユニーク化（競合防止）
-  const skillClone = {
-    ...skill,
-    level: item.skillLevel || 1,
-    name: `${item.skillName}_${item.color}_${item.noun}_${i}`
-  };
-
-  getSkillEffect(skillClone, player, enemy, log);
-
-  if (item.skillLevel < 3000 && Math.random() < 0.5) {
-    item.skillLevel++;
-    log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
-    drawItemMemoryList();
-  }
-
-  if (item.remainingUses !== Infinity) {
-    item.remainingUses--;
-  }
-
-if (item.breakChance > 0 && Math.random() < item.breakChance) {
-  if (Math.random() < 0.05) {
-    // 5%で壊れず、以後壊れなくなる
-    item.breakChance = 0;
-    if (!item.color.startsWith("【結晶化】")) {
-      item.color = `【結晶化】${item.color}`;
-    }
-    log.push(`>>> ${item.color}${item.adjective}${item.noun} は結晶化して二度と壊れなくなった！`);
-  } else {
-    // 通常の破損
-    player.itemMemory = player.itemMemory.filter(it => it !== item);
-    log.push(`>>> ${item.color}${item.adjective}${item.noun} は壊れて消滅した...`);
-  }
+if (item.skillLevel < 3000 && Math.random() < 0.5) {
+  item.skillLevel++;
+  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+  drawItemMemoryList();
 }
+
+    item.remainingUses--;
+    triggeredItemsThisTurn.add(itemKey);
+
+    if (Math.random() < item.breakChance) {
+      log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+      player.itemMemory.splice(i, 1);
+      drawItemMemoryList();
+    }
+  }
 }
 				
       } else {
@@ -1452,42 +1499,36 @@ const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
-// 成長ポップアップ表示時
-if (playerWon && Math.random() < finalRate && !window.isFirstBattle) {
-  window.pendingGrowthStats = {
-    attack: enemy.attack,
-    defense: enemy.defense,
-    speed: enemy.speed,
-    maxHp: enemy.maxHp
-  };
+if (playerWon && window.allowGrowthEvent && Math.random() < finalRate) {
   isWaitingGrowth = true;
 
-showEventOptions("成長選択", [
-  { label: "攻撃を上げる", value: 'attack' },
-  { label: "防御を上げる", value: 'defense' },
-  { label: "速度を上げる", value: 'speed' },
-  { label: "HPを上げる", value: 'maxHp' },
-  { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
-], (chosen) => {
-  if (chosen === 'skip') {
-    window.skipGrowth();
-  } else {
-    window.chooseGrowth(chosen);
-  }
+  showEventOptions("成長選択", [
+    { label: "攻撃を上げる", value: 'attack' },
+    { label: "防御を上げる", value: 'defense' },
+    { label: "速度を上げる", value: 'speed' },
+    { label: "HPを上げる", value: 'maxHp' },
+    { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
+  ], (chosen) => {
+    if (chosen === 'skip') {
+      window.skipGrowth();
+    } else {
+      window.chooseGrowth(chosen);
+    }
 
-  const logEl = document.getElementById('battleLog');
-  logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
-});
-  } else if (playerWon) {
     const logEl = document.getElementById('battleLog');
-    logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
-  }
+    logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
+  });
+
+} else if (playerWon) {
+  const logEl = document.getElementById('battleLog');
+  logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
+}
 
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
   if (playerWon) {
     if (window.specialMode === 'brutal') {
-        currentStreak += 1;
+        currentStreak += 5;
 				
 				maybeGainItemMemory();
 				
@@ -1536,9 +1577,9 @@ drawItemMemoryList();
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-let skillGainChance = Math.min(1.0, 0.02 * rarity);
+let skillGainChance = Math.min(1.0, 0.05 * rarity);
 if (window.specialMode === 'brutal') {
-    skillGainChance = 0.1;  // 鬼畜モードで2倍にする
+    skillGainChance = 0.2;  // 鬼畜モードで2倍にする
 }
   log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
@@ -1687,9 +1728,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function startAutoBattle() {
     isAutoBattle = true;  // ← 長押し中にセット
-    
-		
-		if (!battleInterval) {
+    if (!battleInterval) {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
@@ -1851,7 +1890,7 @@ if (streakDisplay) {
 
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
       if (rebirthDisplay) rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
-			startBattle();
+						startBattle();
     }, 500);
 
   } catch (e) {
@@ -2107,51 +2146,48 @@ window.eventTriggered = false;  // イベント発生フラグを初期化
 
 // 【バトル後にイベント発生を判定して処理する】
 window.maybeTriggerEvent = function() {
-    if (window.eventTriggered) return;  // すでにイベントが発生していたらスキップ
-		    if (window.specialMode === 'brutal') return; 
+  if (window.eventTriggered) return;
+  if (!window.allowSkillDeleteEvent) return;
 
-    const whiteSkills = player.skills.filter(s => {
-        const found = skillPool.find(sk => sk.name === s.name);
-        if (!found) return false;
-        if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-        if (found.category === 'passive') return false;
-        return true;
-    });
+  const whiteSkills = player.skills.filter(s => {
+    const found = skillPool.find(sk => sk.name === s.name);
+    if (!found) return false;
+    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+    if (found.category === 'passive') return false;
+    return true;
+  });
 
-    if (whiteSkills.length < 3) {
-        return; // 白スキルが3個未満なら何も起こさない
-    }
+  if (whiteSkills.length < 3) return;
 
-    const chance = 0.1; // 10%の確率
-    if (Math.random() < chance) {
-        window.eventTriggered = true;  // イベント発生を記録
-        stopAutoBattle();
+  const chance = 0.1;
+  if (Math.random() < chance) {
+    window.eventTriggered = true;
+    stopAutoBattle();
 
-        showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
-            { label: "スキルから選んで削除", value: "select" },
-            { label: "ランダムに3個削除", value: "random" },
-            { label: "何もしない", value: "none" }
-        ], (choice) => {
-            if (choice === "select") {
-                showWhiteSkillSelector(selectedName => {
-                    
-								    if (!selectedName) {
-        showCustomAlert("キャンセルしました！", 2000);
-        return;  // null のときは何もしない
-    }
-	deleteSkillByName(selectedName);
-                    updateStats();
-                    showCustomAlert(`${selectedName} を削除しました！`, 3000);
-                });
-            } else if (choice === "random") {
-                const deleted = deleteRandomWhiteSkills(3);
-                updateStats();
-                showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
-            } else if (choice === "none") {
-                showCustomAlert("今回はスキルを削除しませんでした！", 3000);
-            }
+    showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
+      { label: "スキルから選んで削除", value: "select" },
+      { label: "ランダムに3個削除", value: "random" },
+      { label: "何もしない", value: "none" }
+    ], (choice) => {
+      if (choice === "select") {
+        showWhiteSkillSelector(selectedName => {
+          if (!selectedName) {
+            showCustomAlert("キャンセルしました！", 2000);
+            return;
+          }
+          deleteSkillByName(selectedName);
+          updateStats();
+          showCustomAlert(`${selectedName} を削除しました！`, 3000);
         });
-    }
+      } else if (choice === "random") {
+        const deleted = deleteRandomWhiteSkills(3);
+        updateStats();
+        showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
+      } else if (choice === "none") {
+        showCustomAlert("今回はスキルを削除しませんでした！", 3000);
+      }
+    });
+  }
 };
 
 function drawSkillMemoryList() {
@@ -2262,37 +2298,65 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 function drawItemMemoryList() {
-  if (!player || !player.itemMemory) return;
+    if (!player || !player.itemMemory) return; // ← この行を追加して安全にする
 
-  let draggedIndex = null;
-  const list = document.getElementById('itemMemoryList');
-  list.innerHTML = '';
+    let draggedIndex = null;
+    const list = document.getElementById('itemMemoryList');
+    list.innerHTML = '';
 
-player.itemMemory.forEach((item, index) => {
-  const li = document.createElement('li');
-  li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
-  li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
-  li.draggable = true;
+    player.itemMemory.forEach((item, index) => {
+        const li = document.createElement('li');
+if (item.glow) {
+  const glowPower = Math.min(item.glow, 5);
+  const glowAlpha = Math.min(glowPower / 2.5, 1);  // 最大1.0
 
-  // ← 結晶化スタイル追加（省略可）
-  if (item.color?.startsWith("【結晶化】")) {
-    li.classList.add("crystallized-item");
+  // グロー色
+  let glowColor = `rgba(255, 255, 100, ${glowAlpha})`;
+  if (glowPower >= 4.5) glowColor = `rgba(255, 100, 255, 1)`; // 最上位：ピンク系に
+  else if (glowPower >= 3.5) glowColor = `rgba(0, 255, 255, ${glowAlpha})`; // 高位：水色
+  else if (glowPower >= 2.5) glowColor = `rgba(255, 255, 0, ${glowAlpha})`; // 中位：黄
+
+  // box-shadow
+  const shadowSize = glowPower * 8;
+  li.style.boxShadow = `0 0 ${shadowSize}px ${glowColor}`;
+
+  // border強調（中位以上）
+  if (glowPower >= 2.5) {
+    li.style.border = `2px solid ${glowColor}`;
+    li.style.borderRadius = '6px';
   }
 
-  // glow演出（略）…
+  // 最上位：点滅アニメーション
+  if (glowPower >= 4.5) {
+    li.style.animation = 'glowFlash 1s infinite alternate';
+  }
+}
+        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
+        li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
+        li.draggable = true;
 
-  // <<==== 【クリック削除】を明示的に追加 ====>>
-  li.style.cursor = 'pointer';  // ポインタ表示で押せる感じに
-  li.addEventListener('click', (e) => {
-    e.stopPropagation(); // ← 他イベントに邪魔されないように
-    if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
-      player.itemMemory.splice(index, 1);
-      drawItemMemoryList();
-    }
-  });
+        li.addEventListener('dragstart', () => {
+            draggedIndex = index;
+        });
+        li.addEventListener('dragover', e => e.preventDefault());
+        li.addEventListener('drop', () => {
+            if (draggedIndex === null || draggedIndex === index) return;
+            const temp = player.itemMemory[draggedIndex];
+            player.itemMemory[draggedIndex] = player.itemMemory[index];
+            player.itemMemory[index] = temp;
+            drawItemMemoryList();
+            draggedIndex = null;
+        });
 
-  list.appendChild(li);
-});
+        li.addEventListener('click', () => {
+            if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
+                player.itemMemory.splice(index, 1);
+                drawItemMemoryList();
+            }
+        });
+
+        list.appendChild(li);
+    });
 }
 
 window.drawHPGraph = function () {

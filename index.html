@@ -72,6 +72,91 @@
 <div id="gameScreen" class="hidden">
 	
 	
+
+  <div id="battleArea" class="hidden">
+    <div class="status-area">
+      <div class="stats-container" id="playerStats">
+        <p id="atkStat">ATK:</p>
+        <p id="defStat">DEF:</p>
+        <p id="spdStat">SPD:</p>
+        <p id="hpStat">HP:</p>
+        <p id="maxHpStat">MAX HP:</p>
+      </div>
+      <canvas id="playerCanvas" width="64" height="64"></canvas>
+    </div>
+
+    <div class="status-area">
+      <div class="stats-container" id="enemyStats"></div>
+      <canvas id="enemyCanvas" width="64" height="64"></canvas>
+    </div>
+
+<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
+    <label>同時発動スキル数（不足時繰り返し）:
+      <select id="skillSimulCountSelect">
+        <option value="1">1個</option>
+        <option value="2" selected>2個</option>
+        <option value="3">3個</option>
+        <option value="4">4個</option>
+        <option value="5">5個</option>
+      </select>
+    </label>
+  </div>
+	<div id="autoStopControls">
+  <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
+  <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
+  <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
+</div>
+<!-- 停止条件設定 -->
+<div id="itemFilterBox" style="font-size: 11px; padding: 5px; border: 1px solid #ccc; max-height: 150px; overflow-y: auto;">
+<details><summary><b>色で停止</b></summary>
+  <div id="filterColorOptions"></div>
+</details>
+<details><summary><b>形容詞で停止</b></summary>
+  <div id="filterAdjectiveOptions"></div>
+</details>
+<details><summary><b>名詞で停止</b></summary>
+  <div id="filterNounOptions"></div>
+</details>
+</div>
+  <canvas id="hpChart" width="600" height="100"></canvas>
+  <button id="startBattleBtn">バトル！（長押可）</button>
+
+
+		<!-- アイテムメモリー表示欄 -->
+		
+  <h3>アイテム</h3>
+<div id="itemMemoryContainer">
+
+  <ul id="itemMemoryList"></ul>
+</div>
+
+<h3>スキル</h3>
+  <div id="skillMemoryContainer" style="display: none;">
+    
+    <ul id="skillMemoryList"></ul>
+
+			<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+  </div>
+	
+	
+<div class="quick-guide-wrapper">
+  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
+  <div id="quickGuideLog" class="quick-guide-content">
+    <pre id="battleLog" style="height:200px;"></pre>
+  </div>
+</div>
+
+  <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
+    background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
+    box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
+    <h3 id="eventPopupTitle"></h3>
+    <div id="eventPopupOptions" style="margin-top:10px;"></div>
+    <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
+      <select id="eventPopupSelect"></select>
+      <button id="eventPopupSelectBtn">決定</button>
+    </div>
+  </div>
+
 <div class="quick-guide-wrapper">
   <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
   <div id="quickGuideContent" class="quick-guide-content hidden">
@@ -80,7 +165,7 @@
 
     <h3>戦闘について</h3>
     <p>
-      戦闘は【バトル！】ボタンを押すことで、ターン制で進行します。プレイヤーと敵が交互にスキルを使用し合い、相手のHPを0にすると勝利となります。
+      戦闘はターン制で進行します。プレイヤーと敵が交互にスキルを使用し合い、相手のHPを0にすると勝利となります。
       所持スキルの中から一定数が自動で選ばれて発動します。
     </p>
 
@@ -124,96 +209,12 @@
   </div>
 </div>
 
-<h3>ステータス</h3>
-  <div id="battleArea" class="hidden">
-    <div class="status-area">
-      <div class="stats-container" id="playerStats">
-        <p id="atkStat">ATK:</p>
-        <p id="defStat">DEF:</p>
-        <p id="spdStat">SPD:</p>
-        <p id="hpStat">HP:</p>
-        <p id="maxHpStat">MAX HP:</p>
-      </div>
-      <canvas id="playerCanvas" width="64" height="64"></canvas>
-    </div>
-
-    <div class="status-area">
-      <div class="stats-container" id="enemyStats"></div>
-      <canvas id="enemyCanvas" width="64" height="64"></canvas>
-    </div>
-    <label>同時発動スキル数（通常モードのみ）:
-      <select id="skillSimulCountSelect">
-        <option value="1">1個</option>
-        <option value="2" selected>2個</option>
-        <option value="3">3個</option>
-        <option value="4">4個</option>
-        <option value="5">5個</option>
-      </select>
-    </label>
-
-<h3>スキル</h3>
-
-			
-  <div id="skillMemoryContainer" style="display: none;">
-    
-    <ul id="skillMemoryList"></ul>
-
-					<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
-
-  </div>
-	
-  <h3>アイテム</h3>
-<div id="itemMemoryContainer">
-
-  <ul id="itemMemoryList"></ul>
-</div>
-
-  <h3>HPチャート</h3>
-  <canvas id="hpChart" width="600" height="100"></canvas>
-	
-	  <h3>バトルモード選択</h3>
-	
-<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
-
-  </div>
-
-
-  <button id="startBattleBtn">バトル！（長押可）</button>
-
-
-		<!-- アイテムメモリー表示欄 -->
-		
-
-	
-	
-<div class="quick-guide-wrapper">
-  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
-  <div id="quickGuideLog" class="quick-guide-content">
-    <pre id="battleLog" style="height:200px;"></pre>
-  </div>
-</div>
-
-  <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
-    background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
-    box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
-    <h3 id="eventPopupTitle"></h3>
-    <div id="eventPopupOptions" style="margin-top:10px;"></div>
-    <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
-      <select id="eventPopupSelect"></select>
-      <button id="eventPopupSelectBtn">決定</button>
-    </div>
-  </div>
-
-
   <button id="downloadLogsBtn">バトルログ出力</button>
 
-	
-			<h3>テキストデータで進捗保存</h3>
-			
   <div id="saveControls">
     <button id="saveCodeBtn">保存</button>
 		
-
+		<h3>コード表示欄</h3>
     <input type="text" id="saveCodeBox" readonly>
 
   </div>
