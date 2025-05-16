@@ -34,6 +34,35 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
   popup.style.display = "block";
 };
 
+
+
+window.isFirstBattle = false;
+
+window.levelCapExemptSkills = [];  // スキルレベル制限緩和対象
+
+
+
+window.drawLevelCapExemptSkillList = function () {
+  const box = document.getElementById('levelCapExemptDisplay');
+  const ul = document.getElementById('levelCapExemptSkillList');
+  if (!box || !ul) return;
+  ul.innerHTML = '';
+
+  if (!window.levelCapExemptSkills || window.levelCapExemptSkills.length === 0) {
+    box.classList.add('hidden');
+    return;
+  }
+
+  window.levelCapExemptSkills.forEach(name => {
+    const li = document.createElement('li');
+    li.textContent = name;
+    ul.appendChild(li);
+  });
+
+  box.classList.remove('hidden');
+};
+
+
 // 共通のクリーンアップ関数を作る
 window.clearEventPopup = function() {
     const popup = document.getElementById('eventPopup');
@@ -148,19 +177,24 @@ window.skillDeleteUsesLeft = 3;  // ゲーム開始時に3回
 
 // UIボタンの処理
 window.toggleSpecialMode = function() {
-    const btn = document.getElementById('specialModeButton');
+const btn = document.getElementById('specialModeButton');
+const battleBtn = document.getElementById('startBattleBtn');
 
-    if (window.specialMode === 'normal') {
-        window.specialMode = 'brutal';
-        btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
-        btn.classList.remove('normal-mode');
-        btn.classList.add('brutal-mode');
-    } else {
-        window.specialMode = 'normal';
-        btn.textContent = '通常モード';
-        btn.classList.remove('brutal-mode');
-        btn.classList.add('normal-mode');
-    }
+if (window.specialMode === 'normal') {
+  window.specialMode = 'brutal';
+  btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
+  btn.classList.remove('normal-mode');
+  btn.classList.add('brutal-mode');
+  battleBtn.classList.remove('normal-mode');
+  battleBtn.classList.add('brutal-mode');
+} else {
+  window.specialMode = 'normal';
+  btn.textContent = '通常モード';
+  btn.classList.remove('brutal-mode');
+  btn.classList.add('normal-mode');
+  battleBtn.classList.remove('brutal-mode');
+  battleBtn.classList.add('normal-mode');
+}
 };
 
 const skillDeleteButton = document.getElementById('skillDeleteButton');
@@ -440,6 +474,54 @@ function getRarityMultiplierFromRand(randFunc) {
   return 1.0 + (max - 1.0) * Math.pow(1 - seed, power);
 }
 
+function onItemClick(item, index) {
+  const name = `${item.color}${item.adjective}${item.noun}`;
+  const container = document.getElementById("eventPopupOptions");
+  const popup = document.getElementById("eventPopup");
+  const title = document.getElementById("eventPopupTitle");
+
+  title.innerHTML = `アイテム <b>${name}</b> をどうする？`;
+  container.innerHTML = "";
+
+  // 保護 or 保護を外す
+  const protectBtn = document.createElement("button");
+  protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
+  protectBtn.onclick = () => {
+    if (!item.protected && player.itemMemory.some(it => it.protected)) {
+      showCustomAlert("保護は1つまでです", 2000);
+      return;
+    }
+    item.protected = !item.protected;
+    popup.style.display = "none";
+    drawItemMemoryList();
+  };
+  container.appendChild(protectBtn);
+
+  // 削除（保護されていないときのみ）
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "削除する";
+  deleteBtn.onclick = () => {
+    if (item.protected) {
+      showCustomAlert("このアイテムは保護されています", 2000);
+      return;
+    }
+    player.itemMemory.splice(index, 1);
+    popup.style.display = "none";
+    drawItemMemoryList();
+  };
+  container.appendChild(deleteBtn);
+	
+	// キャンセルボタン
+const cancelBtn = document.createElement("button");
+cancelBtn.textContent = "キャンセル";
+cancelBtn.onclick = () => {
+  popup.style.display = "none";
+};
+container.appendChild(cancelBtn);
+
+  popup.style.display = "block";
+}
+
 function maybeGainItemMemory() {
   if (window.specialMode !== 'brutal') return;
   if (!player || !player.skills || player.skills.length === 0) return;
@@ -449,9 +531,13 @@ function maybeGainItemMemory() {
   const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
   const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
   const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
-
   const adjective = pickItemAdjectiveWithNoun(nounData);
   if (!adjective) return;
+
+  // フィルターが1つ以上有効な場合、合致しないアイテムはスキップ
+  const anyFiltersEnabled = document.querySelectorAll('.itemFilterCB:checked').length > 0;
+  const isItemFilteredOut = !shouldPauseForItem(colorData.word, adjective.word, nounData.word);
+  if (anyFiltersEnabled && isItemFilteredOut) return;
 
   const dropRate = (colorData.dropRateMultiplier || 1) * (adjective.dropRate || 1) * (nounData.dropRateMultiplier || 1);
   const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
@@ -466,6 +552,7 @@ function maybeGainItemMemory() {
     breakChance: nounData.breakChance,
     remainingUses: colorData.usesPerBattle,
     skillLevel: 1,
+		protected: false,
     glow: glow.toFixed(2)
   };
 
@@ -475,15 +562,18 @@ function maybeGainItemMemory() {
   const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
   showCustomAlert(`新アイテム入手！ ${itemName}（${newItem.skillName}）`, 3000, "#ffa", "#000");
 
-if (shouldPauseForItem(newItem.color, newItem.adjective, newItem.noun)) {
-  setTimeout(() => {
-    if (typeof stopAutoBattle === 'function') stopAutoBattle();
-    isAutoBattle = false;  // 念のため明示的に切る
-    showCustomAlert(`>>> フィルター条件により停止！`, 3000, "#ff8", "#000");
-  }, 500);
+const anyFiltersSet = document.querySelectorAll('.itemFilterCB:checked').length > 0;
+if (
+  shouldPauseForItem(newItem.color, newItem.adjective, newItem.noun) ||
+  (!anyFiltersSet && window.allowItemInterrupt)
+) {
+    setTimeout(() => {
+      if (typeof stopAutoBattle === 'function') stopAutoBattle();
+      isAutoBattle = false;
+      showCustomAlert(`>>> フィルター条件により停止！`, 3000, "#ff8", "#000");
+    }, 500);
+  }
 }
-}
-
 		
 		
 function setupItemFilters() {
@@ -739,6 +829,7 @@ window.updateStats = function() {
   // 修正ポイント：
   drawCharacterImage(displayName(player.name), 'playerCanvas');
   drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
+	window.drawLevelCapExemptSkillList();
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
@@ -761,12 +852,16 @@ window.startNewGame = function() {
 if (!player.itemMemory) {
   player.itemMemory = [];
 }
-    document.getElementById('battleLog').classList.remove('hidden');
+   
+	drawLevelCapExemptSkillList();
+
+document.getElementById('battleLog').classList.remove('hidden');
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
     document.getElementById("skillMemoryContainer").style.display = "block";
-				window.isFirstBattle = true;
+
 		  startBattle();
+
   }, 500); // アニメーション時間と一致
 };
 
@@ -803,6 +898,24 @@ window.getSkillEffect = function(skill, user, target, log) {
     log.push(`${displayName(user.name)}のスキル「${skill.name}」は封印されているため発動できない`);
     return;
   }
+	
+	if (user !== player) {
+  let failChance = 0;
+  if (currentStreak <= 10) {
+    failChance = 0.7;
+  } else if (currentStreak <= 30) {
+    failChance = 0.2;
+  } else if (currentStreak <= 50) {
+    failChance = 0.1;
+  }
+
+  if (Math.random() < failChance) {
+    log.push(`${displayName(user.name)}のスキル「${skill.name}」は発動失敗した！`);
+    return; // 発動処理を中止
+  }
+}
+
+
   let statusLogged = false;
   let totalDamage = 0;
   skill.uses = (skill.uses || 0) + 1;
@@ -1126,13 +1239,20 @@ document.getElementById("battleArea").classList.remove("hidden");
 
   const name = document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
+		
+			window.isFirstBattle = true;
+			
     const tmpChar = makeCharacter(name);
     player = {
       ...tmpChar,
     growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 },
 		itemMemory: []
   };
+
   
+// isFirstBattle かつ 初期スキル情報が未設定のときだけ代入
+drawLevelCapExemptSkillList();
+	
 	if (!player.itemMemory) {
     player.itemMemory = [];
 }
@@ -1159,6 +1279,22 @@ window.initialAndSlotSkills = [
   })
 ];
   }
+	
+// isFirstBattle のときだけ levelCapExemptSkills に保存（パッシブ除外）
+if (window.isFirstBattle) {
+  const exemptSkillSet = new Set();
+
+  for (const name of window.initialAndSlotSkills) {
+    const def = skillPool.find(s => s.name === name);
+    if (def && def.category !== 'passive') {
+      exemptSkillSet.add(name);
+    }
+  }
+
+  window.levelCapExemptSkills = Array.from(exemptSkillSet);
+  drawLevelCapExemptSkillList();
+}
+
 drawSkillMemoryList();
 drawItemMemoryList();
   player.effects = [];
@@ -1264,7 +1400,7 @@ if (hasSpecialSkill) {
 	
 const factor = Math.pow(1.1, currentStreak);
 if (window.specialMode === 'brutal') {
-    log.push(`[鬼畜モード挑戦中（勝利時連勝数5増加）]`);
+    log.push(`[鬼畜モード挑戦中]`);
 } else {
     log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
 }
@@ -1423,11 +1559,11 @@ if (item.skillLevel < 3000 && Math.random() < 0.5) {
     item.remainingUses--;
     triggeredItemsThisTurn.add(itemKey);
 
-    if (Math.random() < item.breakChance) {
-      log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-      player.itemMemory.splice(i, 1);
-      drawItemMemoryList();
-    }
+if (!item.protected && Math.random() < item.breakChance) {
+  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+  player.itemMemory.splice(i, 1);
+  drawItemMemoryList();
+}
   }
 }
 				
@@ -1499,7 +1635,11 @@ const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
-if (playerWon && window.allowGrowthEvent && Math.random() < finalRate) {
+if (!window.isFirstBattle && 
+playerWon && 
+window.allowGrowthEvent && 
+Math.random() < finalRate) {
+	
   isWaitingGrowth = true;
 
   showEventOptions("成長選択", [
@@ -1528,7 +1668,7 @@ if (playerWon && window.allowGrowthEvent && Math.random() < finalRate) {
 
   if (playerWon) {
     if (window.specialMode === 'brutal') {
-        currentStreak += 5;
+        currentStreak += 1;
 				
 				maybeGainItemMemory();
 				
@@ -1554,24 +1694,18 @@ showCustomAlert(victoryMessage, 800);
   });
   player.effects = [];
 
-  // スキル熟練度チェック（5回使用でLvアップ）
-// スキル熟練度チェック（5回使用でLvアップ）
 player.skills.forEach(sk => {
-    const isBeyondCap = sk.level >= 999;
+  const isExempt = window.levelCapExemptSkills.includes(sk.name);
+  const isBeyondCap = sk.level >= 999 && !isExempt;
+  const levelUpChance = isBeyondCap ? 1 / 2500 : 0.2;
 
-    // レベル999未満なら20%アップ、それ以上なら低確率（例: 1/2500）
-    const levelUpChance = isBeyondCap ? 1 / 2500 : 0.2;
-
-    if (Math.random() < levelUpChance) {
-        sk.level++;
-        player.skillMemory[sk.name] = sk.level;
-
-        log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
-				
-drawSkillMemoryList();
-drawItemMemoryList();
-
-    }
+  if (Math.random() < levelUpChance) {
+    sk.level++;
+    player.skillMemory[sk.name] = sk.level;
+    log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
+    drawSkillMemoryList();
+    drawItemMemoryList();
+  }
 });
 
   // 新スキル習得のチャンス
@@ -1772,28 +1906,39 @@ async function generateHash(input) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// セーブデータをコード化してコピー 保存（base64 + SHA-256）
+// セーブデータをコード化してコピー保存（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
-	
-	if (player.baseStats && player.growthBonus) {
+
+  // 成長ステータスを最新化
+  if (player.baseStats && player.growthBonus) {
     player.attack = player.baseStats.attack + player.growthBonus.attack;
     player.defense = player.baseStats.defense + player.growthBonus.defense;
     player.speed = player.baseStats.speed + player.growthBonus.speed;
     player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
     player.hp = player.maxHp;
   }
+
+  // 初期スキル情報を保存対象に反映
+  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
   const payload = {
-    player, currentStreak, sslot,
-    growthMultiplier: window.growthMultiplier, // ← 追加
+    player,
+    currentStreak,
+    sslot,
+    growthMultiplier: window.growthMultiplier,
     skillMemoryOrder: Object.entries(player.skillMemory),
-		itemMemory: player.itemMemory || [],
-    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0')
-  };
+    itemMemory: player.itemMemory || [],
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+levelCapExemptSkills: window.levelCapExemptSkills || []  // ←追加
+};
+
   const raw = JSON.stringify(payload);
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
-  const code = b64 + '.' + hash;
+  const code = `${b64}.${hash}`;
+
+  // コピー＆表示
   const box = document.getElementById('saveCodeBox');
   box.value = code;
 
@@ -1824,7 +1969,6 @@ window.exportSaveCode = async function() {
 };
 
 
-
 // セーブコードの読み込み（入力値から復元）
 window.importSaveCode = async function() {
   document.getElementById("skillMemoryList").classList.remove("hidden");
@@ -1846,30 +1990,44 @@ window.importSaveCode = async function() {
 
     const parsed = JSON.parse(raw);
     player = parsed.player;
-		
-		
 
+    // 成長ボーナス初期化
     if (!player.growthBonus) {
-        player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
     }
 
-		if (!player.itemMemory) {
-    player.itemMemory = [];
-}
-		
+    // アイテムメモリ
     player.itemMemory = parsed.itemMemory || [];
 
-    window.growthMultiplier = parsed.growthMultiplier || 1; // ← 追加
+// 初期スキル復元（存在する場合のみ）
+if (player.initialAndSlotSkills) {
+  window.initialAndSlotSkills = player.initialAndSlotSkills;
+} else {
+  window.initialAndSlotSkills = [];
+}
 
+// スキル制限緩和対象スキルの復元（新）
+if (parsed.levelCapExemptSkills) {
+  window.levelCapExemptSkills = parsed.levelCapExemptSkills;
+} else {
+  window.levelCapExemptSkills = [];
+}
+
+    // その他ステータス
+    window.growthMultiplier = parsed.growthMultiplier || 1;
     currentStreak = parsed.currentStreak || 0;
     localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
-// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
-do {
-    enemy = makeCharacter('敵' + Math.random());
-} while (!hasOffensiveSkill(enemy));
+		
+		window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
+
+    // 敵を生成（攻撃スキルありを保証）
+    do {
+      enemy = makeCharacter('敵' + Math.random());
+    } while (!hasOffensiveSkill(enemy));
+
     updateStats();
 
-    // タイトル画面をアニメーションで非表示 → ゲーム画面表示
+    // タイトル画面を非表示、ゲーム画面へ
     const title = document.getElementById('titleScreen');
     const game = document.getElementById('gameScreen');
     title.classList.add('fade-out');
@@ -1881,20 +2039,22 @@ do {
       document.getElementById("battleArea").classList.add("hidden");
 
       // 表示更新
-const streakDisplay = document.getElementById('currentStreakDisplay');
-if (streakDisplay) {
-  const baseBoost = 1.02;
-  const boostMultiplier = Math.pow(baseBoost, currentStreak);
-  streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
-}
+      const streakDisplay = document.getElementById('currentStreakDisplay');
+      if (streakDisplay) {
+        const baseBoost = 1.02;
+        const boostMultiplier = Math.pow(baseBoost, currentStreak);
+        streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
+      }
 
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
-      if (rebirthDisplay) rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
-						startBattle();
+      if (rebirthDisplay) {
+        rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
+      }
+
+      startBattle();
     }, 500);
 
   } catch (e) {
-    // エラー時はアラート（必要に応じて変更可能）
     alert('セーブデータの読み込みに失敗しました：' + e.message);
   }
 };
@@ -1903,6 +2063,8 @@ if (streakDisplay) {
 window.loadGame = async function() {
   // ファイル入力がある場合は読み込む
   isLoadedFromSave = true;
+	window.isFirstBattle = false;
+
   document.getElementById("skillMemoryList").classList.remove("hidden");
   document.getElementById("skillMemoryContainer").style.display = "block";
   drawSkillMemoryList();
@@ -1936,7 +2098,7 @@ window.loadGame = async function() {
 			
 			player.itemMemory = player.itemMemory || [];
 			drawItemMemoryList();
-			
+window.drawLevelCapExemptSkillList();
       currentStreak = parsed.currentStreak || 0;
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
 do {
@@ -1973,6 +2135,7 @@ do {
   });
 
   window.addEventListener("DOMContentLoaded", () => {
+		populateItemElementList();
     const btn = document.getElementById("startNewGameBtn");
     if (btn) {
       btn.addEventListener("click", window.startNewGame);
@@ -2298,65 +2461,21 @@ function updateSkillMemoryOrder() {
 let hpShineOffset = 0; // アニメーション用オフセット
 
 function drawItemMemoryList() {
-    if (!player || !player.itemMemory) return; // ← この行を追加して安全にする
+  const list = document.getElementById('itemMemoryList');
+  list.innerHTML = '';
+  player.itemMemory.forEach((item, idx) => {
+    const li = document.createElement('li');
+    const name = `${item.color}${item.adjective}${item.noun}`;
+    li.textContent = `${name}（${item.skillName}） Lv.${item.skillLevel}`;
 
-    let draggedIndex = null;
-    const list = document.getElementById('itemMemoryList');
-    list.innerHTML = '';
+	li.className = "";  // リセット
 
-    player.itemMemory.forEach((item, index) => {
-        const li = document.createElement('li');
-if (item.glow) {
-  const glowPower = Math.min(item.glow, 5);
-  const glowAlpha = Math.min(glowPower / 2.5, 1);  // 最大1.0
-
-  // グロー色
-  let glowColor = `rgba(255, 255, 100, ${glowAlpha})`;
-  if (glowPower >= 4.5) glowColor = `rgba(255, 100, 255, 1)`; // 最上位：ピンク系に
-  else if (glowPower >= 3.5) glowColor = `rgba(0, 255, 255, ${glowAlpha})`; // 高位：水色
-  else if (glowPower >= 2.5) glowColor = `rgba(255, 255, 0, ${glowAlpha})`; // 中位：黄
-
-  // box-shadow
-  const shadowSize = glowPower * 8;
-  li.style.boxShadow = `0 0 ${shadowSize}px ${glowColor}`;
-
-  // border強調（中位以上）
-  if (glowPower >= 2.5) {
-    li.style.border = `2px solid ${glowColor}`;
-    li.style.borderRadius = '6px';
+  if (item.protected) {
+    li.classList.add("item-protected");
   }
-
-  // 最上位：点滅アニメーション
-  if (glowPower >= 4.5) {
-    li.style.animation = 'glowFlash 1s infinite alternate';
-  }
-}
-        li.textContent = `${item.color}${item.adjective}${item.noun} (${item.skillName} Lv${item.skillLevel || 1})`;
-        li.title = `発動率 ${Math.floor(item.activationRate * 100)}%`;
-        li.draggable = true;
-
-        li.addEventListener('dragstart', () => {
-            draggedIndex = index;
-        });
-        li.addEventListener('dragover', e => e.preventDefault());
-        li.addEventListener('drop', () => {
-            if (draggedIndex === null || draggedIndex === index) return;
-            const temp = player.itemMemory[draggedIndex];
-            player.itemMemory[draggedIndex] = player.itemMemory[index];
-            player.itemMemory[index] = temp;
-            drawItemMemoryList();
-            draggedIndex = null;
-        });
-
-        li.addEventListener('click', () => {
-            if (confirm(`${item.color}${item.adjective}${item.noun} を削除しますか？`)) {
-                player.itemMemory.splice(index, 1);
-                drawItemMemoryList();
-            }
-        });
-
-        list.appendChild(li);
-    });
+    li.onclick = () => onItemClick(item, idx);
+    list.appendChild(li);
+  });
 }
 
 window.drawHPGraph = function () {
@@ -2543,6 +2662,38 @@ window.downloadBattleLogs = function() {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+window.populateItemElementList = function () {
+  const container = document.getElementById('itemElementList');
+  if (!container) return;
+
+  let html = '<ul style="font-size: 13px;">';
+
+  html += '<li><strong>色（使用回数）</strong><ul>';
+  itemColors.forEach(c => {
+    const uses = (typeof c.usesPerBattle === 'number' || c.usesPerBattle === Infinity)
+      ? (c.usesPerBattle === Infinity ? '∞' : `${c.usesPerBattle}回`)
+      : '（未定義）';
+    html += `<li>${c.word}：${uses}</li>`;
+  });
+  html += '</ul></li>';
+
+  html += '<li><strong>形容詞（発動率）</strong><ul>';
+  itemAdjectives.forEach(a => {
+    html += `<li>${a.word}：${Math.round(a.activationRate * 100)}%</li>`;
+  });
+  html += '</ul></li>';
+
+  html += '<li><strong>名詞（破損確率）</strong><ul>';
+  itemNouns.forEach(n => {
+    html += `<li>${n.word}：${Math.round(n.breakChance * 1000) / 10}%</li>`;
+  });
+  html += '</ul></li>';
+
+  html += '</ul>';
+
+  container.innerHTML = html;
 };
 
 // パッシブスキルによる封印処理

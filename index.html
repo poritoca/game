@@ -71,11 +71,71 @@
 
 <div id="gameScreen" class="hidden">
 	
-	
+<div class="quick-guide-wrapper">
+  <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
+  <div id="quickGuideContent" class="quick-guide-content hidden">
+    <h3>このゲームの目的</h3>
+    <p>本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたび、キャラクターは成長や新スキルの習得を経て強くなります。</p>
+
+    <h3>戦闘について</h3>
+    <p>
+      戦闘はターン制で進行します。プレイヤーと敵が交互にスキルを使用し合い、相手のHPを0にすると勝利となります。
+      所持スキルの中から自動的に複数スキルが選出され、同時に発動します。攻撃スキルは必ず最低1つが含まれます。
+    </p>
+
+    <h3>スキルメモリー</h3>
+    <p>
+      スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、発動率に影響する順番をドラッグで調整できます。<br>
+      初期スキルは白色、それ以外のスキルは色付きで表示されます。パッシブスキルはゴールドで表示され、常時効果を発揮します。
+    </p>
+
+    <h3>アイテムメモリー</h3>
+    <p>
+      特定条件下で入手可能なアイテムは、スキル1つと結びついており、戦闘中に自動発動します。<br>
+      使用回数や発動確率、破損率などは以下の要素で決まります。
+    </p>
+    <ul>
+      <li><strong>色：</strong>1戦での使用回数（例：金色は4回、透明は無制限）</li>
+      <li><strong>形容詞：</strong>発動確率（例：伝説の → 60%）</li>
+      <li><strong>名詞：</strong>破損しやすさ（例：珠玉 → 壊れない、勾玉 → 0.1%）</li>
+    </ul>
+    <p>
+      同じスキルをプレイヤーが所持していれば、そのレベルが発動に反映されます。発動するごとにスキルレベルが成長する可能性もあります。
+    </p>
+    <p>
+      <strong>アイテム保護機能：</strong>所持アイテムは1つだけ保護可能です。保護されたアイテムは削除や破損の対象になりません。<br>
+      アイテム名クリックで「保護する／保護を外す／削除する」メニューが表示されます（保護中は削除できません）。
+    </p>
+
+    <h3>モードの違い</h3>
+    <ul>
+      <li><strong>通常モード：</strong>連勝に応じて成長イベントが起きやすくなります。</li>
+      <li><strong>鬼畜モード：</strong>敵が強化され、戦闘が難しくなりますが、戦闘勝利時にアイテムを入手できます。</li>
+    </ul>
+
+    <h3>停止フィルター</h3>
+    <p>
+      アイテム入手時に、色・形容詞・名詞のいずれかが指定条件に一致すると自動で戦闘が停止します。<br>
+      条件はチェックボックスで自由に設定できます。フィルターなしでもアイテムは使用可能です。
+    </p>
+
+    <h3>補足</h3>
+    <p>
+      ステータス・スキル・アイテムの状態は画面に随時表示されます。<br>
+      成長イベント、スキル削除イベント、HP推移なども見える化されています。<br>
+      セーブ機能で進行を保存し、強化されたキャラクターでさらに連勝を目指しましょう。
+    </p>
+
+<h3>アイテム構成要素の数値一覧</h3>
+<div id="itemElementList"></div>
+  </div>
+</div>
+</div>
 
   <div id="battleArea" class="hidden">
     <div class="status-area">
       <div class="stats-container" id="playerStats">
+
         <p id="atkStat">ATK:</p>
         <p id="defStat">DEF:</p>
         <p id="spdStat">SPD:</p>
@@ -83,6 +143,12 @@
         <p id="maxHpStat">MAX HP:</p>
       </div>
       <canvas id="playerCanvas" width="64" height="64"></canvas>
+			
+<div id="levelCapExemptDisplay" class="floating-skill-box hidden">
+  <div class="floating-title">制限緩和スキル</div>
+  <ul id="levelCapExemptSkillList"></ul>
+</div>
+
     </div>
 
     <div class="status-area">
@@ -90,36 +156,44 @@
       <canvas id="enemyCanvas" width="64" height="64"></canvas>
     </div>
 
-<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
-    <label>同時発動スキル数（不足時繰り返し）:
-      <select id="skillSimulCountSelect">
-        <option value="1">1個</option>
-        <option value="2" selected>2個</option>
-        <option value="3">3個</option>
-        <option value="4">4個</option>
-        <option value="5">5個</option>
-      </select>
-    </label>
-  </div>
-	<div id="autoStopControls">
+		
+			<div id="autoStopControls">
   <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
   <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
   <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
 </div>
 <!-- 停止条件設定 -->
-<div id="itemFilterBox" style="font-size: 11px; padding: 5px; border: 1px solid #ccc; max-height: 150px; overflow-y: auto;">
-<details><summary><b>色で停止</b></summary>
-  <div id="filterColorOptions"></div>
-</details>
-<details><summary><b>形容詞で停止</b></summary>
-  <div id="filterAdjectiveOptions"></div>
-</details>
-<details><summary><b>名詞で停止</b></summary>
-  <div id="filterNounOptions"></div>
-</details>
+<div id="itemFilterBox" class="styled-filter-box">
+  <details><summary><b>色で停止</b></summary>
+    <div id="filterColorOptions"></div>
+  </details>
+  <details><summary><b>形容詞で停止</b></summary>
+    <div id="filterAdjectiveOptions"></div>
+  </details>
+  <details><summary><b>名詞で停止</b></summary>
+    <div id="filterNounOptions"></div>
+  </details>
 </div>
+
   <canvas id="hpChart" width="600" height="100"></canvas>
-  <button id="startBattleBtn">バトル！（長押可）</button>
+		
+<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
+
+<div class="quick-guide-wrapper">
+  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
+  <div id="quickGuideLog" class="quick-guide-content">
+    <pre id="battleLog" style="height:200px;"></pre>
+  </div>
+</div>
+
+
+
+<button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
+	  <button id="downloadLogsBtn">バトルログ出力</button>
+
+  </div>
+
+
 
 
 		<!-- アイテムメモリー表示欄 -->
@@ -136,15 +210,18 @@
     <ul id="skillMemoryList"></ul>
 
 			<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+			    <label>同時発動スキル数（通常モードのみ）:
+      <select id="skillSimulCountSelect">
+        <option value="1">1個</option>
+        <option value="2" selected>2個</option>
+        <option value="3">3個</option>
+        <option value="4">4個</option>
+        <option value="5">5個</option>
+      </select>
+    </label>
   </div>
 	
 	
-<div class="quick-guide-wrapper">
-  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
-  <div id="quickGuideLog" class="quick-guide-content">
-    <pre id="battleLog" style="height:200px;"></pre>
-  </div>
-</div>
 
   <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
     background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
@@ -157,64 +234,14 @@
     </div>
   </div>
 
-<div class="quick-guide-wrapper">
-  <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
-  <div id="quickGuideContent" class="quick-guide-content hidden">
-    <h3>このゲームの目的</h3>
-    <p>本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたび、キャラクターは成長や新スキルの習得を経て強くなります。</p>
 
-    <h3>戦闘について</h3>
-    <p>
-      戦闘はターン制で進行します。プレイヤーと敵が交互にスキルを使用し合い、相手のHPを0にすると勝利となります。
-      所持スキルの中から一定数が自動で選ばれて発動します。
-    </p>
 
-    <h3>スキルメモリー</h3>
-    <p>
-      プレイヤーのスキルは「スキルメモリー」として記録され、使用頻度に応じて並び替えられます。<br>
-      スキルメモリー内では、覚えているスキルが自動的に前方へ移動します。<br>
-      各スキルはドラッグで並び順を手動調整でき、戦闘中の選出確率にも影響します。<br>
-      攻撃スキルは最低1つが必ず選ばれる仕様です。
-    </p>
-
-    <h3>アイテムメモリー</h3>
-    <p>
-      アイテムは戦闘中に自動発動し、所持しているだけで効果を発揮します。<br>
-      ただし、一部を除き使用後に一定確率で消失します。<br>
-      アイテムは「色」「形容詞」「名詞」から構成され、それぞれ以下を意味します：
-    </p>
-    <ul>
-      <li><strong>色：</strong>1戦で使用できる回数</li>
-      <li><strong>形容詞：</strong>スキル発動率</li>
-      <li><strong>名詞：</strong>壊れやすさ（消失確率）</li>
-    </ul>
-    <p>
-      各アイテムには自動でスキルが1つ紐づけられており、発動時にはそのスキルの効果が適用されます。<br>
-      スキルを既に所持している場合は、アイテム発動時にもスキルレベルが反映されます。
-    </p>
-
-    <h3>モードの違い</h3>
-    <ul>
-      <li><strong>通常モード：</strong>連勝ごとにキャラクターのステータスが成長しやすくなります。</li>
-      <li><strong>鬼畜モード：</strong>戦闘難度が上がる代わりに、アイテムを入手できるようになります。<br>
-        通常モードでもアイテムの使用は可能ですが、入手はできません。
-      </li>
-    </ul>
-
-    <h3>補足</h3>
-    <p>
-      戦闘ログやスキルの並び、アイテム所持状態などは画面に表示されるので、活用してください。<br>
-      セーブ機能も活用して、育てたキャラクターでさらに連勝を目指しましょう。
-    </p>
-  </div>
-</div>
-
-  <button id="downloadLogsBtn">バトルログ出力</button>
+		<h3>セーブデータ出力</h3>
 
   <div id="saveControls">
-    <button id="saveCodeBtn">保存</button>
+    <button id="saveCodeBtn">セーブ</button>
 		
-		<h3>コード表示欄</h3>
+
     <input type="text" id="saveCodeBox" readonly>
 
   </div>
