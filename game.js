@@ -1696,8 +1696,13 @@ showCustomAlert(victoryMessage, 800);
 
 player.skills.forEach(sk => {
   const isExempt = window.levelCapExemptSkills.includes(sk.name);
-  const isBeyondCap = sk.level >= 999 && !isExempt;
-  const levelUpChance = isBeyondCap ? 1 / 2500 : 0.2;
+  let levelUpChance = 0.2;  // 通常の確率
+
+  if (sk.level >= 5000) {
+    levelUpChance = 1 / 5000;  // Lv5000以上は超低確率
+  } else if (sk.level >= 999 && !isExempt) {
+    levelUpChance = 1 / 2500;  // 制限ありスキルは低確率
+  }
 
   if (Math.random() < levelUpChance) {
     sk.level++;
