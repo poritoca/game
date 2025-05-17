@@ -1228,3 +1228,32 @@ summary {
   opacity: 1;
   transition: left 0.4s ease-out, opacity 0.4s ease-out;
 }
+
+.toggle-mode-btn {
+  background: #444;
+  color: #fff;
+  border: 1px solid #aaa;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: 'Press Start 2P', system-ui;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.toggle-mode-btn.and {
+  background: linear-gradient(135deg, #0a0, #040);
+  border-color: #0f0;
+  color: #cfc;
+  box-shadow: 0 0 10px #0f0;
+}
+
+.toggle-mode-btn.or {
+  background: linear-gradient(135deg, #660000, #330000);
+  border-color: #f00;
+  color: #fcc;
+  box-shadow: 0 0 10px #f00;
+}

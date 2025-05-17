@@ -609,13 +609,42 @@ function setupItemFilters() {
 }
 document.addEventListener('DOMContentLoaded', setupItemFilters);
 
+// フィルターモード: 'and' or 'or'
+window.itemFilterMode = 'and';
+
+document.addEventListener('DOMContentLoaded', () => {
+  const toggleBtn = document.getElementById('filterModeToggleBtn');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      window.itemFilterMode = (window.itemFilterMode === 'and') ? 'or' : 'and';
+      toggleBtn.textContent = (window.itemFilterMode === 'and')
+        ? 'すべての条件を満たす'
+        : 'いずれかの条件を満たす';
+
+      toggleBtn.classList.toggle('and', window.itemFilterMode === 'and');
+      toggleBtn.classList.toggle('or', window.itemFilterMode === 'or');
+    };
+
+    // 初期状態を設定
+    toggleBtn.classList.add('and');
+  }
+});
+
 function shouldPauseForItem(color, adj, noun) {
   const checked = type => Array.from(document.querySelectorAll(`.itemFilterCB[data-type="${type}"]:checked`)).map(cb => cb.value);
   const colors = checked('color');
   const adjs = checked('adj');
   const nouns = checked('noun');
 
-  return colors.includes(color) || adjs.includes(adj) || nouns.includes(noun);
+  if (window.itemFilterMode === 'and') {
+    return (
+      (colors.length === 0 || colors.includes(color)) &&
+      (adjs.length === 0 || adjs.includes(adj)) &&
+      (nouns.length === 0 || nouns.includes(noun))
+    );
+  } else {
+    return colors.includes(color) || adjs.includes(adj) || nouns.includes(noun);
+  }
 }
 
 
