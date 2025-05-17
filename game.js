@@ -261,7 +261,7 @@ function setupToggleButtons() {
 
   skillDelBtn.onclick = () => {
     window.allowSkillDeleteEvent = !window.allowSkillDeleteEvent;
-    updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
+    updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキル削除イベント: 発生", "スキル削除イベント: 発生しない");
   };
 
   itemBtn.onclick = () => {

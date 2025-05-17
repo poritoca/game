@@ -8,13 +8,14 @@
 </head>
 
 <body>
+	
   <!-- カスタムアラート -->
   <div id="customAlertContainer" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
     z-index: 9999; pointer-events: none;"></div>
 
   <!-- タイトル画面 -->
   <div id="titleScreen">
-    <h1>転職したってよ（仮）</h1>
+<h1 id="animatedTitle">転職したってよ（仮）</h1>
     <div style="text-align: center; margin-bottom: 20px;">
 <img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
     </div>
@@ -35,7 +36,7 @@
   </div>
 
   <!-- ゲーム画面 -->
-  <div id="gameScreen" class="hidden">
+<div id="gameScreen" class="hidden" style="margin: 20px 0;">
     <!-- クイックガイド -->
     <div class="quick-guide-wrapper">
       <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
@@ -129,10 +130,6 @@
   </details>
 </div>
 
-
-      <canvas id="hpChart" width="600" height="100"></canvas>
-
-
       <!-- 戦闘ログ -->
       <div class="quick-guide-wrapper">
         <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
@@ -141,6 +138,8 @@
         </div>
       </div>
 
+			      <canvas id="hpChart" width="600" height="100"></canvas>
+			
       <!-- モード切替 -->
       <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
       <!-- バトル操作 -->
@@ -153,15 +152,17 @@
     <div id="itemMemoryContainer">
       <ul id="itemMemoryList"></ul>
     </div>
-		
+		    <h3>イベント設定</h3>
 		      <!-- イベント設定 -->
       <div id="autoStopControls">
         <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
-        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
+        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキル削除イベント: 発生</button>
         <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
       </div>
 
+			
       <!-- 停止フィルター -->
+			<h3>アイテム入手時設定</h3>
       <div id="itemFilterBox" class="styled-filter-box">
         <details><summary><b>色で停止</b></summary><div id="filterColorOptions"></div></details>
         <details><summary><b>形容詞で停止</b></summary><div id="filterAdjectiveOptions"></div></details>

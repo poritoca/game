@@ -79,7 +79,7 @@ button:active {
   border: 1px solid #444;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.85);
-  margin: 40px auto 60px auto;
+  margin: 10px auto 60px auto;
   padding: 20px 30px; /* ← 内側に余白追加 */
   box-sizing: border-box;
 }
@@ -520,28 +520,41 @@ button:active {
   margin: auto;
   width: 80%;
   max-width: 700px;
-  box-shadow: 0 0 20px rgba(139, 0, 0, 0.5);
-  animation: glow 3s infinite alternate;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); /* 金色の光 */
+  animation: goldenGlow 2.5s infinite alternate;
 }
 
-@keyframes glow {
-  from { box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
-  to { box-shadow: 0 0 30px rgba(139, 0, 0, 0.5); }
+/* 金色に光るアニメーション */
+@keyframes goldenGlow {
+  from {
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4),
+                0 0 20px rgba(255, 223, 0, 0.3);
+  }
+  to {
+    box-shadow: 0 0 30px rgba(255, 223, 100, 0.8),
+                0 0 50px rgba(255, 215, 0, 0.6);
+  }
 }
 
 #titleScreen h1 {
-  color: #cc0000; /* 血の赤 */
+  font-size: 1.6em;
+  text-align: center;
+  font-family: 'Press Start 2P', system-ui;
+  color: gold;
+  background: linear-gradient(90deg, gold, #fffacd, gold);
+  background-size: 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: goldShine 3s linear infinite;
   text-shadow:
-    2px 2px 5px #660000,
-    -2px -2px 5px #660000,
-    0 0 10px #990000,
-    0 0 20px #660000;
-  animation: bloodFlicker 2s infinite;
+    0 0 5px gold,
+    0 0 10px #ffd700,
+    0 0 20px #fffacd;
 }
 
-@keyframes bloodFlicker {
-  0%, 100% { opacity: 1; text-shadow: 2px 2px 5px #660000, -2px -2px 5px #660000, 0 0 10px #990000, 0 0 20px #660000; }
-  50% { opacity: 0.8; text-shadow: 2px 2px 8px #660000, -2px -2px 8px #660000, 0 0 15px #990000, 0 0 25px #660000; }
+@keyframes goldShine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }
 
 @keyframes flicker {
@@ -549,19 +562,6 @@ button:active {
   50% { opacity: 0.8; }
 }
 
-#titleScreen button {
-  background-color: rgba(0, 0, 0, 0.5);
-  border: 1px solid darkred;
-  color: darkred;
-  padding: 10px 20px;
-  margin-top: 10px;
-  transition: all 0.3s;
-}
-
-#titleScreen button:hover {
-  background-color: #cc0000;
-  color: black;
-}
 
 #inputStr {
   background-color: rgba(255, 255, 255, 0.1);
@@ -1147,4 +1147,84 @@ summary {
   background: rgba(10, 10, 10, 0.9);
   border-radius: 4px;
   border: 1px solid #555;
+}
+
+#animatedTitle {
+  font-size: 2em;
+  text-align: center;
+  font-family: 'Press Start 2P', system-ui;
+  color: gold;
+  background: linear-gradient(90deg, gold, #fffacd, gold);
+  background-size: 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: goldShine 3s linear infinite;
+  text-shadow:
+    0 0 5px gold,
+    0 0 10px #ffd700,
+    0 0 20px #fffacd;
+}
+
+@keyframes goldShine {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+#titleScreen button {
+  background: linear-gradient(135deg, gold, #ffecb3);
+  color: #4a3b00;
+  border: 2px solid #bfa100;
+  padding: 10px 20px;
+  margin-top: 10px;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+#titleScreen button:hover {
+  background: linear-gradient(135deg, #ffe066, #fff8dc);
+  color: #000;
+  box-shadow: 0 0 15px rgba(255, 255, 100, 0.8);
+}
+
+#titleScreen button:active {
+  background: radial-gradient(circle at center, #fff9c4, gold, #d4af37);
+  transform: scale(1.05);
+  box-shadow:
+    0 0 20px rgba(255, 255, 150, 1),
+    0 0 40px rgba(255, 200, 0, 0.8),
+    0 0 80px rgba(255, 200, 0, 0.6);
+}
+
+/* 押したときに流れる光線エフェクト */
+#titleScreen button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.6) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  transform: skewX(-20deg);
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+#titleScreen button:active::after {
+  left: 125%;
+  opacity: 1;
+  transition: left 0.4s ease-out, opacity 0.4s ease-out;
 }
