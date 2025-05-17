@@ -1251,6 +1251,16 @@ case 'berserk': {
   user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
 };
 
+
+function restoreMissingItemUses() {
+  if (!player || !player.itemMemory) return;
+  for (const item of player.itemMemory) {
+    if (item.remainingUses == null && item.usesPerBattle != null) {
+      item.remainingUses = item.usesPerBattle;
+    }
+  }
+}
+
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
   
@@ -1258,6 +1268,12 @@ window.startBattle = function() {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
 }
 	
+restoreMissingItemUses(); 
+if (player.itemMemory) {
+  player.itemMemory.forEach(item => {
+    item.remainingUses = item.usesPerBattle;
+  });
+}
 
 document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
