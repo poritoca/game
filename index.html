@@ -16,7 +16,7 @@
   <div id="titleScreen">
     <h1>転職したってよ（仮）</h1>
     <div style="text-align: center; margin-bottom: 20px;">
-      <img src="dark_knight.png" alt="タイトル画像" style="width:80%; max-width:600px; height:auto;" />
+<img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
     </div>
     <input type="text" id="inputStr" placeholder="名前を入力" />
     <button id="startNewGameBtn">はじめから</button>
@@ -117,7 +117,7 @@
     </div>
   </details>
 
-  <details>
+  <details open>
     <summary><strong>敵のキャラクター情報</strong></summary>
     <div class="status-area compact">
       <div class="char-info">
@@ -129,19 +129,6 @@
   </details>
 </div>
 
-      <!-- イベント設定 -->
-      <div id="autoStopControls">
-        <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
-        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
-        <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
-      </div>
-
-      <!-- 停止フィルター -->
-      <div id="itemFilterBox" class="styled-filter-box">
-        <details><summary><b>色で停止</b></summary><div id="filterColorOptions"></div></details>
-        <details><summary><b>形容詞で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
-        <details><summary><b>名詞で停止</b></summary><div id="filterNounOptions"></div></details>
-      </div>
 
       <canvas id="hpChart" width="600" height="100"></canvas>
 
@@ -166,6 +153,21 @@
     <div id="itemMemoryContainer">
       <ul id="itemMemoryList"></ul>
     </div>
+		
+		      <!-- イベント設定 -->
+      <div id="autoStopControls">
+        <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
+        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
+        <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
+      </div>
+
+      <!-- 停止フィルター -->
+      <div id="itemFilterBox" class="styled-filter-box">
+        <details><summary><b>色で停止</b></summary><div id="filterColorOptions"></div></details>
+        <details><summary><b>形容詞で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
+        <details><summary><b>名詞で停止</b></summary><div id="filterNounOptions"></div></details>
+      </div>
+
 
     <!-- スキルメモリー -->
     <h3>スキル</h3>
