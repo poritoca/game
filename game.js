@@ -1844,7 +1844,6 @@ if (window.growthMultiplier !== 1) {
   resetMessage = `<br>成長倍率リセット：→ x1`;
 }
 
-showCustomAlert(`敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}`, 800, "#ff4d4d", "#fff");
 
   window.growthMultiplier = 1;
   currentStreak = 0;
@@ -1867,28 +1866,111 @@ if (player.baseStats && player.growthBonus) {
   }
 }
 
-  // スキル記憶更新（最高Lv保持）
-  for (const sk of player.skills) {
-    player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
-  }
-  // 初期スキル3つ + 4番目から sslot 個（レベルは引継ぎ）
-  const entries = Object.entries(player.skillMemory);
-  const firstThree = entries.slice(0, 3);
-  const nextX = entries.slice(3, 3 + sslot);
-
-  const unique = new Map();
-  for (const [name, level] of [...firstThree, ...nextX]) {
-    if (!unique.has(name)) {
-      unique.set(name, level);
+    // スキル記憶を更新（各スキルの最高Lvを保持）
+    for (const sk of player.skills) {
+      player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
     }
-  }
 
-  const initSkills = Array.from(unique.entries()).map(([name, level]) => ({
-    name,
-    level,
-    uses: 0
-  }));
-  player.skills = initSkills;
+    // 再構築するスキル枠数（基本3枠 + 追加スロット）
+    const totalSlots = 3 + sslot;
+
+    // 1. プレイヤー名に基づく固有スキル候補3つを導出し、その中から1つ選択
+    const nameSeed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const allSkillNames = skillPool.map(s => s.name);
+    const uniqueCandidates = new Set();
+    let seed = nameSeed;
+    // ランダムシードを用いて重複なしの3候補取得
+    while (uniqueCandidates.size < 3) {
+      seed = (seed * 9301 + 49297) % 233280;
+      const idx = seed % allSkillNames.length;
+      uniqueCandidates.add(allSkillNames[idx]);
+    }
+    const candidates = Array.from(uniqueCandidates);
+    const uniqueSkillName = candidates[Math.floor(Math.random() * candidates.length)];
+
+    // 2. 攻撃カテゴリのスキルをskillMemoryからランダム選出（該当なしなら全体から）
+    const isOffensiveSkill = (skillName) => {
+      const def = skillPool.find(s => s.name === skillName);
+      return def && window.offensiveSkillCategories.includes(def.category);
+    };
+    const offensiveMemorySkills = Object.keys(player.skillMemory).filter(isOffensiveSkill);
+    let attackSkillName = null;
+    if (offensiveMemorySkills.length > 0) {
+      // プレイヤーのスキル記憶に攻撃スキルがある場合
+      const choices = offensiveMemorySkills.filter(name => name !== uniqueSkillName);
+      if (choices.length > 0) {
+        attackSkillName = choices[Math.floor(Math.random() * choices.length)];
+      }
+    }
+    if (!attackSkillName) {
+      // 記憶に攻撃スキルが無いか、固有スキルのみだった場合は全スキルから選出
+      const offensivePool = skillPool.filter(s => window.offensiveSkillCategories.includes(s.category) && s.name !== uniqueSkillName);
+      if (offensivePool.length > 0) {
+        const randIndex = Math.floor(Math.random() * offensivePool.length);
+        attackSkillName = offensivePool[randIndex].name;
+      } else {
+        // 万一攻撃スキル候補が見つからない場合は固有スキルを使う
+        attackSkillName = uniqueSkillName;
+      }
+    }
+
+    // 3. 残りのスキル枠を記憶スキルで埋める（重複なし）
+    const newSkills = [];
+    // 固有スキル枠
+    const uniqueLevel = player.skillMemory[uniqueSkillName] || 1;
+    newSkills.push({ name: uniqueSkillName, level: uniqueLevel, uses: 0 });
+    // 攻撃スキル枠（固有スキルと重複しない場合のみ追加）
+    if (attackSkillName !== uniqueSkillName) {
+      const attackLevel = player.skillMemory[attackSkillName] || 1;
+      newSkills.push({ name: attackSkillName, level: attackLevel, uses: 0 });
+    }
+    // その他のスキル枠を順次埋める
+    for (const [name, level] of Object.entries(player.skillMemory)) {
+      if (newSkills.length >= totalSlots) break;
+      if (name === uniqueSkillName || name === attackSkillName) continue;
+      newSkills.push({ name, level, uses: 0 });
+    }
+    player.skills = newSkills;
+
+    // 4. 選出結果をプレイヤーに3段階で表示（showCustomAlertを順次実行）
+    const [cand1, cand2, cand3] = candidates;
+const msg1 =
+  `<div style="font-size:14px; font-weight:bold; margin-top:5px;">固有スキル候補: <br>${cand1}、<br>${cand2}、<br>${cand3}` +
+  `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${uniqueSkillName}」</div>`;
+	
+const msg2 = (offensiveMemorySkills.length === 0 || (offensiveMemorySkills.length === 1 && offensiveMemorySkills[0] === uniqueSkillName))
+  ? `攻撃スキル枠: 記憶に攻撃スキルなし` +
+    `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${attackSkillName}」</div>`
+  : `攻撃スキル枠: 記憶から選出` +
+    `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${attackSkillName}」</div>`;
+		
+    // 残りスキル名リスト（固有＆攻撃除外）
+    const carriedSkills = newSkills
+      .filter(sk => sk.name !== uniqueSkillName && sk.name !== attackSkillName)
+      .map(sk => sk.name);
+const msg3 = carriedSkills.length > 0
+  ? `残りスキル枠:` +
+    `<br><div style="font-size:17px; font-weight:bold; margin-top:5px;">→${carriedSkills.map(name => `「${name}」`).join('、 ')}</div>`
+  : `残りスキル枠: なし`;
+
+// 敗北メッセージ（表示時間 800ms）
+showCustomAlert(
+  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}` +
+  `<br><span style="font-size:13px;">※スキルは記憶に基づいて再構成されます</span>`,
+  1000, "#ff4d4d", "#fff"
+);
+
+// 待機したあとに、順番にスキル構成メッセージを表示
+setTimeout(() => {
+  showCustomAlert(msg1, 1000, "#ccf", "#000");
+  setTimeout(() => {
+    showCustomAlert(msg2, 1000, "#ccf", "#000");
+    setTimeout(() => {
+      showCustomAlert(msg3, 1500, "#ccf", "#000");
+    }, 1100); // msg2後
+  }, 1100); // msg1後
+}, 1100); // 敗北アラート後（+100ms余裕）
+drawSkillMemoryList();
 }
 
 document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
