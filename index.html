@@ -1,79 +1,45 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>転職したってよ（仮）</title>
-  <link rel="stylesheet" href="style.css?v=3">
-
-  <style>
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
-
-    .status-area {
-      position: relative;
-      display: flex;
-      flex-direction: row; /* 横並び */
-      justify-content: space-between;
-      align-items: center; /* 上下中央に揃える */
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #444;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.8);
-      margin-bottom: 20px;
-      box-sizing: border-box;
-    }
-
-    .stats-container {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .status-area canvas {
-      width: 64px;
-      height: 64px;
-      image-rendering: pixelated;
-      background: transparent;
-      flex-shrink: 0;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 
 <body>
+  <!-- カスタムアラート -->
+  <div id="customAlertContainer" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
+    z-index: 9999; pointer-events: none;"></div>
 
-<div id="customAlertContainer" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
-  z-index: 9999; pointer-events: none;"></div>
+  <!-- タイトル画面 -->
+  <div id="titleScreen">
+    <h1>転職したってよ（仮）</h1>
+    <div style="text-align: center; margin-bottom: 20px;">
+      <img src="dark_knight.png" alt="タイトル画像" style="width:80%; max-width:600px; height:auto;" />
+    </div>
+    <input type="text" id="inputStr" placeholder="名前を入力" />
+    <button id="startNewGameBtn">はじめから</button>
+    <button id="loadGameBtn">つづきから</button>
 
-<div id="titleScreen">
-  <h1>転職したってよ（仮）</h1>
-  <div style="text-align: center; margin-bottom: 20px;">
-    <img src="dark_knight.png" alt="タイトル画像" style="width:80%; max-width:600px; height:auto;">
+    <div id="loadSection">
+      <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br />
+      <input type="file" id="saveFileInput" accept=".txt" /><br />
+    </div>
+
+    <div id="vsMode" class="hidden">
+      <input type="text" id="vsName1" placeholder="キャラ1" />
+      <input type="text" id="vsName2" placeholder="キャラ2" />
+      <button id="startVsModeBtn">対戦開始</button>
+    </div>
   </div>
-  <input type="text" id="inputStr" placeholder="名前を入力">
-  <button id="startNewGameBtn">はじめから</button>
-  <button id="loadGameBtn">つづきから</button>
 
-  <div id="loadSection">
-    <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br>
-    <input type="file" id="saveFileInput" accept=".txt"><br>
-  </div>
-
-  <div id="vsMode" class="hidden">
-    <input type="text" id="vsName1" placeholder="キャラ1">
-    <input type="text" id="vsName2" placeholder="キャラ2">
-    <button id="startVsModeBtn">対戦開始</button>
-  </div>
-</div>
-
-<div id="gameScreen" class="hidden">
-	
-<div class="quick-guide-wrapper">
-  <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
-  <div id="quickGuideContent" class="quick-guide-content hidden">
+  <!-- ゲーム画面 -->
+  <div id="gameScreen" class="hidden">
+    <!-- クイックガイド -->
+    <div class="quick-guide-wrapper">
+      <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
+      <div id="quickGuideContent" class="quick-guide-content hidden">
     <h3>このゲームの目的</h3>
     <p>本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたび、キャラクターは成長や新スキルの習得を経て強くなります。</p>
 
@@ -127,128 +93,117 @@
     </p>
 
 <h3>アイテム構成要素の数値一覧</h3>
-<div id="itemElementList"></div>
-  </div>
-</div>
-</div>
-
-  <div id="battleArea" class="hidden">
-    <div class="status-area">
-      <div class="stats-container" id="playerStats">
-
-        <p id="atkStat">ATK:</p>
-        <p id="defStat">DEF:</p>
-        <p id="spdStat">SPD:</p>
-        <p id="hpStat">HP:</p>
-        <p id="maxHpStat">MAX HP:</p>
+        <div id="itemElementList"></div>
       </div>
-      <canvas id="playerCanvas" width="64" height="64"></canvas>
+    </div>
+
+    <!-- バトルエリア -->
+<div id="battleArea" class="hidden">
+  <details open>
+    <summary><strong>自分のキャラクター情報</strong></summary>
+    <div class="status-area compact">
+      <div class="char-info">
+
+<canvas id="playerCanvas" width="64" height="64"></canvas>
+      </div>
+      <div class="stats-container" id="playerStats">
+        <p id="atkStat">ATK: 0</p>
+        <p id="defStat">DEF: 0</p>
+        <p id="spdStat">SPD: 0</p>
+        <p id="hpStat">HP: 0</p>
+        <p id="maxHpStat">MAX HP: 0</p>
+      </div>
 			
-<div id="levelCapExemptDisplay" class="floating-skill-box hidden">
-  <div class="floating-title">制限緩和スキル</div>
-  <ul id="levelCapExemptSkillList"></ul>
-</div>
-
     </div>
+  </details>
 
-    <div class="status-area">
+  <details>
+    <summary><strong>敵のキャラクター情報</strong></summary>
+    <div class="status-area compact">
+      <div class="char-info">
+
+<canvas id="enemyCanvas" width="64" height="64"></canvas>
+      </div>
       <div class="stats-container" id="enemyStats"></div>
-      <canvas id="enemyCanvas" width="64" height="64"></canvas>
+    </div>
+  </details>
+</div>
+
+      <!-- イベント設定 -->
+      <div id="autoStopControls">
+        <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
+        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
+        <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
+      </div>
+
+      <!-- 停止フィルター -->
+      <div id="itemFilterBox" class="styled-filter-box">
+        <details><summary><b>色で停止</b></summary><div id="filterColorOptions"></div></details>
+        <details><summary><b>形容詞で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
+        <details><summary><b>名詞で停止</b></summary><div id="filterNounOptions"></div></details>
+      </div>
+
+      <canvas id="hpChart" width="600" height="100"></canvas>
+
+
+      <!-- 戦闘ログ -->
+      <div class="quick-guide-wrapper">
+        <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
+        <div id="quickGuideLog" class="quick-guide-content">
+          <pre id="battleLog" style="height:200px;"></pre>
+        </div>
+      </div>
+
+      <!-- モード切替 -->
+      <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
+      <!-- バトル操作 -->
+      <button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
+      <button id="downloadLogsBtn">バトルログ出力</button>
+
+
+    <!-- アイテムメモリー -->
+    <h3>アイテム</h3>
+    <div id="itemMemoryContainer">
+      <ul id="itemMemoryList"></ul>
     </div>
 
-		
-			<div id="autoStopControls">
-  <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
-  <button id="toggleSkillDeleteEvents" class="toggle-btn">スキルイベント: 発生</button>
-  <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
-</div>
-<!-- 停止条件設定 -->
-<div id="itemFilterBox" class="styled-filter-box">
-  <details><summary><b>色で停止</b></summary>
-    <div id="filterColorOptions"></div>
-  </details>
-  <details><summary><b>形容詞で停止</b></summary>
-    <div id="filterAdjectiveOptions"></div>
-  </details>
-  <details><summary><b>名詞で停止</b></summary>
-    <div id="filterNounOptions"></div>
-  </details>
-</div>
+    <!-- スキルメモリー -->
+    <h3>スキル</h3>
+    <div id="skillMemoryContainer" style="display: none;">
+      <ul id="skillMemoryList"></ul>
+      <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+      <label>同時発動スキル数（通常モードのみ）:
+        <select id="skillSimulCountSelect">
+          <option value="1">1個</option>
+          <option value="2" selected>2個</option>
+          <option value="3">3個</option>
+          <option value="4">4個</option>
+          <option value="5">5個</option>
+        </select>
+      </label>
+    </div>
 
-  <canvas id="hpChart" width="600" height="100"></canvas>
-		
-<button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
+    <!-- イベントポップアップ -->
+    <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
+      background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
+      box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
+      <h3 id="eventPopupTitle"></h3>
+      <div id="eventPopupOptions" style="margin-top:10px;"></div>
+      <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
+        <select id="eventPopupSelect"></select>
+        <button id="eventPopupSelectBtn">決定</button>
+      </div>
+    </div>
 
-<div class="quick-guide-wrapper">
-  <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
-  <div id="quickGuideLog" class="quick-guide-content">
-    <pre id="battleLog" style="height:200px;"></pre>
-  </div>
-</div>
-
-
-
-<button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
-	  <button id="downloadLogsBtn">バトルログ出力</button>
-
-  </div>
-
-
-
-
-		<!-- アイテムメモリー表示欄 -->
-		
-  <h3>アイテム</h3>
-<div id="itemMemoryContainer">
-
-  <ul id="itemMemoryList"></ul>
-</div>
-
-<h3>スキル</h3>
-  <div id="skillMemoryContainer" style="display: none;">
-    
-    <ul id="skillMemoryList"></ul>
-
-			<button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
-			    <label>同時発動スキル数（通常モードのみ）:
-      <select id="skillSimulCountSelect">
-        <option value="1">1個</option>
-        <option value="2" selected>2個</option>
-        <option value="3">3個</option>
-        <option value="4">4個</option>
-        <option value="5">5個</option>
-      </select>
-    </label>
-  </div>
-	
-	
-
-  <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
-    background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
-    box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
-    <h3 id="eventPopupTitle"></h3>
-    <div id="eventPopupOptions" style="margin-top:10px;"></div>
-    <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
-      <select id="eventPopupSelect"></select>
-      <button id="eventPopupSelectBtn">決定</button>
+    <!-- セーブ出力 -->
+    <h3>セーブデータ出力</h3>
+    <div id="saveControls">
+      <button id="saveCodeBtn">セーブ</button>
+      <input type="text" id="saveCodeBox" readonly />
     </div>
   </div>
-
-
-
-		<h3>セーブデータ出力</h3>
-
-  <div id="saveControls">
-    <button id="saveCodeBtn">セーブ</button>
-		
-
-    <input type="text" id="saveCodeBox" readonly>
-
-  </div>
-	
-</div>
-
-<script type="module" src="game.js"></script>
-
+    </div>
+  <!-- スクリプト読込 -->
+  <script type="module" src="game.js"></script>
 </body>
 </html>

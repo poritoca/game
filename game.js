@@ -220,6 +220,11 @@ skillDeleteButton.addEventListener('click', () => {
 
             deleteSkillByName(selectedName);
             updateStats();
+						updatePlayerDisplay(player);
+            updateEnemyDisplay(enemy);
+
+
+						
             window.skillDeleteUsesLeft--;
             updateSkillDeleteButton();
             showCustomAlert(`${selectedName} を削除しました！`, 3000);
@@ -810,26 +815,30 @@ window.formatSkills = function(c) {
 };
 
 // ステータス表示の更新
-window.updateStats = function() {
-  if (isAutoBattle) return;  // オートバトル中は描画スキップ
+window.updateStats = function () {
+  if (isAutoBattle || !player || !enemy) return;
 
-  if (!player || !enemy) return;  // 安全確認：nullなら中断
+  player.hp = Math.min(player.hp, player.maxHp);
+  enemy.hp = Math.min(enemy.hp, enemy.maxHp);
+  player.hp = Math.max(player.hp, 0);
+  enemy.hp = Math.max(enemy.hp, 0);
 
-  if (player.hp > player.maxHp) player.hp = player.maxHp;
-  if (enemy.hp > enemy.maxHp) enemy.hp = enemy.maxHp;
+  // プレイヤー表示
+  const pStats = formatStats(player);
+  const pSkills = formatSkills(player);
+  document.getElementById('playerStats').innerHTML = pStats + pSkills;
 
-  if (player.hp < 0) player.hp = 0;
-  if (enemy.hp < 0) enemy.hp = 0;
+  // 敵表示
+  const eStats = formatStats(enemy);
+  const eSkills = formatSkills(enemy);
+  document.getElementById('enemyStats').innerHTML = eStats + eSkills;
 
-  const pHtml = `<div>${formatStats(player)}</div><div>${formatSkills(player)}</div>`;
-  const eHtml = `<div>${formatStats(enemy)}</div><div>${formatSkills(enemy)}</div>`;
-  document.getElementById('playerStats').innerHTML = pHtml;
-  document.getElementById('enemyStats').innerHTML = eHtml;
-
-  // 修正ポイント：
+  // キャラ画像描画
   drawCharacterImage(displayName(player.name), 'playerCanvas');
   drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
-	window.drawLevelCapExemptSkillList();
+
+  // 緩和スキル表示
+  window.drawLevelCapExemptSkillList();
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
@@ -889,6 +898,10 @@ document.getElementById('titleScreen').classList.add('hidden');
 document.getElementById('gameScreen').classList.remove('hidden');
 document.getElementById("battleArea").classList.add("hidden");
 updateStats();
+updatePlayerDisplay(player);
+updateEnemyDisplay(enemy);
+
+
 };
 
 // スキル効果を適用（カテゴリ別に処理）
@@ -1304,6 +1317,9 @@ do {
     enemy = makeCharacter('敵' + Math.random());
 } while (!hasOffensiveSkill(enemy));
 
+
+
+
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
@@ -1365,6 +1381,8 @@ if (hasSpecialSkill) {
     enemy.maxHp = hpMax;
     enemy.hp = hpMax;
 
+		
+		
 } else {
     if (currentStreak > 0) {
         const factor = Math.pow(1.1, currentStreak);
@@ -2705,6 +2723,62 @@ window.populateItemElementList = function () {
 
   container.innerHTML = html;
 };
+
+
+function updatePlayerDisplay(player) {
+  document.getElementById('playerName').textContent = player.name;
+  document.getElementById('atkStat').textContent = `ATK: ${player.attack}`;
+  document.getElementById('defStat').textContent = `DEF: ${player.defense}`;
+  document.getElementById('spdStat').textContent = `SPD: ${player.speed}`;
+  document.getElementById('hpStat').textContent = `HP: ${player.hp}`;
+  document.getElementById('maxHpStat').textContent = `MAX HP: ${player.maxHp}`;
+
+  // 画像描画（修正済み）
+drawCharacterImage(player.characterId, 'playerImage');
+
+  // 所持スキル表示
+  const skillList = document.getElementById('playerSkillList');
+  skillList.innerHTML = '';
+  player.skillMemory.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = `${s.name} (Lv${s.level})`;
+    skillList.appendChild(li);
+  });
+
+  // 初期スキル表示
+  const initialSkillList = document.getElementById('playerInitialSkillList');
+  initialSkillList.innerHTML = '';
+  player.initialSkills.forEach(skillName => {
+    const li = document.createElement('li');
+    li.textContent = skillName;
+    initialSkillList.appendChild(li);
+  });
+}
+
+function updateEnemyDisplay(enemy) {
+  document.getElementById('enemyName').textContent = enemy.name;
+
+  const enemyStats = document.getElementById('enemyStats');
+  enemyStats.innerHTML = `
+    <p>ATK: ${enemy.attack}</p>
+    <p>DEF: ${enemy.defense}</p>
+    <p>SPD: ${enemy.speed}</p>
+    <p>HP: ${enemy.hp}</p>
+    <p>MAX HP: ${enemy.maxHp}</p>
+  `;
+
+  // 画像描画（修正済み）
+drawCharacterImage(enemy.characterId, 'enemyImage');
+
+  const enemySkillList = document.getElementById('enemySkillList');
+  enemySkillList.innerHTML = '';
+  enemy.skills.forEach(skillName => {
+    const li = document.createElement('li');
+    li.textContent = skillName;
+    enemySkillList.appendChild(li);
+  });
+}
+
 
 // パッシブスキルによる封印処理
 function applyPassiveSeals(attacker, defender, log = []) {
