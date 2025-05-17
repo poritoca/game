@@ -572,14 +572,17 @@ if (
   shouldPauseForItem(newItem.color, newItem.adjective, newItem.noun) ||
   (!anyFiltersSet && window.allowItemInterrupt)
 ) {
+    // 停止＋保護カウント追加
+    if (!window.battleCount) window.battleCount = 0;
+    window.protectItemUntil = window.battleCount + 10;
+
     setTimeout(() => {
       if (typeof stopAutoBattle === 'function') stopAutoBattle();
       isAutoBattle = false;
       showCustomAlert(`>>> フィルター条件により停止！`, 3000, "#ff8", "#000");
     }, 500);
-  }
-}
-		
+	}
+}		
 		
 function setupItemFilters() {
   const colorBox = document.getElementById('filterColorOptions');
@@ -1287,6 +1290,9 @@ if (player.itemMemory) {
     item.remainingUses = item.usesPerBattle;
   });
 }
+if (!window.battleCount) window.battleCount = 0;
+window.battleCount++;
+
 
 document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
@@ -1636,7 +1642,10 @@ if (item.skillLevel < 3000 && Math.random() < 0.5) {
     item.remainingUses--;
     triggeredItemsThisTurn.add(itemKey);
 
-if (!item.protected && Math.random() < item.breakChance) {
+const isWithinProtectedPeriod =
+  window.protectItemUntil && window.battleCount <= window.protectItemUntil;
+
+if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
   log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
   player.itemMemory.splice(i, 1);
   drawItemMemoryList();
