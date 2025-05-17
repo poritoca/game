@@ -1254,8 +1254,21 @@ case 'berserk': {
 
 function restoreMissingItemUses() {
   if (!player || !player.itemMemory) return;
+
   for (const item of player.itemMemory) {
-    if (item.remainingUses == null && item.usesPerBattle != null) {
+    // 色から usesPerBattle を補完
+    if (item.usesPerBattle == null) {
+      const colorDef = itemColors.find(c => c.word === item.color);
+      if (colorDef) {
+        item.usesPerBattle = colorDef.usesPerBattle;
+      } else {
+        console.warn("[警告] 未知の色: " + item.color);
+        item.usesPerBattle = 1; // デフォルト値（あくまで安全措置）
+      }
+    }
+
+    // remainingUses も補完
+    if (item.remainingUses == null || item.remainingUses <= 0) {
       item.remainingUses = item.usesPerBattle;
     }
   }
@@ -1268,7 +1281,7 @@ window.startBattle = function() {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
 }
 	
-restoreMissingItemUses(); 
+restoreMissingItemUses();
 if (player.itemMemory) {
   player.itemMemory.forEach(item => {
     item.remainingUses = item.usesPerBattle;
