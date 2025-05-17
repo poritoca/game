@@ -637,12 +637,13 @@ function shouldPauseForItem(color, adj, noun) {
   const nouns = checked('noun');
 
   if (window.itemFilterMode === 'and') {
-    return (
-      (colors.length === 0 || colors.includes(color)) &&
-      (adjs.length === 0 || adjs.includes(adj)) &&
-      (nouns.length === 0 || nouns.includes(noun))
-    );
+    // 各カテゴリにチェックがある場合は、それぞれのカテゴリで一致が必要
+    const colorMatch = colors.length === 0 || colors.includes(color);
+    const adjMatch = adjs.length === 0 || adjs.includes(adj);
+    const nounMatch = nouns.length === 0 || nouns.includes(noun);
+    return colorMatch && adjMatch && nounMatch;
   } else {
+    // どれか1つでも一致すればOK
     return colors.includes(color) || adjs.includes(adj) || nouns.includes(noun);
   }
 }
