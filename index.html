@@ -82,7 +82,7 @@
 
     <h3>停止フィルター</h3>
     <p>
-      アイテム入手時に、色・形容詞・名詞のいずれかが指定条件に一致すると自動で戦闘が停止します。<br>
+      アイテム入手時に、色・修飾語・名詞のいずれかが指定条件に一致すると自動で戦闘が停止します。<br>
       条件はチェックボックスで自由に設定できます。フィルターなしでもアイテムは使用可能です。
     </p>
 
@@ -144,8 +144,6 @@
       <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
       <!-- バトル操作 -->
       <button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
-      <button id="downloadLogsBtn">バトルログ出力</button>
-
 
     <!-- アイテムメモリー -->
     <h3>アイテム</h3>
@@ -164,12 +162,12 @@
       <!-- 停止フィルター -->
 			<h3>アイテム入手時設定</h3>
 <div style="margin-bottom: 10px;">
-  <button id="filterModeToggleBtn" class="toggle-mode-btn and">すべての条件を満たす</button>
+  <button id="filterModeToggleBtn" class="toggle-mode-btn and">各要素の条件を満たす</button>
 </div>
       <div id="itemFilterBox" class="styled-filter-box">
-        <details><summary><b>色で停止</b></summary><div id="filterColorOptions"></div></details>
-        <details><summary><b>形容詞で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
-        <details><summary><b>名詞で停止</b></summary><div id="filterNounOptions"></div></details>
+        <details><summary><b>要素1 色で停止</b></summary><div id="filterColorOptions"></div></details>
+        <details><summary><b>要素2 修飾語で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
+        <details><summary><b>要素3 名詞で停止</b></summary><div id="filterNounOptions"></div></details>
       </div>
 
 
@@ -202,10 +200,12 @@
     </div>
 
     <!-- セーブ出力 -->
-    <h3>セーブデータ出力</h3>
+    <h3>出力</h3>
+		      <button id="downloadLogsBtn">バトルログ出力</button>
     <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly />
+			
     </div>
   </div>
     </div>

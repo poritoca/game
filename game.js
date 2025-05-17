@@ -618,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleBtn.onclick = () => {
       window.itemFilterMode = (window.itemFilterMode === 'and') ? 'or' : 'and';
       toggleBtn.textContent = (window.itemFilterMode === 'and')
-        ? 'すべての条件を満たす'
+        ? '各要素の条件を満たす'
         : 'いずれかの条件を満たす';
 
       toggleBtn.classList.toggle('and', window.itemFilterMode === 'and');
@@ -2737,7 +2737,7 @@ window.populateItemElementList = function () {
   });
   html += '</ul></li>';
 
-  html += '<li><strong>形容詞（発動率）</strong><ul>';
+  html += '<li><strong>修飾語（発動率）</strong><ul>';
   itemAdjectives.forEach(a => {
     html += `<li>${a.word}：${formatValue(a.activationRate * 100, 6, '%')}</li>`;
   });
