@@ -131,8 +131,8 @@ const itemNouns = [
   { word: '仮面', breakChance: 0.04, dropRateMultiplier: 0.5 },
   { word: '珠', breakChance: 0.002, dropRateMultiplier: 0.8 },
   { word: '箱', breakChance: 0.04, dropRateMultiplier: 0.6 },
-  { word: '盾', breakChance: 0, dropRateMultiplier: 0.08 },
-  { word: '剣', breakChance: 0, dropRateMultiplier: 0.07 },
+  { word: '盾', breakChance: 0.00001, dropRateMultiplier: 0.08 },
+  { word: '剣', breakChance: 0.00001, dropRateMultiplier: 0.07 },
   { word: '書', breakChance: 0.06, dropRateMultiplier: 0.4 },
   { word: '砂時計', breakChance: 0.07, dropRateMultiplier: 0.35 },
   { word: '宝石', breakChance: 0.0002, dropRateMultiplier: 0.1 },
@@ -153,7 +153,7 @@ const itemNouns = [
   { word: '珠玉', breakChance: 0, dropRateMultiplier: 0.05 },
   { word: '護符', breakChance: 0.03, dropRateMultiplier: 0.68 },
   { word: '錫杖', breakChance: 0.03, dropRateMultiplier: 0.6 },
-  { word: '光球', breakChance: 0, dropRateMultiplier: 0.16 }
+  { word: '光球', breakChance: 0.000001, dropRateMultiplier: 0.16 }
 ];
 
 const itemAdjectives = [
@@ -2668,17 +2668,22 @@ window.downloadBattleLogs = function() {
   a.click();
   URL.revokeObjectURL(url);
 };
-
 window.populateItemElementList = function () {
   const container = document.getElementById('itemElementList');
   if (!container) return;
+
+  const formatValue = (val, digits = 10, suffix = '') => {
+    if (val === Infinity) return '∞' + suffix;
+    if (typeof val !== 'number') return '（未定義）';
+    return parseFloat(val.toFixed(digits)) + suffix;
+  };
 
   let html = '<ul style="font-size: 13px;">';
 
   html += '<li><strong>色（使用回数）</strong><ul>';
   itemColors.forEach(c => {
     const uses = (typeof c.usesPerBattle === 'number' || c.usesPerBattle === Infinity)
-      ? (c.usesPerBattle === Infinity ? '∞' : `${c.usesPerBattle}回`)
+      ? formatValue(c.usesPerBattle, 10, '回')
       : '（未定義）';
     html += `<li>${c.word}：${uses}</li>`;
   });
@@ -2686,13 +2691,13 @@ window.populateItemElementList = function () {
 
   html += '<li><strong>形容詞（発動率）</strong><ul>';
   itemAdjectives.forEach(a => {
-    html += `<li>${a.word}：${Math.round(a.activationRate * 100)}%</li>`;
+    html += `<li>${a.word}：${formatValue(a.activationRate * 100, 6, '%')}</li>`;
   });
   html += '</ul></li>';
 
   html += '<li><strong>名詞（破損確率）</strong><ul>';
   itemNouns.forEach(n => {
-    html += `<li>${n.word}：${Math.round(n.breakChance * 1000) / 10}%</li>`;
+    html += `<li>${n.word}：${formatValue(n.breakChance * 100, 6, '%')}</li>`;
   });
   html += '</ul></li>';
 
