@@ -2055,10 +2055,9 @@ document.getElementById('startBattleBtn').addEventListener('click', window.start
 //  log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
 // ダメージ内訳表示
-log.push(`\n${displayName(player.name)} のダメージ内訳`);
-for (let key in player.battleStats) {
-  log.push(`${key}：${player.battleStats[key]}`);
-}
+//log.push(`\n${displayName(player.name)} のダメージ内訳`);
+//for (let key in player.battleStats) {
+ // log.push(`${key}：${player.battleStats[key]}`);}
 
 //if (player.hp > player.maxHp) player.hp = player.maxHp;
 
