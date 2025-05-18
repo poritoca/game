@@ -102,6 +102,28 @@
 <div id="battleArea" class="hidden">
   <details open>
     <summary><strong>自分のキャラクター情報</strong></summary>
+		
+<div id="uniqueSkillSection" style="margin-top: 15px;">
+  <button id="toggleUniqueSkills" style="
+    font-size: 11px;
+    padding: 4px 6px;
+    background: linear-gradient(to bottom, #222, #444);
+    color: #0ff;
+    border: 1px solid #0ff;
+    border-radius: 4px;
+    cursor: pointer;
+    text-shadow: 1px 1px 0 #000;
+    transition: background 0.2s ease, transform 0.1s ease;
+  ">
+    ▼ 固有スキル候補を表示
+  </button>
+  <ul id="uniqueSkillList" style="
+    display: none;
+    list-style: none;
+    padding-left: 0;
+    margin-top: 10px;
+  "></ul>
+</div>
     <div class="status-area compact">
       <div class="char-info">
 
@@ -113,10 +135,13 @@
         <p id="spdStat">SPD: 0</p>
         <p id="hpStat">HP: 0</p>
         <p id="maxHpStat">MAX HP: 0</p>
+
+</div>
       </div>
 			
     </div>
   </details>
+	
 
   <details open>
     <summary><strong>敵のキャラクター情報</strong></summary>

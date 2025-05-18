@@ -13,6 +13,76 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+window.renderUniqueSkillList = function(candidates, chosenSkillName) {
+  const toggleBtn = document.getElementById('toggleUniqueSkills');
+  const listEl = document.getElementById('uniqueSkillList');
+  if (!toggleBtn || !listEl) return;
+
+  // 初回のみクリックイベントを設定
+  if (!toggleBtn.hasInit) {
+    toggleBtn.addEventListener('click', () => {
+      const shown = listEl.style.display !== 'none';
+      listEl.style.display = shown ? 'none' : 'block';
+      toggleBtn.textContent = (shown ? '▼' : '▲') + ' 固有スキル候補' + (shown ? 'を表示' : 'を隠す');
+    });
+    toggleBtn.hasInit = true;
+  }
+
+  listEl.innerHTML = '';
+
+candidates.forEach(name => {
+  const li = document.createElement('li');
+  li.textContent = `➤ ${name}`; // オシャレな矢印を追加
+
+  // スタイル：白文字＋太字＋揃ったサイズ
+  li.style.fontWeight = 'bold';
+  li.style.fontSize = '14px';
+  li.style.color = '#fff';
+
+  // カテゴリ別に背景色を分ける（任意）
+  const def = window.skillPool?.find(sk => sk.name === name);
+  if (def) {
+    if (def.category === 'attack') li.style.background = '#ff4d4d';   // 濃赤
+    if (def.category === 'support') li.style.background = '#33cc99';  // ミントグリーン
+    if (def.category === 'special') li.style.background = '#3399ff';  // 明るめ青
+    li.style.padding = '4px 8px';
+    li.style.borderRadius = '6px';
+    li.style.marginBottom = '5px';
+    li.style.display = 'inline-block';
+  }
+
+  listEl.appendChild(li);
+});
+};
+
+window.generateAndRenderUniqueSkillsByName = function(player) {
+  if (!player || !player.name || !Array.isArray(skillPool)) return;
+
+  // 1. プレイヤー名をもとに名前ベースのシードを計算
+  let seed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+
+  // 2. スキル名リストから3つの固有スキル候補を決定（重複なし）
+  const allSkillNames = skillPool.map(s => s.name);
+  const uniqueCandidates = new Set();
+
+  while (uniqueCandidates.size < 3) {
+    seed = (seed * 9301 + 49297) % 233280;
+    const idx = seed % allSkillNames.length;
+    uniqueCandidates.add(allSkillNames[idx]);
+  }
+
+  const candidateSkills = Array.from(uniqueCandidates);
+  const selectedSkill = candidateSkills[0]; // 最初の1つを選ばれたスキルとして表示
+
+  // グローバルに保存して他の画面でも使えるようにする
+  window.candidateUniqueSkills = candidateSkills;
+  window.uniqueSkillName = selectedSkill;
+
+  // ステータス画面に反映
+  renderUniqueSkillList(candidateSkills, selectedSkill);
+};
+
+
 window.showConfirmationPopup = function(messageHtml, onConfirm) {
   const popup = document.getElementById("eventPopup");
   const title = document.getElementById("eventPopupTitle");
@@ -42,25 +112,7 @@ window.levelCapExemptSkills = [];  // スキルレベル制限緩和対象
 
 
 
-window.drawLevelCapExemptSkillList = function () {
-  const box = document.getElementById('levelCapExemptDisplay');
-  const ul = document.getElementById('levelCapExemptSkillList');
-  if (!box || !ul) return;
-  ul.innerHTML = '';
 
-  if (!window.levelCapExemptSkills || window.levelCapExemptSkills.length === 0) {
-    box.classList.add('hidden');
-    return;
-  }
-
-  window.levelCapExemptSkills.forEach(name => {
-    const li = document.createElement('li');
-    li.textContent = name;
-    ul.appendChild(li);
-  });
-
-  box.classList.remove('hidden');
-};
 
 
 // 共通のクリーンアップ関数を作る
@@ -821,10 +873,7 @@ window.formatSkills = function(c) {
     let color = 'white'; // デフォルト
     let priority = 2;
 
-    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(skillName)) {
-      color = 'white';
-      priority = 0;
-    } else if (category === 'passive') {
+    if (category === 'passive') {
       color = 'gold';
       priority = 1;
     } else {
@@ -869,9 +918,12 @@ window.updateStats = function () {
   // キャラ画像描画
   drawCharacterImage(displayName(player.name), 'playerCanvas');
   drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
-
-  // 緩和スキル表示
-  window.drawLevelCapExemptSkillList();
+	
+	const isPlayer = true;
+if (isPlayer) {
+  generateAndRenderUniqueSkillsByName(player);
+}
+	
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
@@ -895,7 +947,6 @@ if (!player.itemMemory) {
   player.itemMemory = [];
 }
    
-	drawLevelCapExemptSkillList();
 
 document.getElementById('battleLog').classList.remove('hidden');
     document.getElementById("battleArea").classList.add("hidden");
@@ -1329,7 +1380,7 @@ document.getElementById("battleArea").classList.remove("hidden");
 
   
 // isFirstBattle かつ 初期スキル情報が未設定のときだけ代入
-drawLevelCapExemptSkillList();
+
 	
 	if (!player.itemMemory) {
     player.itemMemory = [];
@@ -1345,21 +1396,16 @@ drawLevelCapExemptSkillList();
     const firstThree = entries.slice(0, 3);
     const lastX = (sslot > 0) ? entries.slice(-sslot) : []; // ★ここで条件分岐！
 
-// ★修正後（passive を除外）
-window.initialAndSlotSkills = [
-  ...firstThree.map(e => e[0]).filter(name => {
-    const def = skillPool.find(s => s.name === name);
-    return def?.category !== 'passive';
-  }),
-  ...lastX.map(e => e[0]).filter(name => {
-    const def = skillPool.find(s => s.name === name);
-    return def?.category !== 'passive';
-  })
-];
+		
   }
+	
+
 	
 // isFirstBattle のときだけ levelCapExemptSkills に保存（パッシブ除外）
 if (window.isFirstBattle) {
+	
+	window.initialAndSlotSkills = player.skills.map(sk => sk.name);
+		
   const exemptSkillSet = new Set();
 
   for (const name of window.initialAndSlotSkills) {
@@ -1370,7 +1416,7 @@ if (window.isFirstBattle) {
   }
 
   window.levelCapExemptSkills = Array.from(exemptSkillSet);
-  drawLevelCapExemptSkillList();
+
 }
 
 drawSkillMemoryList();
@@ -1932,44 +1978,74 @@ if (player.baseStats && player.growthBonus) {
     }
     player.skills = newSkills;
 
-    // 4. 選出結果をプレイヤーに3段階で表示（showCustomAlertを順次実行）
-    const [cand1, cand2, cand3] = candidates;
-const msg1 =
-  `<div style="font-size:14px; font-weight:bold; margin-top:5px;">固有スキル候補: <br>${cand1}、<br>${cand2}、<br>${cand3}` +
-  `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${uniqueSkillName}」</div>`;
-	
-const msg2 = (offensiveMemorySkills.length === 0 || (offensiveMemorySkills.length === 1 && offensiveMemorySkills[0] === uniqueSkillName))
-  ? `攻撃スキル枠: 記憶に攻撃スキルなし` +
-    `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${attackSkillName}」</div>`
-  : `攻撃スキル枠: 記憶から選出` +
-    `<br><div style="font-size:18px; font-weight:bold; margin-top:5px;">→ 「${attackSkillName}」</div>`;
-		
-    // 残りスキル名リスト（固有＆攻撃除外）
-    const carriedSkills = newSkills
-      .filter(sk => sk.name !== uniqueSkillName && sk.name !== attackSkillName)
-      .map(sk => sk.name);
-const msg3 = carriedSkills.length > 0
-  ? `残りスキル枠:` +
-    `<br><div style="font-size:17px; font-weight:bold; margin-top:5px;">→${carriedSkills.map(name => `「${name}」`).join('、 ')}</div>`
-  : `残りスキル枠: なし`;
+// 1. 固有スキル候補と選出
+const [cand1, cand2, cand3] = candidates;
+const skillList = [cand1, cand2, cand3];
 
-// 敗北メッセージ（表示時間 800ms）
+const uniqueSkillHtml = `
+<div style="font-size:14px; font-weight:bold; margin-bottom:5px;">
+  固有スキル候補:<br>
+  ${skillList.map(name => {
+    if (name === uniqueSkillName) {
+      return `<span style="font-size:18px; font-weight:bold; color:#000;">➤ ${name}</span>`;
+    } else {
+      return `<span style="color:#666;">${name}</span>`;
+    }
+  }).join('<br>')}
+</div>
+`;
+const attackSkillHtml = `
+<div style="font-size:14px; font-weight:bold; margin-top:10px;">
+  攻撃スキル枠: ${
+    offensiveMemorySkills.length === 0 ||
+    (offensiveMemorySkills.length === 1 && offensiveMemorySkills[0] === uniqueSkillName)
+      ? "記憶に攻撃スキルなし"
+      : "記憶から選出"
+  }
+</div>
+<div style="font-size:18px; font-weight:bold; color:#000;">➤ ${attackSkillName}</div>
+`;
+
+const carriedSkills = newSkills
+  .filter(sk => sk.name !== uniqueSkillName && sk.name !== attackSkillName)
+  .map(sk => sk.name);
+
+const carriedSkillHtml = carriedSkills.length > 0
+  ? `
+<div style="font-size:14px; font-weight:bold; margin-top:10px;">
+  残りスキル枠<br>(スキル一覧の左から優先選択):
+</div>
+<div style="font-size:17px; font-weight:bold; color:#000;">
+  ${carriedSkills.map(name => `➤ ${name}`).join("<br>")}
+</div>`
+  : `
+<div style="font-size:14px; font-weight:bold; margin-top:10px;">
+  残りスキル枠: なし
+</div>`;
+
+
+const fullMessage = `
+<div style="text-align:left; font-size:13px;">
+  ${uniqueSkillHtml}
+  ${attackSkillHtml}
+  ${carriedSkillHtml}
+</div>`;
+
+// 5. 敗北アラート（まず表示）
 showCustomAlert(
   `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}` +
   `<br><span style="font-size:13px;">※スキルは記憶に基づいて再構成されます</span>`,
-  1000, "#ff4d4d", "#fff"
+  2000, "#e60000", "#fff", true
 );
-
-// 待機したあとに、順番にスキル構成メッセージを表示
 setTimeout(() => {
-  showCustomAlert(msg1, 1000, "#ccf", "#000");
-  setTimeout(() => {
-    showCustomAlert(msg2, 1000, "#ccf", "#000");
-    setTimeout(() => {
-      showCustomAlert(msg3, 1500, "#ccf", "#000");
-    }, 1100); // msg2後
-  }, 1100); // msg1後
-}, 1100); // 敗北アラート後（+100ms余裕）
+  showCustomAlert(
+    fullMessage,
+    1500,
+    "rgba(173, 216, 230, 0.85)", // ← 明るい水色 + 85%透明
+    "#000",                      // 黒文字で読みやすく
+    false                        // グラデーションはオフ
+  );
+}, 1100);
 drawSkillMemoryList();
 }
 
@@ -2271,7 +2347,7 @@ window.loadGame = async function() {
 			
 			player.itemMemory = player.itemMemory || [];
 			drawItemMemoryList();
-window.drawLevelCapExemptSkillList();
+
       currentStreak = parsed.currentStreak || 0;
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
 do {
@@ -2421,13 +2497,7 @@ window.showWhiteSkillSelector = function(callback) {
     optionsEl.innerHTML = '';
     selectEl.innerHTML = '';
 
-    const whiteSkills = player.skills.filter(s => {
-        const found = skillPool.find(sk => sk.name === s.name);
-        if (!found) return false;
-        if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
-        if (found.category === 'passive') return false;
-        return true;
-    });
+const whiteSkills = player.skills.slice(); // 所持スキル全てをそのままコピー
 
     if (whiteSkills.length === 0) {
         popup.style.display = 'none';
@@ -2493,7 +2563,7 @@ window.maybeTriggerEvent = function() {
     return true;
   });
 
-  if (whiteSkills.length < 3) return;
+  if (whiteSkills.length < 6) return;
 
   const chance = 0.1;
   if (Math.random() < chance) {
@@ -2753,10 +2823,26 @@ window.drawHPGraph = function () {
 };
 
 // 修正版 showCustomAlert 関数
-window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff") {
+// 引数：
+//  message     : 表示するHTML文字列
+//  duration    : 表示時間（ミリ秒）デフォルト 3000
+//  background  : 背景色（例 "#222"）
+//  color       : 文字色（例 "#fff"）
+//  forceClear  : true にすると他のアラートを即座に消してから表示（デフォルト false）
+
+window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff", forceClear = false) {
     const container = document.getElementById('customAlertContainer');
+
+    // ★ forceClear = true の場合、すでに表示中のアラートをすべて削除
+    if (forceClear && container) {
+        while (container.firstChild) {
+            container.removeChild(container.firstChild);
+        }
+    }
+
     const alert = document.createElement('div');
 
+    // スタイル設定
     alert.style.background = background;
     alert.style.color = color;
     alert.style.padding = '12px 20px';
@@ -2792,11 +2878,10 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
             if (alert.parentElement) {
                 container.removeChild(alert);
             }
-            // もし container が完全に空なら innerHTML をクリア
             if (container.children.length === 0) {
                 container.innerHTML = '';
             }
-        }, 300);
+        }, 300); // フェードアウト待機時間
     }, duration);
 };
 
@@ -2876,57 +2961,78 @@ window.populateItemElementList = function () {
 
 
 function updatePlayerDisplay(player) {
-  document.getElementById('playerName').textContent = player.name;
-  document.getElementById('atkStat').textContent = `ATK: ${player.attack}`;
-  document.getElementById('defStat').textContent = `DEF: ${player.defense}`;
-  document.getElementById('spdStat').textContent = `SPD: ${player.speed}`;
-  document.getElementById('hpStat').textContent = `HP: ${player.hp}`;
-  document.getElementById('maxHpStat').textContent = `MAX HP: ${player.maxHp}`;
+  const nameEl = document.getElementById('playerName');
+  if (nameEl) nameEl.textContent = player.name;
 
-  // 画像描画（修正済み）
-drawCharacterImage(player.characterId, 'playerImage');
+  const atkEl = document.getElementById('atkStat');
+  if (atkEl) atkEl.textContent = `ATK: ${player.attack}`;
+
+  const defEl = document.getElementById('defStat');
+  if (defEl) defEl.textContent = `DEF: ${player.defense}`;
+
+  const spdEl = document.getElementById('spdStat');
+  if (spdEl) spdEl.textContent = `SPD: ${player.speed}`;
+
+  const hpEl = document.getElementById('hpStat');
+  if (hpEl) hpEl.textContent = `HP: ${player.hp}`;
+
+  const maxHpEl = document.getElementById('maxHpStat');
+  if (maxHpEl) maxHpEl.textContent = `MAX HP: ${player.maxHp}`;
+
+  // キャラクター画像
+  const imgCanvas = document.getElementById('playerImage');
+  if (imgCanvas) drawCharacterImage(player.characterId, 'playerImage');
 
   // 所持スキル表示
   const skillList = document.getElementById('playerSkillList');
-  skillList.innerHTML = '';
-  player.skillMemory.forEach(s => {
-    const li = document.createElement('li');
-    li.textContent = `${s.name} (Lv${s.level})`;
-    skillList.appendChild(li);
-  });
+  if (skillList) {
+    skillList.innerHTML = '';
+    player.skillMemory.forEach(s => {
+      const li = document.createElement('li');
+      li.textContent = `${s.name} (Lv${s.level})`;
+      skillList.appendChild(li);
+    });
+  }
 
   // 初期スキル表示
   const initialSkillList = document.getElementById('playerInitialSkillList');
-  initialSkillList.innerHTML = '';
-  player.initialSkills.forEach(skillName => {
-    const li = document.createElement('li');
-    li.textContent = skillName;
-    initialSkillList.appendChild(li);
-  });
+  if (initialSkillList) {
+    initialSkillList.innerHTML = '';
+    player.initialSkills.forEach(skillName => {
+      const li = document.createElement('li');
+      li.textContent = skillName;
+      initialSkillList.appendChild(li);
+    });
+  }
 }
 
 function updateEnemyDisplay(enemy) {
-  document.getElementById('enemyName').textContent = enemy.name;
+  const nameEl = document.getElementById('enemyName');
+  if (nameEl) nameEl.textContent = enemy.name;
 
   const enemyStats = document.getElementById('enemyStats');
-  enemyStats.innerHTML = `
-    <p>ATK: ${enemy.attack}</p>
-    <p>DEF: ${enemy.defense}</p>
-    <p>SPD: ${enemy.speed}</p>
-    <p>HP: ${enemy.hp}</p>
-    <p>MAX HP: ${enemy.maxHp}</p>
-  `;
+  if (enemyStats) {
+    enemyStats.innerHTML = `
+      <p>ATK: ${enemy.attack}</p>
+      <p>DEF: ${enemy.defense}</p>
+      <p>SPD: ${enemy.speed}</p>
+      <p>HP: ${enemy.hp}</p>
+      <p>MAX HP: ${enemy.maxHp}</p>
+    `;
+  }
 
-  // 画像描画（修正済み）
-drawCharacterImage(enemy.characterId, 'enemyImage');
+  const imgCanvas = document.getElementById('enemyImage');
+  if (imgCanvas) drawCharacterImage(enemy.characterId, 'enemyImage');
 
   const enemySkillList = document.getElementById('enemySkillList');
-  enemySkillList.innerHTML = '';
-  enemy.skills.forEach(skillName => {
-    const li = document.createElement('li');
-    li.textContent = skillName;
-    enemySkillList.appendChild(li);
-  });
+  if (enemySkillList) {
+    enemySkillList.innerHTML = '';
+    enemy.skills.forEach(skillName => {
+      const li = document.createElement('li');
+      li.textContent = skillName;
+      enemySkillList.appendChild(li);
+    });
+  }
 }
 
 
