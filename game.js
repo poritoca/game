@@ -58,10 +58,10 @@ candidates.forEach(name => {
 window.generateAndRenderUniqueSkillsByName = function(player) {
   if (!player || !player.name || !Array.isArray(skillPool)) return;
 
-  // 1. プレイヤー名をもとに名前ベースのシードを計算
+  // 名前からシード生成
   let seed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 
-  // 2. スキル名リストから3つの固有スキル候補を決定（重複なし）
+  // 全スキルから3つ選ぶ
   const allSkillNames = skillPool.map(s => s.name);
   const uniqueCandidates = new Set();
 
@@ -72,14 +72,19 @@ window.generateAndRenderUniqueSkillsByName = function(player) {
   }
 
   const candidateSkills = Array.from(uniqueCandidates);
-  const selectedSkill = candidateSkills[0]; // 最初の1つを選ばれたスキルとして表示
+  const selectedSkill = candidateSkills[0];
 
-  // グローバルに保存して他の画面でも使えるようにする
+  // ここでレベルキャップ緩和スキルをセット
+  window.levelCapExemptSkills = candidateSkills;
+
+  // 表示用にも保存
   window.candidateUniqueSkills = candidateSkills;
   window.uniqueSkillName = selectedSkill;
 
   // ステータス画面に反映
   renderUniqueSkillList(candidateSkills, selectedSkill);
+	
+	
 };
 
 
@@ -1400,24 +1405,8 @@ document.getElementById("battleArea").classList.remove("hidden");
   }
 	
 
-	
-// isFirstBattle のときだけ levelCapExemptSkills に保存（パッシブ除外）
-if (window.isFirstBattle) {
-	
-	window.initialAndSlotSkills = player.skills.map(sk => sk.name);
-		
-  const exemptSkillSet = new Set();
 
-  for (const name of window.initialAndSlotSkills) {
-    const def = skillPool.find(s => s.name === name);
-    if (def && def.category !== 'passive') {
-      exemptSkillSet.add(name);
-    }
-  }
 
-  window.levelCapExemptSkills = Array.from(exemptSkillSet);
-
-}
 
 drawSkillMemoryList();
 drawItemMemoryList();
@@ -2178,7 +2167,14 @@ window.exportSaveCode = async function() {
     skillMemoryOrder: Object.entries(player.skillMemory),
     itemMemory: player.itemMemory || [],
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
-levelCapExemptSkills: window.levelCapExemptSkills || []  // ←追加
+  levelCapExemptSkills: window.levelCapExemptSkills || [],
+  specialMode: window.specialMode || 'normal',
+  allowGrowthEvent: window.allowGrowthEvent || false,
+  allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+  allowItemInterrupt: window.allowItemInterrupt || false,
+  itemFilterMode: window.itemFilterMode || 'and',
+  itemFilterStates: window.itemFilterStates || {}
+   
 };
 
   const raw = JSON.stringify(payload);
@@ -2217,18 +2213,19 @@ levelCapExemptSkills: window.levelCapExemptSkills || []  // ←追加
 };
 
 
-// セーブコードの読み込み（入力値から復元）
-window.importSaveCode = async function() {
+window.importSaveCode = async function () {
   document.getElementById("skillMemoryList").classList.remove("hidden");
   const input = document.getElementById('saveData').value.trim();
 
   try {
+    // セーブコードの署名確認
     const parts = input.split('.');
     if (parts.length !== 2) throw new Error('形式が不正です');
     const [b64, hash] = parts;
     const computed = await generateHash(b64);
     if (computed !== hash) throw new Error('署名不一致');
 
+    // デコードとパース
     let raw = '';
     try {
       raw = decodeURIComponent(escape(atob(b64)));
@@ -2239,7 +2236,7 @@ window.importSaveCode = async function() {
     const parsed = JSON.parse(raw);
     player = parsed.player;
 
-    // 成長ボーナス初期化
+    // 成長ボーナスがない場合は初期化
     if (!player.growthBonus) {
       player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
     }
@@ -2247,35 +2244,41 @@ window.importSaveCode = async function() {
     // アイテムメモリ
     player.itemMemory = parsed.itemMemory || [];
 
-// 初期スキル復元（存在する場合のみ）
-if (player.initialAndSlotSkills) {
-  window.initialAndSlotSkills = player.initialAndSlotSkills;
-} else {
-  window.initialAndSlotSkills = [];
-}
+    // 初期スキル
+    window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
 
-// スキル制限緩和対象スキルの復元（新）
-if (parsed.levelCapExemptSkills) {
-  window.levelCapExemptSkills = parsed.levelCapExemptSkills;
-} else {
-  window.levelCapExemptSkills = [];
-}
+    // スキルレベル制限緩和対象
+    window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
 
     // その他ステータス
     window.growthMultiplier = parsed.growthMultiplier || 1;
     currentStreak = parsed.currentStreak || 0;
-    localStorage.setItem('rebirthCount', (parsed.rebirthCount || 0) + 1);
-		
-		window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
 
-    // 敵を生成（攻撃スキルありを保証）
+    // 転生カウント
+    const rebirth = (parsed.rebirthCount || 0) + 1;
+    localStorage.setItem('rebirthCount', rebirth);
+
+    // --- 新規追加設定の復元 ---
+    window.specialMode = parsed.specialMode || 'normal'; // 鬼畜モード: 'normal' or 'brutal'
+    window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
+    window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
+    window.allowItemInterrupt = parsed.allowItemInterrupt ?? true;
+    window.itemFilterMode = parsed.itemFilterMode || 'and';
+    window.itemFilterStates = parsed.itemFilterStates || {};
+
+    // --- UI初期化 ---
+    if (typeof setupToggleButtons === 'function') setupToggleButtons();
+    if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
+
+    // --- 敵を生成（攻撃スキルありを保証） ---
     do {
       enemy = makeCharacter('敵' + Math.random());
     } while (!hasOffensiveSkill(enemy));
 
+    // ステータス表示更新
     updateStats();
 
-    // タイトル画面を非表示、ゲーム画面へ
+    // タイトル画面を非表示 → ゲーム画面へ切り替え
     const title = document.getElementById('titleScreen');
     const game = document.getElementById('gameScreen');
     title.classList.add('fade-out');
@@ -2286,7 +2289,7 @@ if (parsed.levelCapExemptSkills) {
       game.classList.add('fade-in');
       document.getElementById("battleArea").classList.add("hidden");
 
-      // 表示更新
+      // 連勝表示
       const streakDisplay = document.getElementById('currentStreakDisplay');
       if (streakDisplay) {
         const baseBoost = 1.02;
@@ -2294,9 +2297,10 @@ if (parsed.levelCapExemptSkills) {
         streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
       }
 
+      // 転生回数表示
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
       if (rebirthDisplay) {
-        rebirthDisplay.textContent = '転生回数：' + (localStorage.getItem('rebirthCount') || 0);
+        rebirthDisplay.textContent = '転生回数：' + rebirth;
       }
 
       startBattle();
@@ -2306,6 +2310,78 @@ if (parsed.levelCapExemptSkills) {
     alert('セーブデータの読み込みに失敗しました：' + e.message);
   }
 };
+
+
+window.setupToggleButtons = function () {
+  const modeBtn = document.getElementById('kichikuToggle');
+  if (modeBtn) {
+    modeBtn.textContent = window.specialMode === 'brutal' ? '鬼畜モード中' : '通常モード中';
+  }
+
+  // 3つのイベントトグルボタン（id: skillDeleteToggle など）
+  const toggleConfigs = [
+    { id: 'skillDeleteToggle', flag: 'allowSkillDeleteEvent', label: 'スキル削除' },
+    { id: 'growthToggle', flag: 'allowGrowthEvent', label: '成長イベント' },
+    { id: 'itemInterruptToggle', flag: 'allowItemInterrupt', label: '入手停止' }
+  ];
+
+  toggleConfigs.forEach(cfg => {
+    const btn = document.getElementById(cfg.id);
+    if (btn) {
+      const active = window[cfg.flag] ?? true;
+      btn.textContent = `${cfg.label}：${active ? 'ON' : 'OFF'}`;
+    }
+  });
+};
+
+window.applyItemFilterUIState = function () {
+  const condBtn = document.getElementById('itemFilterConditionToggle');
+  if (condBtn) {
+    condBtn.textContent = window.itemFilterMode === 'or' ? 'いずれかの条件を満たす' : 'すべての条件を満たす';
+  }
+
+  const states = window.itemFilterStates || {};
+  ['color', 'adjective', 'noun'].forEach(type => {
+    const group = document.querySelectorAll(`input[data-filter-type="${type}"]`);
+    group.forEach(checkbox => {
+      const word = checkbox.getAttribute('data-filter-word');
+      checkbox.checked = states[type]?.[word] || false;
+    });
+  });
+};
+
+window.updateSpecialModeButton = function () {
+  const btn = document.getElementById('specialModeButton');
+  const battleBtn = document.getElementById('startBattleBtn');
+
+  if (window.specialMode === 'brutal') {
+    btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
+    btn.classList.remove('normal-mode');
+    btn.classList.add('brutal-mode');
+    battleBtn.classList.remove('normal-mode');
+    battleBtn.classList.add('brutal-mode');
+  } else {
+    btn.textContent = '通常モード';
+    btn.classList.remove('brutal-mode');
+    btn.classList.add('normal-mode');
+    battleBtn.classList.remove('brutal-mode');
+    battleBtn.classList.add('normal-mode');
+  }
+};
+
+window.updateItemFilterModeButton = function () {
+  const toggleBtn = document.getElementById('filterModeToggleBtn');
+  if (!toggleBtn) return;
+
+  toggleBtn.textContent = (window.itemFilterMode === 'and')
+    ? '各要素の条件を満たす'
+    : 'いずれかの条件を満たす';
+
+  toggleBtn.classList.toggle('and', window.itemFilterMode === 'and');
+  toggleBtn.classList.toggle('or', window.itemFilterMode === 'or');
+};
+
+
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
 window.loadGame = async function() {
@@ -2360,6 +2436,12 @@ do {
     } catch (e) {
     }
   }
+	
+	setupToggleButtons();           // イベント3種の表示切替
+updateSpecialModeButton();     // 鬼畜モードボタン状態反映
+updateItemFilterModeButton();  // AND/ORボタン状態反映
+applyItemFilterUIState();      // チェックボックス状態反映
+
 };
 
 // ゲーム終了処理（タイトル画面に戻る）
