@@ -620,25 +620,27 @@ function maybeGainItemMemory() {
 
   player.itemMemory.push(newItem);
   drawItemMemoryList();
-
-  const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
-  showCustomAlert(`新アイテム入手！ ${itemName}（${newItem.skillName}）`, 3000, "#ffa", "#000");
+const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+let message = `新アイテム入手！ ${itemName}（${newItem.skillName}）`;
 
 const anyFiltersSet = document.querySelectorAll('.itemFilterCB:checked').length > 0;
-if (
+const shouldPause = (
   shouldPauseForItem(newItem.color, newItem.adjective, newItem.noun) ||
   (!anyFiltersSet && window.allowItemInterrupt)
-) {
-    // 停止＋保護カウント追加
-    if (!window.battleCount) window.battleCount = 0;
-    window.protectItemUntil = window.battleCount + 10;
+);
 
-    setTimeout(() => {
-      if (typeof stopAutoBattle === 'function') stopAutoBattle();
-      isAutoBattle = false;
-      showCustomAlert(`>>> フィルター条件により停止！`, 3000, "#ff8", "#000");
-    }, 500);
-	}
+if (shouldPause) {
+  message += `<br>>> フィルター条件により停止！`;
+  if (!window.battleCount) window.battleCount = 0;
+  window.protectItemUntil = window.battleCount + 10;
+
+  setTimeout(() => {
+    if (typeof stopAutoBattle === 'function') stopAutoBattle();
+    isAutoBattle = false;
+  }, 500);
+}
+
+showCustomAlert(message, 4000, "#ffa", "#000");
 }		
 		
 function setupItemFilters() {
