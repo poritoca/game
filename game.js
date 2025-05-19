@@ -217,12 +217,12 @@ const itemAdjectives = [
   { word: '煤けた', activationRate: 0.1, dropRate: 0.025 },
   { word: '冷たい', activationRate: 0.25, dropRate: 0.01 },
   { word: '重い', activationRate: 0.2, dropRate: 0.008 },
-  { word: '鋭い', activationRate: 0.35, dropRate: 0.006 },
-  { word: '輝く', activationRate: 0.38, dropRate: 0.003 },
-  { word: '神秘的な', activationRate: 0.42, dropRate: 0.0025 },
-  { word: '伝説の', activationRate: 0.6, dropRate: 0.002 },
-  { word: '超越した', activationRate: 0.8, dropRate: 0.001 },
-  { word: '神の', activationRate: 1.0, dropRate: 0.0001 }
+  { word: '鋭い', activationRate: 0.35, dropRate: 0.0016 },
+  { word: '輝く', activationRate: 0.38, dropRate: 0.0008 },
+  { word: '神秘的な', activationRate: 0.42, dropRate: 0.0005 },
+  { word: '伝説の', activationRate: 0.6, dropRate: 0.0002 },
+  { word: '超越した', activationRate: 0.8, dropRate: 0.0001 },
+  { word: '神の', activationRate: 1.0, dropRate: 0.00001 }
 ];
 
 
@@ -1424,9 +1424,9 @@ do {
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
 const specialSkillThreshold = 999;
-const maxSpecialSkillLevel = 3000;
+const maxSpecialSkillLevel = 5000;
 const statMultiplierMin = 0.8;
-const statMultiplierMax = 1.2;
+const statMultiplierMax = 1.4;
 const specialChance = window.getSpecialChance();
 
 let hasSpecialSkill = false;
@@ -1456,44 +1456,46 @@ const maxPossibleLevel = Math.floor(1000 + 2000 * Math.pow(streakFactor, growthP
 });
 
 // 名前修正
+// ステータス調整（共通ベースをまず作る）
 if (hasSpecialSkill) {
     enemy.name = `${specialSkillName}${originalKanaName}`;
 } else {
     enemy.name = originalKanaName;
 }
 
-// ステータス調整
-if (hasSpecialSkill) {
-    const atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    const def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    const spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    const hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+const atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+const def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+const spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+const hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
 
-    // baseStatsも更新（getEffectiveStat参照用）
-    enemy.baseStats.attack = atk;
-    enemy.baseStats.defense = def;
-    enemy.baseStats.speed = spd;
-    enemy.baseStats.maxHp = hpMax;
+enemy.baseStats.attack = atk;
+enemy.baseStats.defense = def;
+enemy.baseStats.speed = spd;
+enemy.baseStats.maxHp = hpMax;
 
-    enemy.attack = atk;
-    enemy.defense = def;
-    enemy.speed = spd;
-    enemy.maxHp = hpMax;
-    enemy.hp = hpMax;
+// まずはそのまま入れておき、あとで補正をかける
+enemy.attack = atk;
+enemy.defense = def;
+enemy.speed = spd;
+enemy.maxHp = hpMax;
+enemy.hp = hpMax;
 
-		
-		
-} else {
-    if (currentStreak > 0) {
-        const factor = Math.pow(1.1, currentStreak);
-        enemy.attack = Math.floor(getEffectiveStat(enemy, 'attack') * factor);
-        enemy.defense = Math.floor(getEffectiveStat(enemy, 'defense') * factor);
-        enemy.speed = Math.floor(getEffectiveStat(enemy, 'speed') * factor);
-        enemy.maxHp = Math.floor(enemy.maxHp * factor);
-        enemy.hp = enemy.maxHp;
-    }
+// 補正処理（鬼畜モード or 通常モード）
+if (window.specialMode === 'brutal') {
+    const brutalBonus = 1 + currentStreak * 0.005;  // 1.005, 1.01, ...
+    enemy.attack = Math.floor(enemy.attack * brutalBonus);
+    enemy.defense = Math.floor(enemy.defense * brutalBonus);
+    enemy.speed = Math.floor(enemy.speed * brutalBonus);
+    enemy.maxHp = Math.floor(enemy.maxHp * brutalBonus);
+    enemy.hp = enemy.maxHp;
+} else if (currentStreak > 0) {
+    const factor = Math.pow(1.005, currentStreak);
+    enemy.attack = Math.floor(enemy.attack * factor);
+    enemy.defense = Math.floor(enemy.defense * factor);
+    enemy.speed = Math.floor(enemy.speed * factor);
+    enemy.maxHp = Math.floor(enemy.maxHp * factor);
+    enemy.hp = enemy.maxHp;
 }
-	
 
 
 
@@ -1520,7 +1522,7 @@ const factor = Math.pow(1.1, currentStreak);
 if (window.specialMode === 'brutal') {
     log.push(`[鬼畜モード挑戦中]`);
 } else {
-    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.10^${currentStreak}）`);
+    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.005^${currentStreak}）`);
 }
   let turn = 1;
   const MAX_TURNS = 30;
@@ -1668,7 +1670,7 @@ for (let i = player.itemMemory.length - 1; i >= 0; i--) {
 		
 getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
 
-if (item.skillLevel < 3000 && Math.random() < 0.5) {
+if (item.skillLevel < 3000 && Math.random() < 0.05) {
   item.skillLevel++;
   log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
   drawItemMemoryList();
@@ -1837,9 +1839,9 @@ player.skills.forEach(sk => {
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-let skillGainChance = Math.min(1.0, 0.05 * rarity);
+let skillGainChance = Math.min(1.0, 0.02 * rarity);
 if (window.specialMode === 'brutal') {
-    skillGainChance = 0.2;  // 鬼畜モードで2倍にする
+    skillGainChance = 0.02;  // 鬼畜モードで変更する
 }
   log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
@@ -2134,6 +2136,19 @@ document.getElementById('skillSimulCountSelect').addEventListener('change', e =>
 
 
 
+window.buildItemFilterStates = function () {
+  const state = { color: {}, adj: {}, noun: {} };
+  ['color', 'adj', 'noun'].forEach(type => {
+    const checkboxes = document.querySelectorAll(`.itemFilterCB[data-type="${type}"]`);
+    checkboxes.forEach(cb => {
+      state[type][cb.value] = cb.checked;
+    });
+  });
+  return state;
+};
+
+
+
 
 // セーブデータの署名用SHA-256ハッシュ生成
 async function generateHash(input) {
@@ -2156,9 +2171,13 @@ window.exportSaveCode = async function() {
     player.hp = player.maxHp;
   }
 
-  // 初期スキル情報を保存対象に反映
+  window.itemFilterStates = buildItemFilterStates();
+	
+	// 初期スキル情報を保存対象に反映
   player.initialAndSlotSkills = window.initialAndSlotSkills || [];
 
+	window.itemFilterStates = buildItemFilterStates();
+	
   const payload = {
     player,
     currentStreak,
@@ -2267,6 +2286,7 @@ window.importSaveCode = async function () {
     window.itemFilterStates = parsed.itemFilterStates || {};
 
     // --- UI初期化 ---
+		if (typeof setupItemFilters === 'function') setupItemFilters();
     if (typeof setupToggleButtons === 'function') setupToggleButtons();
     if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
 
@@ -2277,6 +2297,15 @@ window.importSaveCode = async function () {
 
     // ステータス表示更新
     updateStats();
+		
+		
+		// 設定読み込み後のUI反映
+if (typeof setupToggleButtons === 'function') setupToggleButtons();               // イベントボタン
+if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();     // 鬼畜モードボタン
+if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton(); // AND/ORボタン
+if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();       // チェックボックス状態
+		
+		
 
     // タイトル画面を非表示 → ゲーム画面へ切り替え
     const title = document.getElementById('titleScreen');
@@ -2335,17 +2364,12 @@ window.setupToggleButtons = function () {
 };
 
 window.applyItemFilterUIState = function () {
-  const condBtn = document.getElementById('itemFilterConditionToggle');
-  if (condBtn) {
-    condBtn.textContent = window.itemFilterMode === 'or' ? 'いずれかの条件を満たす' : 'すべての条件を満たす';
-  }
-
-  const states = window.itemFilterStates || {};
-  ['color', 'adjective', 'noun'].forEach(type => {
-    const group = document.querySelectorAll(`input[data-filter-type="${type}"]`);
-    group.forEach(checkbox => {
-      const word = checkbox.getAttribute('data-filter-word');
-      checkbox.checked = states[type]?.[word] || false;
+  ['color', 'adj', 'noun'].forEach(type => {
+    const checkboxes = document.querySelectorAll(`.itemFilterCB[data-type="${type}"]`);
+    checkboxes.forEach(cb => {
+      if (window.itemFilterStates?.[type]?.hasOwnProperty(cb.value)) {
+        cb.checked = window.itemFilterStates[type][cb.value];
+      }
     });
   });
 };
@@ -2437,10 +2461,7 @@ do {
     }
   }
 	
-	setupToggleButtons();           // イベント3種の表示切替
-updateSpecialModeButton();     // 鬼畜モードボタン状態反映
-updateItemFilterModeButton();  // AND/ORボタン状態反映
-applyItemFilterUIState();      // チェックボックス状態反映
+	
 
 };
 
