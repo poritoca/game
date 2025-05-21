@@ -732,6 +732,7 @@ import { drawCharacterImage } from './drawCharacter.js';
 let player = null;
 let enemy = null;
 let currentStreak = 0;
+let sessionMaxStreak = 0;
 let streakBonus = 1;
 let skillSimulCount = 2;
 let hpHistory = [];
@@ -934,9 +935,11 @@ if (isPlayer) {
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
+	
+	currentStreak = 0;
+  sessionMaxStreak = 0;
   const title = document.getElementById('titleScreen');
   const game = document.getElementById('gameScreen');
-
   // フェードアウト → 非表示 → ゲーム画面表示
   title.classList.add('fade-out');
   setTimeout(() => {
@@ -946,23 +949,43 @@ window.startNewGame = function() {
 
     // 通常初期化処理
     statusLogged = false;
-		
-		if (!player) {
-  player = {};
-}
-if (!player.itemMemory) {
-  player.itemMemory = [];
-}
-   
-
-document.getElementById('battleLog').classList.remove('hidden');
+    if (!player) {
+      player = {};
+    }
+    if (!player.itemMemory) {
+      player.itemMemory = [];
+    }
+    document.getElementById('battleLog').classList.remove('hidden');
     document.getElementById("battleArea").classList.add("hidden");
     currentStreak = 0;
     document.getElementById("skillMemoryContainer").style.display = "block";
 
-		  startBattle();
+    // ★追加: 戦闘回数入力の処理と初期設定
+    window.maxStreak = 0;  // 最大連勝数のリセット
+    const battleBtn = document.getElementById('startBattleBtn');
+    if (battleBtn) battleBtn.disabled = false;  // 次の戦闘ボタンを有効化
+const selectEl = document.getElementById('battleCountSelect');
+if (selectEl) {
+  const selectedVal = selectEl.value;
+  if (selectedVal === "unlimited") {
+    window.targetBattles = null;
+    window.remainingBattles = null;
+    document.getElementById('remainingBattlesDisplay').style.display = 'none';
+  } else {
+    const countVal = parseInt(selectedVal, 10);
+    window.targetBattles = countVal;
+    window.remainingBattles = countVal;
+    const remainDisplay = document.getElementById('remainingBattlesDisplay');
+    if (remainDisplay) {
+      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      remainDisplay.style.display = 'block';
+    }
+  }
+}
+    // ★追加ここまで
 
-  }, 500); // アニメーション時間と一致
+    startBattle();
+  }, 500);
 };
 
 // 対戦モード選択画面表示
@@ -1003,14 +1026,19 @@ window.getSkillEffect = function(skill, user, target, log) {
     return;
   }
 	
-	if (user !== player) {
+if (user !== player) {
   let failChance = 0;
+
   if (currentStreak <= 10) {
-    failChance = 0.7;
+    failChance = 0.8;
   } else if (currentStreak <= 30) {
-    failChance = 0.2;
+    failChance = 0.55;
   } else if (currentStreak <= 50) {
-    failChance = 0.1;
+    failChance = 0.4;
+  } else if (currentStreak <= 100) {
+    failChance = 0.2;
+  } else {
+    failChance = 0; // 100連勝を超えたら失敗しない
   }
 
   if (Math.random() < failChance) {
@@ -1792,6 +1820,9 @@ Math.random() < finalRate) {
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
   if (playerWon) {
+		if (currentStreak > sessionMaxStreak) {
+    sessionMaxStreak = currentStreak;
+}
     if (window.specialMode === 'brutal') {
         currentStreak += 1;
 				
@@ -2034,12 +2065,14 @@ showCustomAlert(
 setTimeout(() => {
   showCustomAlert(
     fullMessage,
-    1500,
+    1000,
     "rgba(173, 216, 230, 0.85)",
     "#000",
     false
   );
 }, 1100);
+
+
 
 drawSkillMemoryList();
 }
@@ -2056,19 +2089,103 @@ log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
 
 //if (player.hp > player.maxHp) player.hp = player.maxHp;
 
-log.push(`
-現在の連勝数: ${currentStreak}`);
+// 現在の連勝数をログに追加
+log.push(`現在の連勝数: ${currentStreak}`);
+// 最大連勝数（セッション内）をログに追加
+log.push(`最大連勝数: ${sessionMaxStreak}`);
+
 const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
 if (currentStreak > maxStreak) {
   localStorage.setItem('maxStreak', currentStreak);
 }
-log.push(`最大連勝数: ${Math.max(currentStreak, maxStreak)}`);
 
 maybeTriggerEvent();
 
 document.getElementById('battleLog').textContent = log.join('\n');
 drawHPGraph();
 updateStats();
+
+// （勝敗処理・ログ更新・updateStats()等の直後）
+try {
+  // ★追加: 戦闘回数のカウントダウンと結果表示
+  if (window.remainingBattles != null) {
+    window.remainingBattles--;
+    const remainDisplay = document.getElementById('remainingBattlesDisplay');
+    if (window.remainingBattles > 0) {
+      // 残り回数がある場合：表示を更新
+      if (remainDisplay) {
+        remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      }
+    } else if (window.remainingBattles <= 0) {
+      // 戦闘回数が0になった場合：結果を集計して表示
+      window.remainingBattles = 0;
+      if (remainDisplay) {
+        remainDisplay.style.display = 'none';
+      }
+      // 最大連勝数・最終ステータスを取得
+      const maxStreak = window.maxStreak || 0;
+      const finalAtk = player.attack || 0;
+      const finalDef = player.defense || 0;
+      const finalSpd = player.speed || 0;
+      const finalHP = player.maxHp || 0;
+      // 所持アイテムの総レアリティを計算（ドロップ率の逆数の合計）
+      let totalRarity = 0;
+      if (player.itemMemory && player.itemMemory.length > 0) {
+        for (const item of player.itemMemory) {
+          const adjDef = itemAdjectives.find(a => a.word === item.adjective);
+          const nounDef = itemNouns.find(n => n.word === item.noun);
+          const colorDef = itemColors.find(c => c.word === item.color);
+          let dropRate = 1;
+          if (colorDef && colorDef.dropRateMultiplier) dropRate *= colorDef.dropRateMultiplier;
+          if (adjDef && adjDef.dropRate) dropRate *= adjDef.dropRate;
+          if (nounDef && nounDef.dropRateMultiplier) dropRate *= nounDef.dropRateMultiplier;
+          if (dropRate < 1e-9) dropRate = 1e-9;  // ゼロ除算防止
+          totalRarity += (1 / dropRate);
+        }
+      }
+      // 合計スコアを算出（攻撃力・防御力・素早さ・最大HP・総レアリティの合計）
+const totalScore = Math.round(
+  (finalAtk + finalDef + finalSpd + finalHP + totalRarity)*sessionMaxStreak
+);
+      // レアリティ合計は小数点2桁まで表示（整数の場合は整数表示）
+      let rarityStr = (Math.round(totalRarity * 100) / 100).toFixed(2);
+      if (rarityStr.endsWith('.00')) {
+        rarityStr = parseInt(rarityStr, 10).toString();
+      }
+      // 結果表示ボックスに内容を挿入して表示
+      const finalResEl = document.getElementById('finalResults');
+
+if (finalResEl) {
+	const maxStreak = sessionMaxStreak || 0;
+finalResEl.innerHTML = `
+  <div class="final-death-title">${displayName(player.name)} は息絶えた…</div>
+  
+  <div class="final-stats">
+    <p>設定戦闘回数: ${window.targetBattles || "未設定"}</p>
+    <p>最大連勝数: ${sessionMaxStreak}</p>
+    <p>最終ステータス：<br>
+       攻撃力: ${finalAtk}<br>
+       防御力: ${finalDef}<br>
+       素早さ: ${finalSpd}<br>
+       最大HP: ${finalHP}</p>
+    <p>アイテム総レアリティ: ${rarityStr}</p>
+  </div>
+
+  <div class="final-score-value">合計スコア: ${totalScore}</div>
+`;
+finalResEl.style.display = 'block';
+}
+      // 自動戦闘を停止し、戦闘ボタンを無効化
+      if (typeof stopAutoBattle === 'function') stopAutoBattle();
+      const battleBtn = document.getElementById('startBattleBtn');
+      if (battleBtn) battleBtn.disabled = true;
+    }
+  }
+  // ★追加ここまで
+} catch (e) {
+  // （エラーハンドリング）
+}
+
 drawSkillMemoryList();
 drawItemMemoryList();
 try {
@@ -2109,7 +2226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
-      }, 150); // 連打間隔（ミリ秒）調整可
+      }, 200); // 連打間隔（ミリ秒）調整可
     }
   }
 
@@ -2176,12 +2293,10 @@ window.exportSaveCode = async function() {
   }
 
   window.itemFilterStates = buildItemFilterStates();
-	
-	// 初期スキル情報を保存対象に反映
+
+  // 初期スキル情報を保存対象に反映
   player.initialAndSlotSkills = window.initialAndSlotSkills || [];
 
-	window.itemFilterStates = buildItemFilterStates();
-	
   const payload = {
     player,
     currentStreak,
@@ -2190,13 +2305,18 @@ window.exportSaveCode = async function() {
     skillMemoryOrder: Object.entries(player.skillMemory),
     itemMemory: player.itemMemory || [],
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
-  levelCapExemptSkills: window.levelCapExemptSkills || [],
-  specialMode: window.specialMode || 'normal',
-  allowGrowthEvent: window.allowGrowthEvent || false,
-  allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
-  allowItemInterrupt: window.allowItemInterrupt || false,
-  itemFilterMode: window.itemFilterMode || 'and',
-  itemFilterStates: window.itemFilterStates || {}
+    levelCapExemptSkills: window.levelCapExemptSkills || [],
+    specialMode: window.specialMode || 'normal',
+    allowGrowthEvent: window.allowGrowthEvent || false,
+    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+    allowItemInterrupt: window.allowItemInterrupt || false,
+    itemFilterMode: window.itemFilterMode || 'and',
+    itemFilterStates: window.itemFilterStates || {},
+
+    // ★追加：戦闘回数の保存
+    remainingBattles: window.remainingBattles ?? null,
+    targetBattles: window.targetBattles ?? null
+  
    
 };
 
@@ -2277,12 +2397,24 @@ window.importSaveCode = async function () {
     window.growthMultiplier = parsed.growthMultiplier || 1;
     currentStreak = parsed.currentStreak || 0;
 
+    // ★ 追加: 戦闘回数・残り回数の復元
+    window.remainingBattles = parsed.remainingBattles ?? null;
+    window.targetBattles = parsed.targetBattles ?? null;
+
+    const remainDisplay = document.getElementById('remainingBattlesDisplay');
+    if (window.remainingBattles != null && remainDisplay) {
+      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      remainDisplay.style.display = 'block';
+    } else if (remainDisplay) {
+      remainDisplay.style.display = 'none';
+    }
+
     // 転生カウント
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
 
     // --- 新規追加設定の復元 ---
-    window.specialMode = parsed.specialMode || 'normal'; // 鬼畜モード: 'normal' or 'brutal'
+    window.specialMode = parsed.specialMode || 'normal';
     window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
     window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
     window.allowItemInterrupt = parsed.allowItemInterrupt ?? true;
@@ -2290,28 +2422,25 @@ window.importSaveCode = async function () {
     window.itemFilterStates = parsed.itemFilterStates || {};
 
     // --- UI初期化 ---
-		if (typeof setupItemFilters === 'function') setupItemFilters();
+    if (typeof setupItemFilters === 'function') setupItemFilters();
     if (typeof setupToggleButtons === 'function') setupToggleButtons();
     if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
 
-    // --- 敵を生成（攻撃スキルありを保証） ---
+    // 敵を生成（攻撃スキルありを保証）
     do {
       enemy = makeCharacter('敵' + Math.random());
     } while (!hasOffensiveSkill(enemy));
 
     // ステータス表示更新
     updateStats();
-		
-		
-		// 設定読み込み後のUI反映
-if (typeof setupToggleButtons === 'function') setupToggleButtons();               // イベントボタン
-if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();     // 鬼畜モードボタン
-if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton(); // AND/ORボタン
-if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();       // チェックボックス状態
-		
-		
 
-    // タイトル画面を非表示 → ゲーム画面へ切り替え
+    // 表示の同期
+    if (typeof setupToggleButtons === 'function') setupToggleButtons();
+    if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
+    if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
+    if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
+
+    // タイトル → ゲーム画面へ切り替え
     const title = document.getElementById('titleScreen');
     const game = document.getElementById('gameScreen');
     title.classList.add('fade-out');
