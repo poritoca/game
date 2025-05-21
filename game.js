@@ -13,6 +13,22 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+
+window.updateScoreOverlay = function () {
+  const overlay = document.getElementById('scoreOverlay');
+  if (!overlay || !window.maxScores) return;
+
+  let html = '最高スコア一覧\n';
+  const entries = [100, 200, 500, 1000, 5000, 10000];
+  for (const num of entries) {
+    const score = window.maxScores[num];
+    if (score != null) {
+      html += `${num}戦: ${score}\n`;
+    }
+  }
+  overlay.textContent = html.trim();
+};
+
 window.renderUniqueSkillList = function(candidates, chosenSkillName) {
   const toggleBtn = document.getElementById('toggleUniqueSkills');
   const listEl = document.getElementById('uniqueSkillList');
@@ -2105,6 +2121,32 @@ document.getElementById('battleLog').textContent = log.join('\n');
 drawHPGraph();
 updateStats();
 
+window.returnToTitleScreen = function () {
+  // 画面の各部品を取得
+  const gameScreen = document.getElementById('gameScreen');
+  const titleScreen = document.getElementById('titleScreen');
+  const finalResults = document.getElementById('finalResults');
+  const battleArea = document.getElementById('battleArea');
+  const remainDisplay = document.getElementById('remainingBattlesDisplay');
+  const streakDisplay = document.getElementById('currentStreakDisplay');
+
+  // 表示切り替え
+  if (gameScreen) gameScreen.classList.add('hidden');
+  if (titleScreen) titleScreen.classList.remove('hidden');
+  if (finalResults) finalResults.style.display = 'none';
+  if (battleArea) battleArea.classList.add('hidden');
+  if (remainDisplay) remainDisplay.style.display = 'none';
+  if (streakDisplay) streakDisplay.textContent = '';
+
+  // ゲーム内変数を初期化（window を通して安全に）
+  if ('player' in window) window.player = null;
+  if ('enemy' in window) window.enemy = null;
+  if ('currentStreak' in window) window.currentStreak = 0;
+  if ('sessionMaxStreak' in window) window.sessionMaxStreak = 0;
+  if ('remainingBattles' in window) window.remainingBattles = null;
+  if ('targetBattles' in window) window.targetBattles = null;
+  if ('initialAndSlotSkills' in window) window.initialAndSlotSkills = [];
+};
 // （勝敗処理・ログ更新・updateStats()等の直後）
 try {
   // ★追加: 戦闘回数のカウントダウンと結果表示
@@ -2172,7 +2214,37 @@ finalResEl.innerHTML = `
   </div>
 
   <div class="final-score-value">合計スコア: ${totalScore}</div>
+	<button id="backToTitleButton" style="
+  margin-top: 30px;
+  padding: 10px 20px;
+  font-size: 1em;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(to right, #333, #666);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.2);
+  cursor: pointer;
+">
+  タイトルに戻る
+</button>
 `;
+// スコア記録（無制限を除く）
+const validTargets = [100, 200, 500, 1000, 5000, 10000];
+const target = Number(window.targetBattles);
+if (validTargets.includes(target)) {
+  if (!window.maxScores) window.maxScores = {};
+  const prev = window.maxScores[target] ?? null;
+  if (prev === null || totalScore > prev) {
+    window.maxScores[target] = totalScore;
+    if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+  }
+}
+
+document.getElementById('backToTitleButton').onclick = function () {
+	
+  returnToTitleScreen();
+};
 finalResEl.style.display = 'block';
 }
       // 自動戦闘を停止し、戦闘ボタンを無効化
@@ -2195,6 +2267,19 @@ try {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+	  if (typeof updateScoreOverlay === 'function') {
+    updateScoreOverlay();
+  }
+  
+  const returnBtn = document.getElementById('returnToTitleBtnInGame');
+  if (returnBtn) {
+    returnBtn.addEventListener('click', () => {
+      if (confirm("本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）")) {
+        if (typeof returnToTitleScreen === 'function') returnToTitleScreen();
+      }
+    });
+  }
+
 	
 	const downloadBtn = document.getElementById('downloadLogsBtn');
   if (downloadBtn) {
@@ -2226,7 +2311,7 @@ document.addEventListener('DOMContentLoaded', () => {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
-      }, 200); // 連打間隔（ミリ秒）調整可
+      }, 150); // 連打間隔（ミリ秒）調整可
     }
   }
 
@@ -2315,7 +2400,8 @@ window.exportSaveCode = async function() {
 
     // ★追加：戦闘回数の保存
     remainingBattles: window.remainingBattles ?? null,
-    targetBattles: window.targetBattles ?? null
+    targetBattles: window.targetBattles ?? null,
+		maxScores: window.maxScores || {},
   
    
 };
@@ -2378,7 +2464,7 @@ window.importSaveCode = async function () {
 
     const parsed = JSON.parse(raw);
     player = parsed.player;
-
+    window.maxScores = parsed.maxScores || {};
     // 成長ボーナスがない場合は初期化
     if (!player.growthBonus) {
       player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
@@ -2464,7 +2550,7 @@ window.importSaveCode = async function () {
       if (rebirthDisplay) {
         rebirthDisplay.textContent = '転生回数：' + rebirth;
       }
-
+      if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
       startBattle();
     }, 500);
 

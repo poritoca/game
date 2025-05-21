@@ -9,6 +9,19 @@
 
 <body>
 	
+	<div id="scoreOverlay" style="
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 13px;
+  color: #fff;
+  opacity: 0.6;
+  pointer-events: none;
+  line-height: 1.4;
+  z-index: 5;
+  white-space: pre-wrap;
+"></div>
+	
   <!-- カスタムアラート -->
   <div id="customAlertContainer" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
     z-index: 9999; pointer-events: none;"></div>
@@ -294,8 +307,23 @@
     <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly />
-			
+			<button id="returnToTitleBtnInGame" style="
+
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: bold;
+  background-color: #0066cc;
+  color: #fff;
+  border: 2px solid #004c99;
+  border-radius: 6px;
+  cursor: pointer;
+  text-shadow: 1px 1px 2px #000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+">
+  タイトルに戻る
+</button>
     </div>
+
   </div>
     </div>
   <!-- スクリプト読込 -->
