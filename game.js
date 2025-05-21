@@ -316,6 +316,27 @@ window.allowGrowthEvent = true;
 window.allowSkillDeleteEvent = true;
 window.allowItemInterrupt = true;  // ← 新規追加
 
+
+function showSubtitle(message, duration = 2000) {
+  const subtitleEl = document.getElementById('subtitleOverlay');
+  if (!subtitleEl) return;
+
+  subtitleEl.innerHTML = message;
+  subtitleEl.style.display = 'block';
+  subtitleEl.style.opacity = '1';
+
+  // フェードアウト
+  setTimeout(() => {
+    subtitleEl.style.transition = 'opacity 0.5s ease';
+    subtitleEl.style.opacity = '0';
+    setTimeout(() => {
+      subtitleEl.style.display = 'none';
+      subtitleEl.style.transition = '';
+    }, 500);
+  }, duration);
+}
+
+
 function setupToggleButtons() {
   const growthBtn = document.getElementById('toggleGrowthEvents');
   const skillDelBtn = document.getElementById('toggleSkillDeleteEvents');
@@ -2072,21 +2093,10 @@ const fullMessage = `
   ${carriedSkillHtml}
 </div>`;
 
-// 敗北アラート表示
-showCustomAlert(
-  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}` +
-  `<br><span style="font-size:13px;">※スキルは記憶に基づいて再構成されます</span>`,
-  2000, "#e60000", "#fff", true
+showSubtitle(
+  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
+  2500
 );
-setTimeout(() => {
-  showCustomAlert(
-    fullMessage,
-    1000,
-    "rgba(173, 216, 230, 0.85)",
-    "#000",
-    false
-  );
-}, 1100);
 
 
 
@@ -2311,7 +2321,7 @@ document.addEventListener('DOMContentLoaded', () => {
       battleInterval = setInterval(() => {
         if (isWaitingGrowth) return;
         window.startBattle();
-      }, 150); // 連打間隔（ミリ秒）調整可
+      }, 100); // 連打間隔（ミリ秒）調整可
     }
   }
 
