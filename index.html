@@ -13,7 +13,7 @@
   position: absolute;
   top: 10px;
   left: 10px;
-  font-size: 13px;
+  font-size: 11px;
   color: #fff;
   opacity: 0.6;
   pointer-events: none;
@@ -83,7 +83,7 @@
 
     <h3>戦闘について</h3>
     <p>
-        戦闘はターン制で進行し、プレイヤーと敵が交互にスキルを使用し合います。相手のHPを0にすると勝利です。所持スキルの中から自動的に複数のスキルが選出され同時に発動します（必ず攻撃スキルが最低1つ含まれます）。
+        戦闘はターン制で進行し、プレイヤーと敵が交互にスキルを使用し合います。相手のHPを0にすると勝利です。所持スキルの中から自動的に複数のスキルが選出され同時に発動します（必ず固有スキルが最低1つと、攻撃スキルが最低1つ含まれます）。
     </p>
 
     <h3>ゲーム終了とスコア</h3>
@@ -99,7 +99,7 @@
         初期スキルは白色で表示され、それ以外の習得スキルは色付きで表示されます。パッシブスキル（補助効果）はゴールドで表示され、常時効果を発揮します。
     </p>
 
-    <h3>アイテムメモリー</h3>
+    <h3>所持アイテム</h3>
     <p>
         特定条件下で入手できるアイテムは対応するスキル1つと結びついており、戦闘中に自動発動します。<br>
         使用回数・発動確率・破損率といった性能は、アイテム名を構成する以下の要素によって決まります。
@@ -246,8 +246,24 @@
      style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%);
             background:#333; color:#fff; padding:20px; border:2px solid #fff; z-index:10000; max-width:300px;">
   <!-- 最終結果はJavaScriptで埋め込まれます -->
+	
 </div>
-    <!-- アイテムメモリー -->
+    <!-- スキルメモリー -->
+    <h3>スキルメモリー</h3>
+    <div id="skillMemoryContainer" style="display: none;">
+      <ul id="skillMemoryList"></ul>
+      <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+      <label>同時発動スキル数（通常モードのみ）:
+        <select id="skillSimulCountSelect">
+          <option value="1">1個</option>
+          <option value="2" selected>2個</option>
+          <option value="3">3個</option>
+          <option value="4">4個</option>
+          <option value="5">5個</option>
+        </select>
+      </label>
+    </div>
+    <!-- アイテムー -->
     <h3>所持アイテム</h3>
     <div id="itemMemoryContainer">
       <ul id="itemMemoryList"></ul>
@@ -273,21 +289,7 @@
       </div>
 
 
-    <!-- スキルメモリー -->
-    <h3>スキルメモリー</h3>
-    <div id="skillMemoryContainer" style="display: none;">
-      <ul id="skillMemoryList"></ul>
-      <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
-      <label>同時発動スキル数（通常モードのみ）:
-        <select id="skillSimulCountSelect">
-          <option value="1">1個</option>
-          <option value="2" selected>2個</option>
-          <option value="3">3個</option>
-          <option value="4">4個</option>
-          <option value="5">5個</option>
-        </select>
-      </label>
-    </div>
+
 
     <!-- イベントポップアップ -->
     <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);

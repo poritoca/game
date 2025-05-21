@@ -926,7 +926,21 @@ window.formatSkills = function(c) {
     }
 
     return {
-      html: `<span title='${desc}' style='color:${color}'>${skillName} Lv${s.level || 1}</span>`,
+html: `<span title='${desc}' style="
+  color: ${color};
+  background: linear-gradient(135deg, rgba(30,30,30,0.95), rgba(10,10,10,0.95));
+  padding: 5px 10px;
+  margin: 4px;
+  border-radius: 8px;
+  border: 1px solid ${color};
+  display: inline-block;
+  font-weight: bold;
+  font-size: 13px;
+  text-shadow: 0 0 4px ${color}, 0 0 2px #000;
+  box-shadow: 0 0 8px rgba(0,0,0,0.6);
+">
+  ${skillName} Lv${s.level || 1}
+</span>`,
       priority: priority
     };
   });
@@ -1372,6 +1386,28 @@ case 'berserk': {
   log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン 攻撃${attackFactor.toFixed(2)}倍 / 防御${defenseFactor.toFixed(2)}倍`);
   break;
 }
+}
+
+if (user === player && skill.level < 9999) {
+  // 成長確率をスキルレベルに応じて調整
+  const baseChance = 0.1; // 最大20%
+  const levelFactor = skill.level < 1000 ? 1 : 1000 / skill.level;
+  const growChance = baseChance * levelFactor;
+
+  if (Math.random() < growChance) {
+    skill.level++;
+    log.push(`${displayName(user.name)}のスキル「${skill.name}」が Lv${skill.level} に成長！`);
+
+    if (player.skillMemory && player.skillMemory[skill.name] !== undefined) {
+      player.skillMemory[skill.name] = Math.max(skill.level, player.skillMemory[skill.name]);
+    }
+
+    // スキルメモリー画面が表示されていれば即時更新
+    const skillListVisible = document.getElementById("skillMemoryList");
+    if (skillListVisible && !skillListVisible.classList.contains("hidden")) {
+      drawSkillMemoryList();
+    }
+  }
 }
   // ダメージ実績を記録
   user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
@@ -2830,29 +2866,52 @@ window.showWhiteSkillSelector = function(callback) {
 
 const whiteSkills = player.skills.slice(); // 所持スキル全てをそのままコピー
 
-    if (whiteSkills.length === 0) {
-        popup.style.display = 'none';
-        showCustomAlert("削除できる白スキルがありません！");
-        return;
-    }
+if (whiteSkills.length === 0) {
+    popup.style.display = 'none';
+    showCustomAlert("削除できる白スキルがありません！");
+    return;
+}
 
-    whiteSkills.forEach(s => {
-        const option = document.createElement('option');
-        option.value = s.name;
-        option.textContent = `${s.name} Lv${s.level}`;
-        selectEl.appendChild(option);
-    });
+// 既存の選択肢をクリア
+selectEl.innerHTML = '';
 
-    selectBtn.onclick = () => {
-        const selectedName = selectEl.value;
-        popup.style.display = 'none';
-        callback(selectedName);
-    };
+whiteSkills.forEach(s => {
+    const option = document.createElement('option');
+    option.value = s.name;
+    option.textContent = `${s.name} Lv${s.level}`;
+    selectEl.appendChild(option);
+});
 
-    titleEl.textContent = "消す白スキルを選んでください";
-    selectContainer.style.display = 'block';
+// 「やめる」ボタンがまだ追加されていなければ追加する
+if (!document.getElementById('cancelDeleteSkillBtn')) {
+  const cancelBtn = document.createElement('button');
+  cancelBtn.id = 'cancelDeleteSkillBtn';
+  cancelBtn.textContent = 'やめる';
 
-    popup.style.display = 'block';
+  // 決定ボタンと同じクラスとスタイルに統一
+  cancelBtn.className = 'event-popup-button'; // ← ボタン共通クラス
+
+  cancelBtn.onclick = () => {
+    popup.style.display = 'none';
+  };
+
+  // ボタン配置（決定ボタンの横に）
+  const btnContainer = document.getElementById('eventPopupSelectContainer');
+  if (btnContainer) {
+    btnContainer.appendChild(cancelBtn);
+  }
+}
+
+// 決定ボタン
+selectBtn.onclick = () => {
+    const selectedName = selectEl.value;
+    popup.style.display = 'none';
+    callback(selectedName);
+};
+
+titleEl.textContent = "消す白スキルを選んでください";
+selectContainer.style.display = 'block';
+popup.style.display = 'block';
 };
 // 【指定したスキル名を削除する】
 window.deleteSkillByName = function(skillName) {

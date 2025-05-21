@@ -219,19 +219,15 @@ canvas#enemyImg {
 }
 
 /* 各スキルアイテム */
-#skillMemoryList li {
-  padding: 8px 14px;
-  background: linear-gradient(135deg, #333, #222);
-  border: 1px solid #666;
-  border-radius: 8px;
-  cursor: move;
-  list-style: none;
-  flex: 0 0 auto;               /* 折り返し対応 */
-  white-space: nowrap;
-  font-size: 0.9em;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-  transition: all 0.3s ease;
-  user-select: none;
+#skillMemoryList li span {
+  font-weight: bold;
+  text-shadow: 0 0 3px rgba(255,255,255,0.3);
+  background: #111;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: inline-block;
+  font-size: 13px;
+  margin: 2px 0;
 }
 
 /* マウスを乗せたとき */
@@ -1335,4 +1331,17 @@ summary {
   }
 }
 
+.skill-tag {
+  font-weight: bold;
+  font-size: 13px;
+  color: #eee;
+  background: linear-gradient(135deg, #222, #111);
+  padding: 5px 10px;
+  margin: 4px;
+  border-radius: 8px;
+  border: 1px solid #888;
+  text-shadow: 0 0 4px #0ff, 0 0 1px #000;
+  display: inline-block;
+  box-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
+}
 
