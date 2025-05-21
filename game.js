@@ -1700,7 +1700,7 @@ for (let i = player.itemMemory.length - 1; i >= 0; i--) {
 		
 getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
 
-if (item.skillLevel < 3000 && Math.random() < 0.05) {
+if (item.skillLevel < 3000 && Math.random() < 0.4) {
   item.skillLevel++;
   log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
   drawItemMemoryList();
