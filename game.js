@@ -2233,7 +2233,7 @@ try {
       }
       // 合計スコアを算出（攻撃力・防御力・素早さ・最大HP・総レアリティの合計）
 const totalScore = Math.round(
-  (finalAtk + finalDef + finalSpd + finalHP + totalRarity)*sessionMaxStreak
+  (finalAtk + finalDef + finalSpd + finalHP *0.1 + totalRarity)*sessionMaxStreak
 );
       // レアリティ合計は小数点2桁まで表示（整数の場合は整数表示）
       let rarityStr = (Math.round(totalRarity * 100) / 100).toFixed(2);
