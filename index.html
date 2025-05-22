@@ -9,18 +9,8 @@
 
 <body>
 	
-	<div id="scoreOverlay" style="
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: 11px;
-  color: #fff;
-  opacity: 0.6;
-  pointer-events: none;
-  line-height: 1.4;
-  z-index: 5;
-  white-space: pre-wrap;
-"></div>
+<div id="scoreOverlay" style="display: none;"></div>
+<div id="skillOverlay" style="display: none;"></div>
 	
   <!-- カスタムアラート -->
   <div id="customAlertContainer" style="position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
@@ -236,17 +226,27 @@
       <!-- バトル操作 -->
       <button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
 <!-- ゲーム画面内に追加：残り戦闘数表示用のエリア（右上に表示） -->
-<div id="remainingBattlesDisplay" 
-     style="position: fixed; top: 10px; right: 10px;
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            font-weight: bold;
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-size: 15px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            display: none;">
+<div id="remainingBattlesDisplay" style="
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  font-size: 12px;
+  color: #f0f0f0;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 10px 16px;
+  border-left: 4px solid #4caf50;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  max-width: 260px;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: none;
+">
   残り戦闘数：◯回
 </div>
 
@@ -359,6 +359,9 @@
   white-space: normal;
   line-height: 1.4;
 "></div>
+
+<div id="itemOverlay" style="display: none;"></div>
+
   <!-- スクリプト読込 -->
   <script type="module" src="game.js"></script>
 </body>

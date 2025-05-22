@@ -1316,3 +1316,74 @@ summary {
   box-shadow: 0 0 6px rgba(0, 255, 255, 0.3);
 }
 
+#scoreOverlay {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  font-size: 12px;
+  color: #f0f0f0;
+  background: rgba(30, 30, 30, 0.85); /* 半透明で落ち着いた背景 */
+  backdrop-filter: blur(4px);        /* うっすらガラス効果 */
+  padding: 10px 16px;
+  border-left: 4px solid #4caf50;    /* 緑系アクセントライン */
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); /* 控えめな影で浮かせる */
+  z-index: 999;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  max-width: 260px;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#skillOverlay {
+  position: fixed;
+  bottom: 10px;                  /* 画面下から10px */
+  left: 10px;                    /* 左から10px */
+  font-size: 12px;
+  color: #f0f0f0;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 10px 16px;
+  border-left: 4px solid #4caf50;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  max-width: 260px;
+  max-height: 40vh;             /* 高さ制限：画面の40%まで */
+  overflow-y: auto;             /* 長い場合スクロール可能に */
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  opacity: 1;
+  display: none;
+}
+
+#itemOverlay {
+  position: fixed;
+  bottom: 10px;                  /* 画面下から10px */
+  right: 10px;                   /* 右下固定 */
+  font-size: 12px;
+  color: #f0f0f0;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 10px 16px;
+  border-left: 4px solid #4caf50;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+  max-width: 260px;
+  max-height: 40vh;             /* はみ出し防止 */
+  overflow-y: auto;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  opacity: 1;
+  display: none;
+}
+
