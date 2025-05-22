@@ -2210,6 +2210,12 @@ window.returnToTitleScreen = function () {
   if (remainDisplay) remainDisplay.style.display = 'none';
   if (streakDisplay) streakDisplay.textContent = '';
 
+	document.getElementById('loadGameBtn')?.classList.add('hidden');
+document.getElementById('loadSection')?.classList.add('hidden');
+document.getElementById('inputStr')?.classList.add('hidden');
+document.querySelector('.playerNameHint')?.classList.add('hidden');
+    
+	
   // ゲーム内変数を初期化（window を通して安全に）
 window.returnToTitleScreen = function () {
     // ...（既存のタイトル画面表示切替処理）...
