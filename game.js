@@ -992,25 +992,24 @@ window.startNewGame = function() {
     document.getElementById('inputStr').value = playerName;  // 入力欄に最終的な名前を反映
 
     // 新規ゲーム用に各種ステータスをリセット
-		player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-//player.itemMemory = [];
+if (player) {
+  player.skills = [];
+  player.effects = [];
+  player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+}
 
-//player.itemMemory.forEach(item => {
-//  if ('skillLevel' in item) {
-//    item.skillLevel = 1;
-//  }
-//});
+if (typeof currentStreak !== "undefined") {
+  currentStreak = 0;
+}
+if (typeof sessionMaxStreak !== "undefined") {
+  sessionMaxStreak = 0;
+}
+if (typeof window.maxStreak !== "undefined") {
+  window.maxStreak = 0;
+}
 
-//for (let skillName in player.skillMemory) {
-//  player.skillMemory[skillName] = 1;
-//}
-
-player.skills = [];
-player.effects = [];
-    currentStreak = 0;
-    sessionMaxStreak = 0;
-    window.maxStreak = 0;
-    window.player = {};                 // 新しいプレイヤーオブジェクトを準備
+// 新しくプレイヤーを作る場合は、上書きする意図があればこのままでOK
+window.player = {};            // 新しいプレイヤーオブジェクトを準備
     window.player.itemMemory = [];      // 所持アイテムの記録を初期化
     window.player.effects = [];         // 一時的な効果をリセット
     if ('isLoadedFromSave' in window) {
