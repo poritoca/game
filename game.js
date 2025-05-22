@@ -987,56 +987,82 @@ if (isPlayer) {
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
 	
-	currentStreak = 0;
-  sessionMaxStreak = 0;
-  const title = document.getElementById('titleScreen');
-  const game = document.getElementById('gameScreen');
-  // フェードアウト → 非表示 → ゲーム画面表示
-  title.classList.add('fade-out');
-  setTimeout(() => {
-    title.classList.add('hidden');
-    game.classList.remove('hidden');
-    game.classList.add('fade-in');
+    // テキストボックスから名前を取得（空ならデフォルト名を使用）
+    const playerName = name || document.getElementById('inputStr').value || 'プレイヤー';
+    document.getElementById('inputStr').value = playerName;  // 入力欄に最終的な名前を反映
 
-    // 通常初期化処理
-    statusLogged = false;
-    if (!player) {
-      player = {};
-    }
-    if (!player.itemMemory) {
-      player.itemMemory = [];
-    }
-    document.getElementById('battleLog').classList.remove('hidden');
-    document.getElementById("battleArea").classList.add("hidden");
-    currentStreak = 0;
-    document.getElementById("skillMemoryContainer").style.display = "block";
+    // 新規ゲーム用に各種ステータスをリセット
+		player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+//player.itemMemory = [];
 
-    // ★追加: 戦闘回数入力の処理と初期設定
-    window.maxStreak = 0;  // 最大連勝数のリセット
-    const battleBtn = document.getElementById('startBattleBtn');
-    if (battleBtn) battleBtn.disabled = false;  // 次の戦闘ボタンを有効化
-const selectEl = document.getElementById('battleCountSelect');
-if (selectEl) {
-  const selectedVal = selectEl.value;
-  if (selectedVal === "unlimited") {
-    window.targetBattles = null;
-    window.remainingBattles = null;
-    document.getElementById('remainingBattlesDisplay').style.display = 'none';
-  } else {
-    const countVal = parseInt(selectedVal, 10);
-    window.targetBattles = countVal;
-    window.remainingBattles = countVal;
-    const remainDisplay = document.getElementById('remainingBattlesDisplay');
-    if (remainDisplay) {
-      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
-      remainDisplay.style.display = 'block';
-    }
+player.itemMemory.forEach(item => {
+  if ('skillLevel' in item) {
+    item.skillLevel = 1;
   }
-}
-    // ★追加ここまで
+});
 
-    startBattle();
-  }, 500);
+for (let skillName in player.skillMemory) {
+  player.skillMemory[skillName] = 1;
+}
+
+player.skills = [];
+player.effects = [];
+    currentStreak = 0;
+    sessionMaxStreak = 0;
+    window.maxStreak = 0;
+    window.player = {};                 // 新しいプレイヤーオブジェクトを準備
+    window.player.itemMemory = [];      // 所持アイテムの記録を初期化
+    window.player.effects = [];         // 一時的な効果をリセット
+    if ('isLoadedFromSave' in window) {
+        window.isLoadedFromSave = false;  // セーブデータからのロードではないことを明示
+    }
+
+    // タイトル画面をフェードアウトし、ゲーム画面をフェードイン
+    const titleScreen = document.getElementById('titleScreen');
+    const gameScreen  = document.getElementById('gameScreen');
+    titleScreen.classList.add('fade-out');
+    setTimeout(() => {
+        titleScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        gameScreen.classList.add('fade-in');
+
+        // ゲーム画面の初期設定
+        statusLogged = false;
+        if (!player) player = {};
+        if (!player.itemMemory) player.itemMemory = [];
+        document.getElementById('battleLog').classList.remove('hidden');
+        document.getElementById('battleArea').classList.add('hidden');
+        document.getElementById('skillMemoryContainer').style.display = 'block';
+
+        // ★ 戦闘回数選択の読み取りと初期化処理を追加
+        const battleBtn = document.getElementById('startBattleBtn');
+        if (battleBtn) battleBtn.disabled = false;  // 次の戦闘ボタンを有効化
+        const selectEl = document.getElementById('battleCountSelect');
+        if (selectEl) {
+            const selectedVal = selectEl.value;
+            if (selectedVal === "unlimited") {
+                // 無制限モードの場合
+                window.targetBattles = null;
+                window.remainingBattles = null;
+                document.getElementById('remainingBattlesDisplay').style.display = 'none';
+            } else {
+                // 選択された回数を数値に変換して設定
+                const countVal = parseInt(selectedVal, 10);
+                window.targetBattles = countVal;
+                window.remainingBattles = countVal;
+                const remainDisplay = document.getElementById('remainingBattlesDisplay');
+                if (remainDisplay) {
+                    // 画面右上に残り戦闘回数を表示
+                    remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+                    remainDisplay.style.display = 'block';
+                }
+            }
+        }
+        // ★ 初期化処理ここまで
+
+        // 初回の戦闘を開始
+        window.startBattle();
+    }, 500);
 };
 
 // 対戦モード選択画面表示
@@ -2185,13 +2211,17 @@ window.returnToTitleScreen = function () {
   if (streakDisplay) streakDisplay.textContent = '';
 
   // ゲーム内変数を初期化（window を通して安全に）
-  if ('player' in window) window.player = null;
-  if ('enemy' in window) window.enemy = null;
-  if ('currentStreak' in window) window.currentStreak = 0;
-  if ('sessionMaxStreak' in window) window.sessionMaxStreak = 0;
-  if ('remainingBattles' in window) window.remainingBattles = null;
-  if ('targetBattles' in window) window.targetBattles = null;
-  if ('initialAndSlotSkills' in window) window.initialAndSlotSkills = [];
+window.returnToTitleScreen = function () {
+    // ...（既存のタイトル画面表示切替処理）...
+    if ('player' in window) window.player = null;
+    if ('enemy' in window) window.enemy = null;
+    if ('currentStreak' in window) window.currentStreak = 0;
+    if ('sessionMaxStreak' in window) window.sessionMaxStreak = 0;
+    if ('remainingBattles' in window) window.remainingBattles = null;
+    if ('targetBattles' in window) window.targetBattles = null;
+    if ('initialAndSlotSkills' in window) window.initialAndSlotSkills = [];
+    if ('isLoadedFromSave' in window) window.isLoadedFromSave = false;  // セーブフラグリセット
+};
 };
 // （勝敗処理・ログ更新・updateStats()等の直後）
 try {
