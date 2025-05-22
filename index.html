@@ -220,6 +220,7 @@
       </div>
 
 			      <canvas id="hpChart" width="600" height="100"></canvas>
+						
 			
       <!-- モード切替 -->
       <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
@@ -257,6 +258,11 @@
   <!-- 最終結果はJavaScriptで埋め込まれます -->
 	
 </div>
+    <!-- アイテムー -->
+    <h3>所持アイテム</h3>
+    <div id="itemMemoryContainer">
+      <ul id="itemMemoryList"></ul>
+    </div>
     <!-- スキルメモリー -->
     <h3>スキルメモリー</h3>
     <div id="skillMemoryContainer" style="display: none;">
@@ -272,11 +278,7 @@
         </select>
       </label>
     </div>
-    <!-- アイテムー -->
-    <h3>所持アイテム</h3>
-    <div id="itemMemoryContainer">
-      <ul id="itemMemoryList"></ul>
-    </div>
+
 		    <h3>イベント設定</h3>
 		      <!-- イベント設定 -->
       <div id="autoStopControls">
