@@ -164,35 +164,6 @@ canvas#enemyImg {
   text-align: center;
 }
 
-
-#baseStatsContainer {
-  margin-top: 1em;
-  padding: 10px;
-  border: 2px dashed #888;
-  background-color: #f9f9f9;
-  font-weight: bold;
-  text-align: center;
-}
-
-
-#baseStatsContainer {
-  margin-top: 1em;
-  padding: 10px;
-  border: 2px dashed #888;
-  background-color: #f9f9f9;
-  font-weight: bold;
-  text-align: center;
-}
-
-
-#baseStatsContainer {
-  margin-top: 1em;
-  padding: 10px;
-  border: 2px dashed #888;
-  background-color: #f9f9f9;
-  font-weight: bold;
-  text-align: center;
-}
 #titleScreen h1,
 #titleScreen input,
 #titleScreen button,
@@ -248,13 +219,13 @@ canvas#enemyImg {
 #playerStats, #enemyStats {
   
 width: 600px;         /* ← 幅を固定にする場合 */
-  max-width: 85%;
+  max-width: 92%;
 	position: relative;
   background: linear-gradient(#222, #000); /* ダークグラデーション背景 */
   border: 2px solid #444;                  /* 濃いめのボーダー */
   border-radius: 10px;
   padding: 15px;
-  margin: 10px;
+
   color: #00ffff;                          /* 青白いサイバー系文字色 */
   font-family: 'Press Start 2P', system-ui;
   text-shadow:
