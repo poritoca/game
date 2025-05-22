@@ -301,6 +301,73 @@ if (window.specialMode === 'normal') {
 
 const skillDeleteButton = document.getElementById('skillDeleteButton');
 
+function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
+  // 再構築するスキル枠数（基本3枠 + 追加スロット）
+  const totalSlots = 3 + sslot;
+
+  // 1. プレイヤー名に基づく固有スキル候補3つを導出し、その中から1つ選択
+  const nameSeed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const allSkillNames = skillPool.map(s => s.name);
+  const uniqueCandidates = new Set();
+  let seed = nameSeed;
+  while (uniqueCandidates.size < 3) {
+    seed = (seed * 9301 + 49297) % 233280;
+    const idx = seed % allSkillNames.length;
+    uniqueCandidates.add(allSkillNames[idx]);
+  }
+  const candidates = Array.from(uniqueCandidates);
+  const uniqueSkillName = candidates[Math.floor(Math.random() * candidates.length)];
+
+  // 2. スキルメモリーから攻撃スキルを1つ選出（固有スキルと重複しない）
+  const entries = Object.entries(player.skillMemory);
+  const isOffensiveSkill = name => {
+    const def = skillPool.find(s => s.name === name);
+    return def && window.offensiveSkillCategories.includes(def.category);
+  };
+
+  let attackSkillName = null;
+  for (const [name] of entries) {
+    if (name === uniqueSkillName) continue;
+    if (isOffensiveSkill(name)) {
+      attackSkillName = name;
+      break;
+    }
+  }
+
+  // 攻撃スキルがなければ、固有スキル以外の1つ目を採用
+  if (!attackSkillName) {
+    for (const [name] of entries) {
+      if (name !== uniqueSkillName) {
+        attackSkillName = name;
+        break;
+      }
+    }
+  }
+
+  // それでもなければ、固有スキルで代用
+  if (!attackSkillName) {
+    attackSkillName = uniqueSkillName;
+  }
+
+  // 3. 新スキル配列を構築（重複なし）
+  const newSkills = [];
+  const uniqueLevel = player.skillMemory[uniqueSkillName] || 1;
+  newSkills.push({ name: uniqueSkillName, level: uniqueLevel, uses: 0 });
+
+  if (attackSkillName !== uniqueSkillName) {
+    const attackLevel = player.skillMemory[attackSkillName] || 1;
+    newSkills.push({ name: attackSkillName, level: attackLevel, uses: 0 });
+  }
+
+  for (const [name, level] of entries) {
+    if (newSkills.length >= totalSlots) break;
+    if (name === uniqueSkillName || name === attackSkillName) continue;
+    newSkills.push({ name, level, uses: 0 });
+  }
+
+  player.skills = newSkills;
+}
+
 function updateSkillDeleteButton() {
     skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
     if (window.skillDeleteUsesLeft > 0) {
@@ -1012,6 +1079,7 @@ window.startNewGame = function() {
     // 新規ゲーム用に各種ステータスをリセット
 if (player) {
   player.skills = [];
+	rebuildPlayerSkillsFromMemory(player, typeof sslot === 'number' ? sslot : 0);
   player.effects = [];
   player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 }
@@ -2037,120 +2105,9 @@ if (player.baseStats && player.growthBonus) {
       player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
     }
 
-// 再構築するスキル枠数（基本3枠 + 追加スロット）
-const totalSlots = 3 + sslot;
+rebuildPlayerSkillsFromMemory(player, typeof sslot === 'number' ? sslot : 0);
 
-// 1. プレイヤー名に基づく固有スキル候補3つを導出し、その中から1つ選択
-const nameSeed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-const allSkillNames = skillPool.map(s => s.name);
-const uniqueCandidates = new Set();
-let seed = nameSeed;
-while (uniqueCandidates.size < 3) {
-  seed = (seed * 9301 + 49297) % 233280;
-  const idx = seed % allSkillNames.length;
-  uniqueCandidates.add(allSkillNames[idx]);
-}
-const candidates = Array.from(uniqueCandidates);
-const uniqueSkillName = candidates[Math.floor(Math.random() * candidates.length)];
 
-// 2. スキルメモリーを左から順に見て、攻撃スキルを1つだけ選出（固有スキルと重複しないもの）
-const entries = Object.entries(player.skillMemory);
-const isOffensiveSkill = name => {
-  const def = skillPool.find(s => s.name === name);
-  return def && window.offensiveSkillCategories.includes(def.category);
-};
-
-let attackSkillName = null;
-for (const [name] of entries) {
-  if (name === uniqueSkillName) continue;
-  if (isOffensiveSkill(name)) {
-    attackSkillName = name;
-    break;
-  }
-}
-
-// 攻撃スキルが見つからなければ、左端のスキルを採用（固有スキル以外）
-if (!attackSkillName) {
-  for (const [name] of entries) {
-    if (name !== uniqueSkillName) {
-      attackSkillName = name;
-      break;
-    }
-  }
-}
-
-// それでも見つからなければ、固有スキルを代用
-if (!attackSkillName) {
-  attackSkillName = uniqueSkillName;
-}
-
-// 3. 残りのスキル枠を記憶スキルで埋める（重複なし）
-const newSkills = [];
-const uniqueLevel = player.skillMemory[uniqueSkillName] || 1;
-newSkills.push({ name: uniqueSkillName, level: uniqueLevel, uses: 0 });
-
-if (attackSkillName !== uniqueSkillName) {
-  const attackLevel = player.skillMemory[attackSkillName] || 1;
-  newSkills.push({ name: attackSkillName, level: attackLevel, uses: 0 });
-}
-
-for (const [name, level] of entries) {
-  if (newSkills.length >= totalSlots) break;
-  if (name === uniqueSkillName || name === attackSkillName) continue;
-  newSkills.push({ name, level, uses: 0 });
-}
-
-player.skills = newSkills;
-
-// 表示用HTML構築
-const [cand1, cand2, cand3] = candidates;
-const skillList = [cand1, cand2, cand3];
-
-const uniqueSkillHtml = `
-<div style="font-size:14px; font-weight:bold; margin-bottom:5px;">
-  固有スキル候補:<br>
-  ${skillList.map(name => {
-    if (name === uniqueSkillName) {
-      return `<span style="font-size:18px; font-weight:bold; color:#000;">➤ ${name}</span>`;
-    } else {
-      return `<span style="color:#666;">${name}</span>`;
-    }
-  }).join('<br>')}
-</div>
-`;
-
-const attackSkillHtml = `
-<div style="font-size:14px; font-weight:bold; margin-top:10px;">
-  攻撃スキル枠: ${
-    attackSkillName === uniqueSkillName ? "攻撃スキルなし（固有を再利用）" : "スキルメモリーから選出"
-  }
-</div>
-<div style="font-size:18px; font-weight:bold; color:#000;">➤ ${attackSkillName}</div>
-`;
-
-const carriedSkills = newSkills
-  .filter(sk => sk.name !== uniqueSkillName && sk.name !== attackSkillName)
-  .map(sk => sk.name);
-
-const carriedSkillHtml = carriedSkills.length > 0
-  ? `
-<div style="font-size:14px; font-weight:bold; margin-top:10px;">
-  残りスキル枠<br>(スキルメモリーの左から優先選択):
-</div>
-<div style="font-size:17px; font-weight:bold; color:#000;">
-  ${carriedSkills.map(name => `➤ ${name}`).join("<br>")}
-</div>`
-  : `
-<div style="font-size:14px; font-weight:bold; margin-top:10px;">
-  残りスキル枠: なし
-</div>`;
-
-const fullMessage = `
-<div style="text-align:left; font-size:13px;">
-  ${uniqueSkillHtml}
-  ${attackSkillHtml}
-  ${carriedSkillHtml}
-</div>`;
 
 showSubtitle(
   `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
