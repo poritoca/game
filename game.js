@@ -1017,7 +1017,6 @@ window.formatSkills = function(c) {
     return {
 html: `<span title='${desc}' style="
   color: ${color};
-  background: linear-gradient(135deg, rgba(30,30,30,0.95), rgba(10,10,10,0.95));
   padding: 5px 10px;
   margin: 4px;
   border-radius: 8px;

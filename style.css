@@ -189,18 +189,19 @@ canvas#enemyImg {
   box-shadow: 0 0 10px rgba(0,0,0,0.6); /* 背景に立体感 */
 }
 
-/* 各スキルアイテム */
 #skillMemoryList li span {
   font-weight: bold;
-  text-shadow: 0 0 3px rgba(255,255,255,0.3);
-  background: #111;
+  background: linear-gradient(135deg, #333, #111);
+  border: 1px solid #888;
   padding: 4px 6px;
   border-radius: 6px;
   display: inline-block;
   font-size: 13px;
   margin: 2px 0;
+  color: #fff;
+  text-shadow: 0 0 2px #0ff, 0 0 1px #000;
+  box-shadow: 0 0 6px rgba(0,255,255,0.3);
 }
-
 /* マウスを乗せたとき */
 #skillMemoryList li:hover {
   background: linear-gradient(135deg, #444, #222);
