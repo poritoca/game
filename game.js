@@ -771,11 +771,15 @@ if (shouldPause) {
 
 showCustomAlert(message, 4000, "#ffa", "#000");
 }
-
 function setupItemFilters() {
   const colorBox = document.getElementById('filterColorOptions');
   const adjBox = document.getElementById('filterAdjectiveOptions');
   const nounBox = document.getElementById('filterNounOptions');
+
+  // ★ 一度中身をクリアしてから追加
+  if (colorBox) colorBox.innerHTML = '';
+  if (adjBox) adjBox.innerHTML = '';
+  if (nounBox) nounBox.innerHTML = '';
 
   const createCheckbox = (value, type) => {
     const label = document.createElement('label');
@@ -798,8 +802,8 @@ function setupItemFilters() {
   itemAdjectives.forEach(obj => adjBox.appendChild(createCheckbox(obj.word, 'adj')));
   itemNouns.forEach(obj => nounBox.appendChild(createCheckbox(obj.word, 'noun')));
 }
-document.addEventListener('DOMContentLoaded', setupItemFilters);
 
+document.addEventListener('DOMContentLoaded', setupItemFilters);
 // フィルターモード: 'and' or 'or'
 window.itemFilterMode = 'and';
 
