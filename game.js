@@ -2083,7 +2083,7 @@ if (window.growthMultiplier !== 1) {
 }
 
   window.growthMultiplier = 1;
-  currentStreak = 0;
+
   window.skillDeleteUsesLeft = 3;
 updateSkillDeleteButton();  // ボタン表示もリセット
   streakBonus = 1;
@@ -2118,6 +2118,7 @@ showSubtitle(
 );
 updateSkillOverlay();
 drawSkillMemoryList();
+currentStreak = 0;
 }
 
 document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
