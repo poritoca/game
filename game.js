@@ -1630,8 +1630,6 @@ const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカ�
 
 const specialSkillThreshold = 999;
 const maxSpecialSkillLevel = 5000;
-const statMultiplierMin = 0.8;
-const statMultiplierMax = 1.4;
 const specialChance = window.getSpecialChance();
 
 let hasSpecialSkill = false;
@@ -1650,56 +1648,71 @@ enemy.skills.forEach(skill => {
         hasSpecialSkill = true;
     } else {
         // その他スキル：連勝数に応じてスキルレベルの上限を調整
-const streakFactor = currentStreak / 100;
-const growthPower = 0.6;
-const maxPossibleLevel = Math.floor(1000 + 2000 * Math.pow(streakFactor, growthPower));
+        const streakFactor = currentStreak / 100;
+        const growthPower = 0.6;
+        const maxPossibleLevel = Math.floor(1000 + 2000 * Math.pow(streakFactor, growthPower));
 
         const rand = Math.random();
-        const level = 1 + Math.floor((maxPossibleLevel - 1) * Math.pow(rand, 3));  // 高レベルほど低確率
+        const level = 1 + Math.floor((maxPossibleLevel - 1) * Math.pow(rand, 3));
         skill.level = level;
     }
 });
 
 // 名前修正
-// ステータス調整（共通ベースをまず作る）
-if (hasSpecialSkill) {
-    enemy.name = `${specialSkillName}${originalKanaName}`;
+enemy.name = hasSpecialSkill ? `${specialSkillName}${originalKanaName}` : originalKanaName;
+
+// ステータス生成処理
+let atk, def, spd, hpMax;
+
+if (window.specialMode === 'brutal') {
+    // 鬼畜モード：プレイヤーのステータスを基準に0.8〜1.4倍で作成
+    const statMultiplierMin = 0.8;
+    const statMultiplierMax = 1.4;
+
+    atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+    hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
 } else {
-    enemy.name = originalKanaName;
+    // 通常モード：makeCharacter() で生成された baseStats を使用
+    atk = enemy.baseStats.attack;
+    def = enemy.baseStats.defense;
+    spd = enemy.baseStats.speed;
+    hpMax = enemy.baseStats.maxHp;
 }
 
-const atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-const def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-const spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-const hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-
+// ステータスに反映
 enemy.baseStats.attack = atk;
 enemy.baseStats.defense = def;
 enemy.baseStats.speed = spd;
 enemy.baseStats.maxHp = hpMax;
 
-// まずはそのまま入れておき、あとで補正をかける
 enemy.attack = atk;
 enemy.defense = def;
 enemy.speed = spd;
 enemy.maxHp = hpMax;
 enemy.hp = hpMax;
 
-// 補正処理（鬼畜モード or 通常モード）
+// モードごとの連勝補正
 if (window.specialMode === 'brutal') {
-    const brutalBonus = 1 + currentStreak * 0.005;  // 1.005, 1.01, ...
-    enemy.attack = Math.floor(enemy.attack * brutalBonus);
-    enemy.defense = Math.floor(enemy.defense * brutalBonus);
-    enemy.speed = Math.floor(enemy.speed * brutalBonus);
-    enemy.maxHp = Math.floor(enemy.maxHp * brutalBonus);
+    const brutalBonus = 1 + (currentStreak + 1) * 0.005;
+    const multiplier = enemy.rarity * brutalBonus;
+
+    enemy.attack  = Math.floor(enemy.attack  * multiplier);
+    enemy.defense = Math.floor(enemy.defense * multiplier);
+    enemy.speed   = Math.floor(enemy.speed   * multiplier);
+    enemy.maxHp   = Math.floor(enemy.maxHp   * multiplier);
     enemy.hp = enemy.maxHp;
-} else if (currentStreak > 0) {
-    const factor = Math.pow(1.005, currentStreak);
-    enemy.attack = Math.floor(enemy.attack * factor);
-    enemy.defense = Math.floor(enemy.defense * factor);
-    enemy.speed = Math.floor(enemy.speed * factor);
-    enemy.maxHp = Math.floor(enemy.maxHp * factor);
+} else {
+    const factor = Math.pow(1.05, currentStreak + 1);  // ←修正
+    const multiplier = enemy.rarity * factor;
+
+    enemy.attack  = Math.floor(enemy.attack  * multiplier);
+    enemy.defense = Math.floor(enemy.defense * multiplier);
+    enemy.speed   = Math.floor(enemy.speed   * multiplier);
+    enemy.maxHp   = Math.floor(enemy.maxHp   * multiplier);
     enemy.hp = enemy.maxHp;
+
 }
 
   // 前回の効果をクリア
@@ -1720,11 +1733,11 @@ if (window.specialMode === 'brutal') {
 
   applyPassiveSeals(player, enemy, log);
 
-const factor = Math.pow(1.1, currentStreak);
+const factor = Math.pow(1.05, currentStreak);
 if (window.specialMode === 'brutal') {
     log.push(`[鬼畜モード挑戦中]`);
 } else {
-    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.005^${currentStreak}）`);
+    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.05^${currentStreak}）`);
 }
   let turn = 1;
   const MAX_TURNS = 30;
