@@ -1074,6 +1074,8 @@ if (isPlayer) {
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
+	
+	  window.isFirstBattle = true;
 
     // テキストボックスから名前を取得（空ならデフォルト名を使用）
     const playerName = name || document.getElementById('inputStr').value || 'プレイヤー';
@@ -1790,7 +1792,17 @@ for (let eff of ch.effects) {
 
     // ターン経過
     eff.remaining--;
-if (window.isFirstBattle) {
+		
+		
+function hasAnyHighScore() {
+  if (!window.maxScores) return false;
+
+  return Object.values(window.maxScores).some(score =>
+    typeof score === 'number' && score > 0
+  );
+}
+
+if (window.isFirstBattle && !hasAnyHighScore()) {
   showConfirmationPopup(
     `<div style="text-align:center">
       <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
