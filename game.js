@@ -808,6 +808,25 @@ document.addEventListener('DOMContentLoaded', setupItemFilters);
 window.itemFilterMode = 'and';
 
 document.addEventListener('DOMContentLoaded', () => {
+	
+	const deathChar = document.getElementById('deathChar');
+  if (!deathChar) return;
+
+  function animateDeathChar() {
+    deathChar.classList.add('shake-and-grow');
+
+    // 3秒後にアニメーションを除去
+    setTimeout(() => {
+      deathChar.classList.remove('shake-and-grow');
+    }, 3000);
+
+    // 10〜13秒おきに再発動
+    setTimeout(animateDeathChar, 5000 + Math.random() * 3000);
+  }
+
+  // 初回のアニメーションは2秒後に開始
+  setTimeout(animateDeathChar, 2000);
+	
   const toggleBtn = document.getElementById('filterModeToggleBtn');
   if (toggleBtn) {
     toggleBtn.onclick = () => {
