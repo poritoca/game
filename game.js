@@ -410,6 +410,95 @@ window.allowGrowthEvent = true;
 window.allowSkillDeleteEvent = true;
 window.allowItemInterrupt = true;  // ← 新規追加
 
+function updateFaceCoinDisplay() {
+  const coinElem = document.getElementById('faceCoinCount');
+  if (coinElem) coinElem.textContent = faceCoins;
+
+  const gachaBtn = document.getElementById('faceGachaBtn');
+  if (gachaBtn) gachaBtn.disabled = (faceCoins < FACE_GACHA_COST);
+}
+
+function drawRandomFace(rarity) {
+  const pool = IMAGE_LIST_BY_RANK?.[rarity] || [];
+  if (pool.length === 0) return null;
+  const selected = pool[Math.floor(Math.random() * pool.length)];
+  return {
+    path: `face/${rarity}/${selected}`,
+    name: selected
+  };
+}
+
+function showGachaAnimation(rarity) {
+  const container = document.createElement('div');
+  container.id = 'gachaAnimation';
+
+  const body = document.createElement('div');
+  body.className = 'gacha-body';
+
+  const knob = document.createElement('div');
+  knob.className = 'gacha-knob';
+
+  const ball = document.createElement('div');
+  ball.className = 'gacha-ball';
+  ball.classList.add(rarity);  // ← レアリティに応じたクラス追加！
+
+  body.appendChild(knob);
+  container.appendChild(body);
+  container.appendChild(ball);
+  document.body.appendChild(container);
+
+  setTimeout(() => {
+    container.remove();
+  }, 2000);
+}
+
+
+function performFaceGacha() {
+  if (faceCoins < FACE_GACHA_COST) {
+    alert(`コインが${FACE_GACHA_COST}枚必要です！現在のコイン：${faceCoins}`);
+    return;
+  }
+
+  if (faceItemsOwned.length >= 30) {
+    alert("所持フェイスアイテムが上限に達しています。");
+    return;
+  }
+
+  // コイン消費
+  faceCoins -= FACE_GACHA_COST;
+  updateFaceCoinDisplay();
+
+  // ランク抽選
+  let rand = Math.random();
+  let cumProb = 0;
+  let selectedRarity = 'D';
+  for (const r of ['S', 'A', 'B', 'C', 'D']) {
+    cumProb += FACE_RARITY_PROBS[r];
+    if (rand < cumProb) {
+      selectedRarity = r;
+      break;
+    }
+  }
+
+  // ガチャアニメーション（所持上限ではない場合のみ）
+  showGachaAnimation(selectedRarity);
+
+  // 演出後に抽選・UI更新処理
+  setTimeout(() => {
+    const result = drawRandomFace(selectedRarity);
+    if (!result) {
+      alert(`${selectedRarity}ランクのフェイスアイテムが読み込めませんでした`);
+      return;
+    }
+
+    const { path, name } = result;
+    faceItemsOwned.push(path);
+//    alert(`${selectedRarity}ランクのフェイスアイテム「${name}」を獲得！`);
+    updateFaceUI();
+  }, 1400);
+}
+
+
 function showSubtitle(message, duration = 2000) {
   const subtitleEl = document.getElementById('subtitleOverlay');
   if (!subtitleEl) return;
@@ -584,17 +673,38 @@ function getLevelTurnBonus(level) {
 
 let statusLogged = false;
 window.startBattle = undefined;
+
+
 document.addEventListener("DOMContentLoaded", () => {
+  // 新規スタートボタンのイベント登録
   const btn = document.getElementById("startNewGameBtn");
   if (btn) {
     btn.addEventListener("click", () => {
       const name = document.getElementById("inputStr").value || "プレイヤー";
       startNewGame(name);
     });
-  } else {
-    //alert("[A010] startBattle 終了");
-    //alert("[A010] startBattle 終了");
   }
+
+  // === フェイスアイテムUIの構築 ===
+	
+	
+	
+	
+// ガチャボタンイベント登録
+const gachaBtn = document.getElementById('faceGachaBtn');
+if (gachaBtn) {
+  gachaBtn.addEventListener('click', () => {
+
+    setTimeout(() => {
+      performFaceGacha(); // 1.5秒後にガチャ処理を実行
+    }, 100);
+  });
+}
+
+  // 初期表示更新（ロードや開始時）
+  updateFaceUI?.();
+  updatePlayerImage?.();
+  updateFaceCoinDisplay?.();
 });
 
 function applySafeAttack(attacker, defender, log) {
@@ -710,6 +820,253 @@ function onItemClick(item, index) {
   popup.style.display = "block";
 }
 
+// --- 所持アイテムリストをUIに表示・更新する関数 ---
+function updateFaceUI() {
+  const listElem = document.getElementById('ownedFaceList');
+  listElem.innerHTML = ''; // 既存内容をクリア
+
+  faceItemsOwned.forEach(itemPath => {
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.alignItems = 'center';
+    container.style.marginBottom = '8px';
+
+    // アイテム画像サムネイル
+    const img = document.createElement('img');
+    img.src = itemPath;
+    img.style.width = '50px';
+    img.style.height = '50px';
+    img.style.marginRight = '10px';
+    // 装備中なら枠を強調
+    if (faceItemEquipped === itemPath) {
+      img.style.border = '2px solid gold';
+    } else {
+      img.style.border = '2px solid transparent';
+    }
+    container.appendChild(img);
+
+    // 装備/解除ボタン
+    const equipBtn = document.createElement('button');
+    equipBtn.innerText = (faceItemEquipped === itemPath) ? '解除' : '装備';
+    equipBtn.style.marginRight = '5px';
+    equipBtn.addEventListener('click', () => {
+      if (faceItemEquipped === itemPath) {
+        faceItemEquipped = null;
+      } else {
+        faceItemEquipped = itemPath;
+      }
+      // UIとキャラ画像を更新
+      updateFaceUI();
+      updatePlayerImage();
+    });
+    container.appendChild(equipBtn);
+
+    // 削除ボタン
+    const deleteBtn = document.createElement('button');
+    deleteBtn.innerText = '削除';
+    deleteBtn.addEventListener('click', () => {
+      // 所持リストから削除
+      const idx = faceItemsOwned.indexOf(itemPath);
+      if (idx !== -1) {
+        faceItemsOwned.splice(idx, 1);
+      }
+      // 装備中のアイテムだったら解除
+      if (faceItemEquipped === itemPath) {
+        faceItemEquipped = null;
+      }
+      updateFaceUI();
+      updatePlayerImage();
+    });
+    container.appendChild(deleteBtn);
+
+    listElem.appendChild(container);
+		
+		  // コイン数を更新（UIに反映）
+  const coinElem = document.getElementById('faceCoinCount');
+  if (coinElem) {
+    coinElem.innerText = faceCoins;
+  }
+	
+const gachaBtn = document.getElementById('faceGachaBtn');
+if (gachaBtn) {
+  gachaBtn.disabled = faceCoins < FACE_GACHA_COST;
+}
+	
+  });
+}
+
+
+
+const stainedGlassStyles = [
+  { clipPath: "polygon(0% 0%, 90% 10%, 80% 100%, 10% 90%)" },
+  { clipPath: "polygon(10% 10%, 95% 5%, 85% 95%, 5% 85%)" },
+  { clipPath: "polygon(5% 0%, 95% 15%, 85% 100%, 10% 85%)" },
+  { clipPath: "polygon(0% 30%, 100% 0%, 90% 100%, 10% 90%)" },
+  { clipPath: "polygon(10% 10%, 100% 30%, 70% 100%, 0% 80%)" }
+];
+
+if (!window.faceItemGlowInterval) {
+  window.faceItemGlowInterval = setInterval(() => {
+    const bg = document.getElementById('faceItemGlowBg');
+    if (!bg) return;
+    const style = stainedGlassStyles[Math.floor(Math.random() * stainedGlassStyles.length)];
+    bg.style.clipPath = style.clipPath;
+    bg.style.transition = 'clip-path 1.2s ease-in-out';
+    bg.style.background = 'rgba(255,255,255,0.05)';
+    bg.style.filter = 'brightness(1.2) saturate(1.8)';
+    bg.style.mixBlendMode = 'normal';
+  }, 2000);
+}
+
+// --- プレイヤー画像を更新する関数 ---
+function updatePlayerImage() {
+  const canvas = document.getElementById('playerCanvas');
+
+  // ステンドグラス背景（なければ生成）
+  const displayBottom = '100px';
+  const displayRight = '30px';
+
+  // CSSアニメーションを一度だけ追加
+  if (!document.getElementById('glowBorderStyle')) {
+    const style = document.createElement('style');
+    style.id = 'glowBorderStyle';
+    style.textContent = `
+      @keyframes glowBorder {
+        0% {
+          box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
+          border-color: white;
+        }
+        50% {
+          box-shadow:
+            0 0 20px white,
+            0 0 40px rgba(255, 0, 255, 0.5),
+            0 0 60px rgba(0, 255, 255, 0.5),
+            0 0 30px rgba(255, 255, 0, 0.4);
+          border-image: linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet) 1;
+          border-color: transparent;
+        }
+        100% {
+          box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
+          border-color: white;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // ステンドグラス背景エリアの作成・配置
+  let bg = document.getElementById('faceItemGlowBg');
+  if (!bg) {
+    bg = document.createElement('div');
+    bg.id = 'faceItemGlowBg';
+    bg.style.position = 'absolute';
+    bg.style.bottom = displayBottom;
+    bg.style.right = displayRight;
+    bg.style.width = '120px';
+    bg.style.height = '120px';
+    bg.style.pointerEvents = 'none';
+    bg.style.zIndex = '0';
+    bg.style.overflow = 'hidden';
+    bg.style.background = 'rgba(255,255,255,0.05)';
+    bg.style.filter = 'brightness(1.2) saturate(1.8)';
+    bg.style.mixBlendMode = 'normal';
+    bg.style.border = '2px solid white';
+    bg.style.borderRadius = '8px';
+    bg.style.animation = 'glowBorder 5s ease-in-out infinite'; // ★光るアニメーション
+		bg.style.zIndex = '9998'; // ← playerCanvas より上、画像より下
+
+    if (canvas && canvas.parentNode) {
+      canvas.parentNode.insertBefore(bg, canvas.nextSibling);
+    }
+  }
+
+  // プレイヤー画像の表示（faceItemEquippedがあるとき）
+  if (faceItemEquipped) {
+		canvas.style.display = 'none'; 
+    let img = document.getElementById('faceItemDisplayImg');
+    if (!img) {
+      img = document.createElement('img');
+      img.id = 'faceItemDisplayImg';
+
+      img.style.position = 'absolute';
+      img.style.top = '50%';
+      img.style.left = '50%';
+      img.style.transform = 'translate(-50%, -50%)';
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'contain';
+      img.style.objectPosition = 'center';
+      img.style.pointerEvents = 'none';
+      img.style.zIndex = '10';
+
+      // 額縁風スタイル
+      img.style.border = '1px solid transparent';
+      img.style.borderImage = 'linear-gradient(45deg, #d4af37, #b8860b, #f9d71c) 1';
+      img.style.boxShadow = '0 0 16px rgba(255, 215, 0, 0.5), 0 0 8px rgba(255, 215, 0, 0.3) inset';
+      img.style.background = 'transparent';
+      img.style.borderRadius = '2px';
+			img.style.zIndex = '9999';
+		
+
+      bg.appendChild(img);
+    }else{
+			canvas.style.display = 'block';
+    }
+
+    img.src = faceItemEquipped;
+
+    const rarity = faceItemEquipped.match(/[SABCD]/)?.[0];
+    img.className = '';
+    img.style.filter = 'none';
+
+    switch (rarity) {
+      case 'S':
+        img.classList.add('rarity-s');
+        break;
+      case 'A':
+        img.style.filter = 'drop-shadow(0 0 10px #FFD700)';
+        break;
+      case 'B':
+        img.style.filter = 'drop-shadow(0 0 8px #3399ff)';
+        break;
+      case 'C':
+        img.style.filter = 'drop-shadow(0 0 6px #33cc33)';
+        break;
+      case 'D':
+        img.style.filter = 'drop-shadow(0 0 4px #999999)';
+        break;
+    }
+
+  } else {
+    if (canvas) canvas.style.display = 'block';
+    document.getElementById('faceItemDisplayImg')?.remove();
+    document.getElementById('faceItemGlowBg')?.remove();
+  }
+}
+
+// アニメーション開始
+if (!window.faceItemGlowInterval) {
+  window.faceItemGlowInterval = setInterval(() => {
+    const bg = document.getElementById('faceItemGlowBg');
+    if (!bg) return;
+    const randomIndex = Math.floor(Math.random() * stainedGlassStyles.length);
+    const style = stainedGlassStyles[randomIndex];
+    bg.style.clipPath = style.clipPath;
+    bg.style.transition = 'clip-path 1.2s ease-in-out';
+  }, 2000);
+
+  let scrollTimeout;
+  window.addEventListener('scroll', () => {
+    document.getElementById('faceOverlay')?.classList.add('hidden');
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      if (faceItemEquipped) {
+        document.getElementById('faceOverlay')?.classList.remove('hidden');
+      }
+    }, 300);
+  });
+}
+
 function maybeGainItemMemory() {
   if (window.specialMode !== 'brutal') return;
   if (!player || !player.skills || player.skills.length === 0) return;
@@ -809,6 +1166,15 @@ window.itemFilterMode = 'and';
 
 document.addEventListener('DOMContentLoaded', () => {
 	
+	  const toggle = document.getElementById('faceMemoryToggle');
+    const content = document.getElementById('faceMemoryContent');
+
+    toggle.addEventListener('click', () => {
+      const isOpen = content.style.display === 'block';
+      content.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? '▶ フェイスメモリーを表示' : '▼ フェイスメモリーを非表示';
+    });
+	
 	const deathChar = document.getElementById('deathChar');
   if (!deathChar) return;
 
@@ -887,6 +1253,17 @@ let hpHistory = [];
 let sslot = 0;
 let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
+// --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
+// フェイスコイン獲得確率 (勝利時2%)
+const FACE_COIN_DROP_RATE = 0.5;
+// ガチャに必要なコイン枚数
+const FACE_GACHA_COST = 1000;
+// ランクごとの出現確率 (合計1.00になるよう調整)
+const FACE_RARITY_PROBS = { S: 0.01, A: 0.04, B: 0.15, C: 0.30, D: 0.50 };
+
+window.faceCoins = 1000;
+window.faceItemsOwned = [];       // 例: ['face/S/face1.png', ...]
+window.faceItemEquipped = null;   // 例: 'face/A/face3.png'
 window.lastChosenSkillNames = [];  // 戦闘ごとの抽選結果
 
 // ユーティリティ: オブジェクトをBase64文字列にエンコード
@@ -1174,6 +1551,9 @@ window.player = {};            // 新しいプレイヤーオブジェクトを�
         updateStats();
 
         window.startBattle();
+				
+				updateFaceUI();
+				
     }, 500);
 };
 
@@ -2081,6 +2461,20 @@ player.skills.forEach(sk => {
   }
 });
 
+// --- startBattle関数（または勝利判定部分）の中に追記 ---
+// （例）勝利時報酬処理の直後に以下を追加
+
+  if (Math.random() < FACE_COIN_DROP_RATE) {
+    faceCoins++;
+    //alert("フェイスコインを獲得！");
+    // UI上のコイン表示を更新
+    const coinElem = document.getElementById('faceCoinCount');
+    if (coinElem) coinElem.innerText = faceCoins;
+
+}
+updateFaceUI();
+
+
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
 const rarity = enemy.rarity * (1 + currentStreak * 0.01);
@@ -2438,7 +2832,6 @@ async function generateHash(input) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// セーブデータをコード化してコピー保存（base64 + SHA-256）
 window.exportSaveCode = async function() {
   if (!player) return;
 
@@ -2451,10 +2844,16 @@ window.exportSaveCode = async function() {
     player.hp = player.maxHp;
   }
 
+  // itemFilterStates 再構築
   window.itemFilterStates = buildItemFilterStates();
 
-  // 初期スキル情報を保存対象に反映
+  // 初期スキルをplayerに追加
   player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+  // --- グローバル変数を一貫して使用 ---
+  window.faceCoins = window.faceCoins || 0;
+  window.faceItemsOwned = window.faceItemsOwned || [];
+  window.faceItemEquipped = window.faceItemEquipped || null;
 
   const payload = {
     player,
@@ -2472,19 +2871,23 @@ window.exportSaveCode = async function() {
     itemFilterMode: window.itemFilterMode || 'and',
     itemFilterStates: window.itemFilterStates || {},
 
-    // ★追加：戦闘回数の保存
+    // 戦闘回数
     remainingBattles: window.remainingBattles ?? null,
     targetBattles: window.targetBattles ?? null,
     maxScores: window.maxScores || {},
 
-};
+    // ✅ フェイスアイテム関連（window 明示）
+    faceCoins: window.faceCoins,
+    faceItemsOwned: window.faceItemsOwned,
+    faceItemEquipped: window.faceItemEquipped,
+  };
 
   const raw = JSON.stringify(payload);
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
   const code = `${b64}.${hash}`;
 
-  // コピー＆表示
+  // 表示とクリップボード
   const box = document.getElementById('saveCodeBox');
   box.value = code;
 
@@ -2494,7 +2897,7 @@ window.exportSaveCode = async function() {
     box.focus(); box.select();
   }
 
-  // ファイル名にキャラ名＋日時を使用
+  // ダウンロード
   const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
   const now = new Date();
   const timestamp = now.toLocaleString('ja-JP', {
@@ -2514,19 +2917,92 @@ window.exportSaveCode = async function() {
   URL.revokeObjectURL(url);
 };
 
+
+window.exportSaveCode = async function () {
+  if (!player) return;
+
+  // 成長ステータスを最新化
+  if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
+
+  window.itemFilterStates = buildItemFilterStates();
+  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+  const payload = {
+    player,
+    currentStreak,
+    sslot,
+    growthMultiplier: window.growthMultiplier,
+    skillMemoryOrder: Object.entries(player.skillMemory),
+    itemMemory: player.itemMemory || [],
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+    levelCapExemptSkills: window.levelCapExemptSkills || [],
+    specialMode: window.specialMode || 'normal',
+    allowGrowthEvent: window.allowGrowthEvent || false,
+    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+    allowItemInterrupt: window.allowItemInterrupt || false,
+    itemFilterMode: window.itemFilterMode || 'and',
+    itemFilterStates: window.itemFilterStates || {},
+    remainingBattles: window.remainingBattles ?? null,
+    targetBattles: window.targetBattles ?? null,
+    maxScores: window.maxScores || {},
+
+    // ✅ フェイスアイテム情報を明示的に保存
+    faceCoins: window.faceCoins || 0,
+    faceItemsOwned: window.faceItemsOwned || [],
+    faceItemEquipped: window.faceItemEquipped || null,
+  };
+
+  const raw = JSON.stringify(payload);
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  const hash = await generateHash(b64);
+  const code = `${b64}.${hash}`;
+
+  const box = document.getElementById('saveCodeBox');
+  box.value = code;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch (e) {
+    box.focus(); box.select();
+  }
+
+  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
+  const now = new Date();
+  const timestamp = now.toLocaleString('ja-JP', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(/[^\d]/g, '');
+  const filename = `${charName}_${timestamp}.txt`;
+
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+
+
 window.importSaveCode = async function () {
   document.getElementById("skillMemoryList").classList.remove("hidden");
   const input = document.getElementById('saveData').value.trim();
 
   try {
-    // セーブコードの署名確認
     const parts = input.split('.');
     if (parts.length !== 2) throw new Error('形式が不正です');
     const [b64, hash] = parts;
     const computed = await generateHash(b64);
     if (computed !== hash) throw new Error('署名不一致');
 
-    // デコードとパース
     let raw = '';
     try {
       raw = decodeURIComponent(escape(atob(b64)));
@@ -2537,25 +3013,15 @@ window.importSaveCode = async function () {
     const parsed = JSON.parse(raw);
     player = parsed.player;
     window.maxScores = parsed.maxScores || {};
-    // 成長ボーナスがない場合は初期化
     if (!player.growthBonus) {
       player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
     }
 
-    // アイテムメモリ
     player.itemMemory = parsed.itemMemory || [];
-
-    // 初期スキル
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
-
-    // スキルレベル制限緩和対象
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
-
-    // その他ステータス
     window.growthMultiplier = parsed.growthMultiplier || 1;
     currentStreak = parsed.currentStreak || 0;
-
-    // ★ 追加: 戦闘回数・残り回数の復元
     window.remainingBattles = parsed.remainingBattles ?? null;
     window.targetBattles = parsed.targetBattles ?? null;
 
@@ -2567,11 +3033,20 @@ window.importSaveCode = async function () {
       remainDisplay.style.display = 'none';
     }
 
-    // 転生カウント
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
 
-    // --- 新規追加設定の復元 ---
+    // ✅ フェイスアイテム情報の復元とUI更新
+    window.faceCoins = parsed.faceCoins ?? 0;
+    window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
+    window.faceItemEquipped = parsed.faceItemEquipped ?? null;
+
+    const coinElem = document.getElementById('faceCoinCount');
+    if (coinElem) coinElem.innerText = window.faceCoins;
+    if (typeof updateFaceUI === 'function') updateFaceUI();
+    if (typeof updatePlayerImage === 'function') updatePlayerImage();
+
+    // --- その他設定の復元 ---
     window.specialMode = parsed.specialMode || 'normal';
     window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
     window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
@@ -2579,26 +3054,19 @@ window.importSaveCode = async function () {
     window.itemFilterMode = parsed.itemFilterMode || 'and';
     window.itemFilterStates = parsed.itemFilterStates || {};
 
-    // --- UI初期化 ---
     if (typeof setupItemFilters === 'function') setupItemFilters();
     if (typeof setupToggleButtons === 'function') setupToggleButtons();
     if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
 
-    // 敵を生成（攻撃スキルありを保証）
     do {
       enemy = makeCharacter('敵' + Math.random());
     } while (!hasOffensiveSkill(enemy));
 
-    // ステータス表示更新
     updateStats();
-
-    // 表示の同期
-    if (typeof setupToggleButtons === 'function') setupToggleButtons();
     if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
     if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
     if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
 
-    // タイトル → ゲーム画面へ切り替え
     const title = document.getElementById('titleScreen');
     const game = document.getElementById('gameScreen');
     title.classList.add('fade-out');
@@ -2609,7 +3077,6 @@ window.importSaveCode = async function () {
       game.classList.add('fade-in');
       document.getElementById("battleArea").classList.add("hidden");
 
-      // 連勝表示
       const streakDisplay = document.getElementById('currentStreakDisplay');
       if (streakDisplay) {
         const baseBoost = 1.02;
@@ -2617,11 +3084,11 @@ window.importSaveCode = async function () {
         streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
       }
 
-      // 転生回数表示
       const rebirthDisplay = document.getElementById('rebirthCountDisplay');
       if (rebirthDisplay) {
         rebirthDisplay.textContent = '転生回数：' + rebirth;
       }
+
       if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
       startBattle();
     }, 500);
@@ -2630,6 +3097,10 @@ window.importSaveCode = async function () {
     alert('セーブデータの読み込みに失敗しました：' + e.message);
   }
 };
+
+
+
+
 
 window.setupToggleButtons = function () {
   const modeBtn = document.getElementById('kichikuToggle');
@@ -3499,40 +3970,53 @@ function applyPassiveSeals(attacker, defender, log = []) {
 let scoreTimeout;
 let skillTimeout;
 let itemTimeout;
+let faceTimeout;
 
 window.addEventListener('scroll', () => {
   const battleEl = document.getElementById('remainingBattlesDisplay');
   const scoreEl = document.getElementById('scoreOverlay');
   const skillEl = document.getElementById('skillOverlay');
-	const itemEl = document.getElementById('itemOverlay');
-
+  const itemEl = document.getElementById('itemOverlay');
+  const faceEl = document.getElementById('faceOverlay');
+  if (faceItemEquipped && faceEl) {
+    faceEl.src = faceItemEquipped;
+  }
 
   // フェードアウト（スクロール中）
   if (battleEl) battleEl.style.opacity = '0';
   if (scoreEl) scoreEl.style.opacity = '0';
   if (skillEl) skillEl.style.opacity = '0';
-	if (itemEl) itemEl.style.opacity = '0';
-
+  if (itemEl) itemEl.style.opacity = '0';
+  if (faceEl) faceEl.style.opacity = '0'; // ← フェイスも消す
 
   // タイマー解除
   clearTimeout(scoreTimeout);
   clearTimeout(skillTimeout);
   clearTimeout(itemTimeout);
+  clearTimeout(faceTimeout); // ← 追加
 
-  // スコア：500ms後に再表示
+  // スコア：1秒後に再表示
   scoreTimeout = setTimeout(() => {
     if (battleEl) battleEl.style.opacity = '1';
     if (scoreEl) scoreEl.style.opacity = '1';
-  }, 1000);
+  }, 1500);
 
-  // スキル一覧：2秒後に再表示（内容更新付き）
+  // スキル：1.5秒後に再表示
   skillTimeout = setTimeout(() => {
     if (typeof updateSkillOverlay === 'function') updateSkillOverlay();
     if (skillEl) skillEl.style.opacity = '1';
   }, 1500);
-	
-	  itemTimeout = setTimeout(() => {
+
+  // アイテム：1.5秒後に再表示
+  itemTimeout = setTimeout(() => {
     updateItemOverlay();
     if (itemEl) itemEl.style.opacity = '1';
+  }, 1500);
+
+  // フェイス：1秒後に再表示（scoreOverlayと同時）
+  faceTimeout = setTimeout(() => {
+    if (faceItemEquipped && faceEl) {
+      faceEl.style.opacity = '1';
+    }
   }, 1500);
 });

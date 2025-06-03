@@ -4,12 +4,68 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>◯戦後に死ぬ戦士</title>
+	
+<style>
+@keyframes glowBorder {
+  0% {
+    box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
+    border-color: white;
+  }
+  50% {
+    box-shadow: 
+      0 0 20px white,
+      0 0 40px rgba(255, 0, 255, 0.5),
+      0 0 60px rgba(0, 255, 255, 0.5),
+      0 0 30px rgba(255, 255, 0, 0.4);
+    border-image: linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet) 1;
+    border-color: transparent;
+  }
+  100% {
+    box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
+    border-color: white;
+  }
+}
+
+#faceItemGlowFrame {
+  animation: glowBorder 5s ease-in-out infinite;
+  border-radius: 8px;
+  pointer-events: none;
+}
+</style>
+	
+	
   <link rel="stylesheet" href="style.css?v=3" />
+	
+	<script>
+let IMAGE_LIST_BY_RANK = {};
+
+async function loadFaceManifest() {
+  try {
+    const response = await fetch('face/faceManifest.json');
+    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    const data = await response.json();
+    IMAGE_LIST_BY_RANK = data;
+    //console.log('Face manifest loaded:', IMAGE_LIST_BY_RANK);
+  } catch (error) {
+    console.error('Failed to load face manifest:', error);
+    // フォールバック処理：JSON読み込み失敗時はデフォルトまたは空のリストを設定
+    IMAGE_LIST_BY_RANK = { S: [], A: [], B: [], C: [], D: [] };
+  }
+}
+
+// DOMContentLoaded イベントでJSON読み込みを実行 [oai_citation:1‡developer.mozilla.org](https://developer.mozilla.org/ja/docs/Web/API/Document/DOMContentLoaded_event#:~:text=document.addEventListener%28,)
+window.addEventListener('DOMContentLoaded', loadFaceManifest);
+</script>
+
 </head>
 
 <body>
 	
 <div id="scoreOverlay" style="display: none;"></div>
+
+<img id="faceOverlay" class="hidden">
+
+
 <div id="skillOverlay" style="display: none;"></div>
 	
   <!-- カスタムアラート -->
@@ -158,30 +214,31 @@
 
     <!-- バトルエリア -->
 <div id="battleArea" class="hidden">
-  <details open>
-    <summary><strong>自分のキャラクター情報</strong></summary>
-		
-<div id="uniqueSkillSection" style="margin-top: 15px;">
-  <button id="toggleUniqueSkills" style="
-    font-size: 11px;
-    padding: 4px 6px;
-    background: linear-gradient(to bottom, #222, #444);
-    color: #0ff;
-    border: 1px solid #0ff;
-    border-radius: 4px;
-    cursor: pointer;
-    text-shadow: 1px 1px 0 #000;
-    transition: background 0.2s ease, transform 0.1s ease;
-  ">
-    ▼ 固有スキル候補を表示
-  </button>
-  <ul id="uniqueSkillList" style="
-    display: none;
-    list-style: none;
-    padding-left: 0;
-    margin-top: 10px;
-  "></ul>
-</div>
+<details open>
+  <summary><strong>自分のキャラクター情報</strong></summary>
+
+  <div id="uniqueSkillSection" style="margin-top: 15px;">
+    <button id="toggleUniqueSkills" style="
+      font-size: 11px;
+      padding: 4px 6px;
+      background: linear-gradient(to bottom, #222, #444);
+      color: #0ff;
+      border: 1px solid #0ff;
+      border-radius: 4px;
+      cursor: pointer;
+      text-shadow: 1px 1px 0 #000;
+      transition: background 0.2s ease, transform 0.1s ease;
+    ">
+      ▼ 固有スキル候補を表示
+    </button>
+    <ul id="uniqueSkillList" style="
+      display: none;
+      list-style: none;
+      padding-left: 0;
+      margin-top: 10px;
+    "></ul>
+  </div>
+
     <div class="status-area compact">
       <div class="char-info">
 
@@ -193,11 +250,9 @@
         <p id="spdStat">SPD: 0</p>
         <p id="hpStat">HP: 0</p>
         <p id="maxHpStat">MAX HP: 0</p>
-
-</div>
-			
     </div>
-  </details>
+  </div>
+</details>
 	
 
   <details open>
@@ -279,7 +334,22 @@
         </select>
       </label>
     </div>
+		
+<!-- （既存のスキルメモリーUIの直後に以下を追加）フェイスメモリーUIコンテナ -->
+<div id="faceMemoryUI">
+  <h3 id="faceMemoryToggle" style="cursor: pointer;">▶ フェイスメモリーを表示/非表示</h3>
 
+  <!-- フェイスコイン数とガチャボタン表示エリア -->
+  <div id="faceCoinInfo">
+    コイン: <span id="faceCoinCount">0</span> 枚 
+    <button id="faceGachaBtn" disabled>ガチャ</button>
+  </div>
+
+  <!-- 折りたたみ可能なフェイスアイテムリスト -->
+<div id="faceMemoryContent" style="display: block; margin-top: 10px;">
+    <div id="ownedFaceList"></div>
+  </div>
+</div>
 		    <h3>イベント設定</h3>
 		      <!-- イベント設定 -->
       <div id="autoStopControls">
@@ -367,5 +437,15 @@
 
   <!-- スクリプト読込 -->
   <script type="module" src="game.js"></script>
+	
+<div id="gachaAnimation" style="display: none;">
+  <div class="gacha-body">
+    <div class="gacha-glass">
+      <div class="gacha-ball"></div>
+    </div>
+    <div class="gacha-knob"></div>
+  </div>
+</div>
+	
 </body>
 </html>
