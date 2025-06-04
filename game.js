@@ -459,7 +459,7 @@ function performFaceGacha() {
     return;
   }
 
-  if (faceItemsOwned.length >= 30) {
+  if (faceItemsOwned.length >= 100) {
     alert("所持フェイスアイテムが上限に達しています。");
     return;
   }
@@ -1043,6 +1043,17 @@ function updatePlayerImage() {
     document.getElementById('faceItemGlowBg')?.remove();
   }
 }
+
+let scrollTimeout;
+window.addEventListener('scroll', () => {
+  document.getElementById('faceOverlay')?.classList.add('hidden');
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => {
+    if (faceItemEquipped) {
+      document.getElementById('faceOverlay')?.classList.remove('hidden');
+    }
+  }, 300);
+});
 
 // アニメーション開始
 if (!window.faceItemGlowInterval) {
@@ -3167,37 +3178,54 @@ window.updateItemFilterModeButton = function () {
 };
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
-window.loadGame = async function() {
-  // ファイル入力がある場合は読み込む
+window.loadGame = async function () {
+  const fileInput = document.getElementById('saveFileInput');
+  const input = document.getElementById('saveData').value.trim();
+
+  const hasFile = fileInput && fileInput.files.length > 0;
+  const hasText = input.length > 0;
+
+  // ✅ ファイルもテキストも空 → 絶対に処理せず終了
+  if (!hasFile && !hasText) {
+    alert('セーブデータが入力されていません。');
+    return;
+  }
+
+  // フラグ類とUI初期化（失敗後の再実行も含めて安全）
   isLoadedFromSave = true;
   window.isFirstBattle = false;
+  player = null;
+  enemy = null;
 
   document.getElementById("skillMemoryList").classList.remove("hidden");
   document.getElementById("skillMemoryContainer").style.display = "block";
   drawSkillMemoryList();
-  const fileInput = document.getElementById('saveFileInput');
-  if (fileInput && fileInput.files.length > 0) {
+
+  // ✅ ファイル入力を優先
+  if (hasFile) {
     const file = fileInput.files[0];
     const reader = new FileReader();
-    reader.onload = async function(e) {
+    reader.onload = async function (e) {
       const content = e.target.result.trim();
+      if (!content) {
+        alert('セーブファイルが空です。');
+        return;
+      }
       document.getElementById('saveData').value = content;
-      await window.importSaveCode();
+      await window.importSaveCodeSafely?.();
     };
     reader.readAsText(file);
     return;
   }
-  const input = document.getElementById('saveData').value.trim();
-  if (!input) {
-    return;
-  }
-  if (input.includes('.')) {
-    // 新形式コードの場合
-    await window.importSaveCode();
-  } else {
-    // 旧形式データの場合
-    try {
+
+  // ✅ テキスト入力の場合
+  try {
+    if (input.includes('.')) {
+      await window.importSaveCodeSafely?.();
+    } else {
       const parsed = window.decodeBase64(input);
+      if (!parsed || !parsed.player) throw new Error('無効な旧形式データ');
+
       player = parsed.player;
       if (!player.growthBonus) {
         player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
@@ -3207,19 +3235,23 @@ window.loadGame = async function() {
       drawItemMemoryList();
 
       currentStreak = parsed.currentStreak || 0;
-// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
-do {
-    enemy = makeCharacter('敵' + Math.random());
-} while (!hasOffensiveSkill(enemy));
-      //alert('[A006] [A778] enemy生成: ' + JSON.stringify(enemy?.baseStats));
+
+      // 敵生成（攻撃スキルがあるまでループ）
+      do {
+        enemy = makeCharacter('敵' + Math.random());
+      } while (!hasOffensiveSkill(enemy));
+
       updateStats();
-      //document.getElementById('titleScreen').classList.add('hidden');
       document.getElementById('gameScreen').classList.remove('hidden');
       document.getElementById("battleArea").classList.add("hidden");
-    } catch (e) {
     }
+  } catch (e) {
+    console.error('セーブ読み込みエラー:', e);
+    alert('セーブデータの読み込みに失敗しました。');
+    player = null;
+    enemy = null;
+    return;
   }
-
 };
 
 // ゲーム終了処理（タイトル画面に戻る）
@@ -3250,6 +3282,8 @@ do {
     } else {
     }
   });
+	
+
 window.makeCharacter = function(name) {
 
     if (player) {
