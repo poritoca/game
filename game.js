@@ -148,7 +148,7 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
 
-  // ★ ここを textContent → innerHTML に変更
+  // 内容を設定
   title.innerHTML = messageHtml;
   optionsEl.innerHTML = "";
 
@@ -159,9 +159,24 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
     popup.style.display = "none";
     if (typeof onConfirm === "function") onConfirm();
   };
-
   optionsEl.appendChild(okBtn);
+
+  // 一時的に表示してサイズ取得
   popup.style.display = "block";
+  popup.style.visibility = "hidden";
+
+  // ✅ 横幅を広めに設定
+  popup.style.width = "min(90vw, 600px)";
+
+  // 中央に配置（スクロール対応）
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const popupHeight = popup.offsetHeight;
+  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";
+
+  // 表示
+  popup.style.visibility = "visible";
 };
 
 window.isFirstBattle = false;
@@ -2214,10 +2229,15 @@ function hasAnyHighScore() {
 
 if (window.isFirstBattle && !hasAnyHighScore()) {
   showConfirmationPopup(
-    `<div style="text-align:center">
-      <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
-      作ったキャラクターが戦闘をしたよ。戦闘ログを確認してみよう。
-    </div>`,
+`<div style="text-align:center">
+  <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
+	ゲームの世界へようこそ！<br>
+  さっそくだけど、作ったキャラクターが戦闘をしたよ。<br>
+  戦闘ログを確認してみよう。<br><br>
+  最初はフェイスコインを使ってガチャを引いたり、<br>
+  鬼畜モードで何かアイテムを入手して保護するのもおすすめだよ。<br><br>
+  詳しくは一番上の「遊び方」を見てね。
+</div>`,
     () => {
       window.isFirstBattle = false;
     }
@@ -3381,20 +3401,32 @@ window.showEventOptions = function(title, options, onSelect) {
   titleEl.textContent = title;
   optionsEl.innerHTML = '';
 
+  // ボタン生成
   options.forEach(opt => {
     const btn = document.createElement('button');
     btn.textContent = opt.label;
     btn.onclick = () => {
       popup.style.display = 'none';
-      clearEventPopup();  // ← 念のため、選択後にも片付け
+      clearEventPopup();
       onSelect(opt.value);
     };
     optionsEl.appendChild(btn);
   });
 
-  popup.style.display = 'block';
-};
+  // 一時的に表示して高さを取得（非表示にしながらレイアウト計算）
+  popup.style.display = "block";
+  popup.style.visibility = "hidden";
 
+  // 中央に配置（スクロール位置に追従）
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const popupHeight = popup.offsetHeight;
+  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";
+
+  // 最終表示
+  popup.style.visibility = "visible";
+};
   // 【白スキルを選んで削除するポップアップ】
 window.showWhiteSkillSelector = function(callback) {
     clearEventPopup();
