@@ -3178,54 +3178,48 @@ window.updateItemFilterModeButton = function () {
 };
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
-window.loadGame = async function () {
+window.loadGame = async function() {
+  // フラグ初期化
+  isLoadedFromSave = true;
+  window.isFirstBattle = false;
+
+  document.getElementById("skillMemoryList").classList.remove("hidden");
+  document.getElementById("skillMemoryContainer").style.display = "block";
+  drawSkillMemoryList();
+
   const fileInput = document.getElementById('saveFileInput');
   const input = document.getElementById('saveData').value.trim();
 
   const hasFile = fileInput && fileInput.files.length > 0;
   const hasText = input.length > 0;
 
-  // ✅ ファイルもテキストも空 → 絶対に処理せず終了
+  // ✅ どちらも空ならアラートして処理終了
   if (!hasFile && !hasText) {
     alert('セーブデータが入力されていません。');
     return;
   }
 
-  // フラグ類とUI初期化（失敗後の再実行も含めて安全）
-  isLoadedFromSave = true;
-  window.isFirstBattle = false;
-  player = null;
-  enemy = null;
-
-  document.getElementById("skillMemoryList").classList.remove("hidden");
-  document.getElementById("skillMemoryContainer").style.display = "block";
-  drawSkillMemoryList();
-
-  // ✅ ファイル入力を優先
+  // ✅ ファイルがある場合は優先して読み込む
   if (hasFile) {
     const file = fileInput.files[0];
     const reader = new FileReader();
-    reader.onload = async function (e) {
+    reader.onload = async function(e) {
       const content = e.target.result.trim();
-      if (!content) {
-        alert('セーブファイルが空です。');
-        return;
-      }
       document.getElementById('saveData').value = content;
-      await window.importSaveCodeSafely?.();
+      await window.importSaveCode();
     };
     reader.readAsText(file);
     return;
   }
 
-  // ✅ テキスト入力の場合
-  try {
-    if (input.includes('.')) {
-      await window.importSaveCodeSafely?.();
-    } else {
+  // ✅ テキスト入力がある場合
+  if (input.includes('.')) {
+    // 新形式コードの場合
+    await window.importSaveCode();
+  } else {
+    // 旧形式データの場合
+    try {
       const parsed = window.decodeBase64(input);
-      if (!parsed || !parsed.player) throw new Error('無効な旧形式データ');
-
       player = parsed.player;
       if (!player.growthBonus) {
         player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
@@ -3236,7 +3230,7 @@ window.loadGame = async function () {
 
       currentStreak = parsed.currentStreak || 0;
 
-      // 敵生成（攻撃スキルがあるまでループ）
+      // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
       do {
         enemy = makeCharacter('敵' + Math.random());
       } while (!hasOffensiveSkill(enemy));
@@ -3244,13 +3238,10 @@ window.loadGame = async function () {
       updateStats();
       document.getElementById('gameScreen').classList.remove('hidden');
       document.getElementById("battleArea").classList.add("hidden");
+    } catch (e) {
+      console.error('旧形式データの読み込み失敗:', e);
+      alert('旧形式のセーブデータが読み込めませんでした。');
     }
-  } catch (e) {
-    console.error('セーブ読み込みエラー:', e);
-    alert('セーブデータの読み込みに失敗しました。');
-    player = null;
-    enemy = null;
-    return;
   }
 };
 
