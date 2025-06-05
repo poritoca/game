@@ -147,7 +147,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="gameScreen" class="hidden" style="margin: 20px 0;">
     <!-- クイックガイド -->
     <div class="quick-guide-wrapper">
-      <button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
+			
+
+			
+<button class="quick-guide-toggle">【遊び方を表示／非表示】</button>
       <div id="quickGuideContent" class="quick-guide-content hidden">
 
     <h3>このゲームの目的</h3>
@@ -419,6 +422,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 ">
   タイトルに戻る
 </button>
+
     </div>
 
   </div>
@@ -459,6 +463,51 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div class="gacha-knob"></div>
   </div>
 </div>
-	
+
+
+<script>
+(function() {
+  const requiredClicks = 10;
+  const timeLimit = 4000; // ミリ秒以内
+
+  let clickCount = 0;
+  let firstClickTime = null;
+
+  // 初期化処理
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.querySelector('.quick-guide-toggle');
+    const guide = document.getElementById('quickGuideContent');
+
+    if (!btn || !guide) {
+      console.warn('必要な要素が見つかりません');
+      return;
+    }
+
+    btn.addEventListener('click', () => {
+      const now = Date.now();
+      if (!firstClickTime || now - firstClickTime > timeLimit) {
+        clickCount = 1;
+        firstClickTime = now;
+      } else {
+        clickCount++;
+      }
+
+      // 普通の表示切替（ガイド表示・非表示）
+      guide.classList.toggle('hidden');
+
+      // 10回連続クリックされたときだけデバッグ関数を実行
+      if (clickCount >= requiredClicks) {
+        clickCount = 0;
+        firstClickTime = null;
+        if (typeof window.showAllGlobalVariables === 'function') {
+          window.showAllGlobalVariables();
+        } else {
+          alert("デバッグ関数が存在しません。");
+        }
+      }
+    });
+  });
+})();
+</script>
 </body>
 </html>

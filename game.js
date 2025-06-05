@@ -13,6 +13,101 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+window.showAllGlobalVariables = function () {
+  document.getElementById("debugPopup")?.remove(); // 前回のを削除
+
+  const popup = document.createElement("div");
+  popup.id = "debugPopup";
+  popup.style.position = "fixed";
+  popup.style.top = "10%";
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";
+  popup.style.maxHeight = "60vh";
+  popup.style.overflow = "auto";
+  popup.style.background = "#222";
+  popup.style.color = "#fff";
+  popup.style.padding = "12px 16px";
+  popup.style.zIndex = "9999";
+  popup.style.border = "2px solid #fff";
+  popup.style.borderRadius = "8px";
+  popup.style.boxShadow = "0 0 10px #fff";
+  popup.style.maxWidth = "80vw";
+  popup.style.fontSize = "14px";
+
+  const title = document.createElement("h3");
+  title.textContent = "変数一覧（デバッグ用）";
+  title.style.marginTop = "0";
+  popup.appendChild(title);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "閉じる";
+  closeBtn.style.margin = "10px 0";
+  closeBtn.onclick = () => popup.remove();
+  popup.appendChild(closeBtn);
+
+  const keys = Object.keys(window).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  keys.forEach(key => {
+    try {
+      const value = window[key];
+      const container = document.createElement("div");
+      container.style.marginBottom = "6px";
+
+      if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        value === null ||
+        value === undefined
+      ) {
+        container.innerHTML = `<strong>${key}</strong>: ${JSON.stringify(value)}`;
+      } else if (Array.isArray(value)) {
+        const details = document.createElement("pre");
+        details.style.display = "none";
+        details.style.marginLeft = "1em";
+        details.style.whiteSpace = "pre-wrap";
+        details.textContent = value.map((v, i) => `${i}: ${JSON.stringify(v)}`).join("\n");
+
+        const clickable = document.createElement("div");
+        clickable.innerHTML = `<strong style="color:#4cf">${key}</strong>: [Array(${value.length})]`;
+        clickable.style.cursor = "pointer";
+        clickable.onclick = () => {
+          details.style.display = details.style.display === "none" ? "block" : "none";
+        };
+
+        container.appendChild(clickable);
+        container.appendChild(details);
+      } else if (typeof value === "object") {
+        const entries = Object.entries(value);
+        const details = document.createElement("pre");
+        details.style.display = "none";
+        details.style.marginLeft = "1em";
+        details.style.whiteSpace = "pre-wrap";
+        details.textContent = entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n");
+
+        const clickable = document.createElement("div");
+        clickable.innerHTML = `<strong style="color:#4cf">${key}</strong>: [Object]`;
+        clickable.style.cursor = "pointer";
+        clickable.onclick = () => {
+          details.style.display = details.style.display === "none" ? "block" : "none";
+        };
+
+        container.appendChild(clickable);
+        container.appendChild(details);
+      } else {
+        container.innerHTML = `<strong>${key}</strong>: [function or unknown type]`;
+      }
+
+      popup.appendChild(container);
+    } catch (e) {
+      // 無視
+    }
+  });
+
+  document.body.appendChild(popup);
+};
+
+
 window.updateScoreOverlay = function () {
   const overlay = document.getElementById('scoreOverlay');
   if (!overlay || !window.maxScores) return;
@@ -4093,3 +4188,4 @@ window.addEventListener('scroll', () => {
     }
   }, 1500);
 });
+
