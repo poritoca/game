@@ -770,7 +770,6 @@ function getRarityMultiplierFromRand(randFunc) {
 }
 
 function onItemClick(item, index) {
-  // まずポップアップを完全に初期化
   clearEventPopup();
 
   const name = `${item.color}${item.adjective}${item.noun}`;
@@ -780,7 +779,6 @@ function onItemClick(item, index) {
 
   title.innerHTML = `アイテム <b>${name}</b> をどうする？`;
 
-  // 保護 / 保護を外すボタン
   const protectBtn = document.createElement("button");
   protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
   protectBtn.onclick = () => {
@@ -789,12 +787,11 @@ function onItemClick(item, index) {
       return;
     }
     item.protected = !item.protected;
-    clearEventPopup(); // ボタン動作後にも片付け
+    clearEventPopup();
     drawItemMemoryList();
   };
   container.appendChild(protectBtn);
 
-  // 削除ボタン（保護中は不可）
   const deleteBtn = document.createElement("button");
   deleteBtn.textContent = "削除する";
   deleteBtn.onclick = () => {
@@ -808,15 +805,18 @@ function onItemClick(item, index) {
   };
   container.appendChild(deleteBtn);
 
-  // キャンセルボタン
   const cancelBtn = document.createElement("button");
   cancelBtn.textContent = "キャンセル";
   cancelBtn.onclick = () => {
     showCustomAlert("キャンセルしました", 1500);
-    clearEventPopup(); // ←キャンセル時にも完全に片付け
+    clearEventPopup();
   };
   container.appendChild(cancelBtn);
 
+  // ★ スクロール位置に合わせた表示
+  popup.style.top = `${window.scrollY + 150}px`;
+  popup.style.left = '50%';
+  popup.style.transform = 'translateX(-50%)';
   popup.style.display = "block";
 }
 
@@ -1265,7 +1265,7 @@ let sslot = 0;
 let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
 // --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
-// フェイスコイン獲得確率 (勝利時2%)
+// フェイスコイン獲得確率 (勝利時)
 const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
@@ -2474,15 +2474,31 @@ player.skills.forEach(sk => {
 
 // --- startBattle関数（または勝利判定部分）の中に追記 ---
 // （例）勝利時報酬処理の直後に以下を追加
-
-  if (Math.random() < FACE_COIN_DROP_RATE) {
-    faceCoins++;
-    //alert("フェイスコインを獲得！");
-    // UI上のコイン表示を更新
-    const coinElem = document.getElementById('faceCoinCount');
-    if (coinElem) coinElem.innerText = faceCoins;
-
+// 最高スコアの合計を取得
+let totalScore = 0;
+if (window.maxScores && typeof window.maxScores === 'object') {
+  for (const score of Object.values(window.maxScores)) {
+    if (typeof score === 'number' && score > 0) {
+      totalScore += score;
+    }
+  }
 }
+
+// ドロップ確率チェック
+if (Math.random() < FACE_COIN_DROP_RATE) {
+  // スコアが高いほど平均コイン数が増える（最大10枚）
+  const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2); // 40万で約3枚
+  const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1); // 1〜averageCoinsの乱数
+
+  faceCoins += coinGain;
+
+  const coinElem = document.getElementById('faceCoinCount');
+  if (coinElem) coinElem.innerText = faceCoins;
+
+  // 任意：デバッグログ
+  // console.log(`フェイスコイン +${coinGain}（合計: ${faceCoins}） totalScore=${totalScore}`);
+}
+
 updateFaceUI();
 
 
