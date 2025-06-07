@@ -1593,6 +1593,10 @@ if (isPlayer) {
 window.startNewGame = function() {
 	
 	  window.isFirstBattle = true;
+		const battleBtn = document.getElementById("startBattleBtn");
+		if (battleBtn && battleBtn.classList.contains("hidden")) {
+		  battleBtn.classList.remove("hidden");
+		}
 
     // テキストボックスから名前を取得（空ならデフォルト名を使用）
     const playerName = name || document.getElementById('inputStr').value || 'プレイヤー';
@@ -2831,20 +2835,16 @@ finalResEl.innerHTML = `
   </div>
 
   <div class="final-score-value">合計スコア: ${totalScore}</div>
-  <button id="backToTitleButton" style="
-  margin-top: 30px;
-  padding: 10px 20px;
-  font-size: 1em;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(to right, #333, #666);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255,255,255,0.2);
-  cursor: pointer;
-">
-  タイトルに戻る
-</button>
+
+  <div style="
+    margin-top: 30px;
+    padding: 10px;
+    font-size: 0.95em;
+    color: #ccc;
+    font-style: italic;
+  ">
+    今後、合計スコアによりフェイスコインボーナスがあります。<br>現在のデータを残したいときは、セーブボタンから保存をしてください。<br>その後、続ける場合は画面一番下からタイトルに戻ってください。
+  </div>
 `;
 // スコア記録（無制限を除く）
 const validTargets = [100, 200, 500, 1000, 5000, 10000];
@@ -2858,11 +2858,23 @@ if (validTargets.includes(target)) {
   }
 }
 
-document.getElementById('backToTitleButton').onclick = function () {
-
-  returnToTitleScreen();
-};
 finalResEl.style.display = 'block';
+
+
+window.targetBattles = null;
+window.remainingBattles = null;
+document.getElementById('remainingBattlesDisplay').style.display = 'none';
+
+
+finalResEl.onclick = () => {
+  finalResEl.style.display = 'none';
+	battleBtn.classList.add("hidden");
+	
+	
+
+								
+								
+};
 }
       // 自動戦闘を停止し、戦闘ボタンを無効化
       if (typeof stopAutoBattle === 'function') stopAutoBattle();
@@ -2891,7 +2903,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (returnBtn) {
     returnBtn.addEventListener('click', () => {
       if (confirm("本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）")) {
-        if (typeof returnToTitleScreen === 'function') returnToTitleScreen();
+location.reload();
       }
     });
   }
@@ -2974,90 +2986,7 @@ async function generateHash(input) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-window.exportSaveCode = async function() {
-  if (!player) return;
 
-  // 成長ステータスを最新化
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-
-  // itemFilterStates 再構築
-  window.itemFilterStates = buildItemFilterStates();
-
-  // 初期スキルをplayerに追加
-  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
-
-  // --- グローバル変数を一貫して使用 ---
-  window.faceCoins = window.faceCoins || 0;
-  window.faceItemsOwned = window.faceItemsOwned || [];
-  window.faceItemEquipped = window.faceItemEquipped || null;
-
-  const payload = {
-    player,
-    currentStreak,
-    sslot,
-    growthMultiplier: window.growthMultiplier,
-    skillMemoryOrder: Object.entries(player.skillMemory),
-    itemMemory: player.itemMemory || [],
-    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
-    levelCapExemptSkills: window.levelCapExemptSkills || [],
-    specialMode: window.specialMode || 'normal',
-    allowGrowthEvent: window.allowGrowthEvent || false,
-    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
-    allowItemInterrupt: window.allowItemInterrupt || false,
-    itemFilterMode: window.itemFilterMode || 'and',
-    itemFilterStates: window.itemFilterStates || {},
-
-    // 戦闘回数
-    remainingBattles: window.remainingBattles ?? null,
-    targetBattles: window.targetBattles ?? null,
-    maxScores: window.maxScores || {},
-
-    // ✅ フェイスアイテム関連（window 明示）
-    faceCoins: window.faceCoins,
-    faceItemsOwned: window.faceItemsOwned,
-    faceItemEquipped: window.faceItemEquipped,
-  };
-
-  const raw = JSON.stringify(payload);
-  const b64 = btoa(unescape(encodeURIComponent(raw)));
-  const hash = await generateHash(b64);
-  const code = `${b64}.${hash}`;
-
-  // 表示とクリップボード
-  const box = document.getElementById('saveCodeBox');
-  box.value = code;
-
-  try {
-    await navigator.clipboard.writeText(code);
-  } catch (e) {
-    box.focus(); box.select();
-  }
-
-  // ダウンロード
-  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
-  const now = new Date();
-  const timestamp = now.toLocaleString('ja-JP', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit'
-  }).replace(/[^\d]/g, '');
-  const filename = `${charName}_${timestamp}.txt`;
-
-  const blob = new Blob([code], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
 
 
 window.exportSaveCode = async function () {
@@ -3104,9 +3033,26 @@ window.exportSaveCode = async function () {
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
   const code = `${b64}.${hash}`;
-
-  const box = document.getElementById('saveCodeBox');
-  box.value = code;
+	const box = document.getElementById('saveCodeBox');
+	box.value = code;
+	
+	// クリップボードにコピー
+	if (navigator.clipboard && window.isSecureContext) {
+	  navigator.clipboard.writeText(code).then(() => {
+	    console.log("コピー成功！");
+	  }).catch(err => {
+	    console.error("コピー失敗:", err);
+	  });
+	} else {
+	  // fallback：非対応ブラウザ用
+	  box.select();
+	  try {
+	    const successful = document.execCommand('copy');
+	    console.log(successful ? "コピー成功！（fallback）" : "コピー失敗（fallback）");
+	  } catch (err) {
+	    console.error("fallbackコピーエラー:", err);
+	  }
+	}
   try {
     await navigator.clipboard.writeText(code);
   } catch (e) {
