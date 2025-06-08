@@ -3033,26 +3033,9 @@ window.exportSaveCode = async function () {
   const b64 = btoa(unescape(encodeURIComponent(raw)));
   const hash = await generateHash(b64);
   const code = `${b64}.${hash}`;
-	const box = document.getElementById('saveCodeBox');
-	box.value = code;
-	
-	// クリップボードにコピー
-	if (navigator.clipboard && window.isSecureContext) {
-	  navigator.clipboard.writeText(code).then(() => {
-	    console.log("コピー成功！");
-	  }).catch(err => {
-	    console.error("コピー失敗:", err);
-	  });
-	} else {
-	  // fallback：非対応ブラウザ用
-	  box.select();
-	  try {
-	    const successful = document.execCommand('copy');
-	    console.log(successful ? "コピー成功！（fallback）" : "コピー失敗（fallback）");
-	  } catch (err) {
-	    console.error("fallbackコピーエラー:", err);
-	  }
-	}
+
+  const box = document.getElementById('saveCodeBox');
+  box.value = code;
   try {
     await navigator.clipboard.writeText(code);
   } catch (e) {
@@ -3101,25 +3084,18 @@ window.importSaveCode = async function () {
     const parsed = JSON.parse(raw);
     player = parsed.player;
     window.maxScores = parsed.maxScores || {};
-    if (!player.growthBonus) {
+ //   if (!player.growthBonus) {
       player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-    }
+//    }
 
     player.itemMemory = parsed.itemMemory || [];
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
     window.growthMultiplier = parsed.growthMultiplier || 1;
-    currentStreak = parsed.currentStreak || 0;
-    window.remainingBattles = parsed.remainingBattles ?? null;
-    window.targetBattles = parsed.targetBattles ?? null;
+//    currentStreak = parsed.currentStreak || 0;
+//    window.remainingBattles = parsed.remainingBattles ?? null;
+//    window.targetBattles = parsed.targetBattles ?? null;
 
-    const remainDisplay = document.getElementById('remainingBattlesDisplay');
-    if (window.remainingBattles != null && remainDisplay) {
-      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
-      remainDisplay.style.display = 'block';
-    } else if (remainDisplay) {
-      remainDisplay.style.display = 'none';
-    }
 
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
@@ -3256,7 +3232,6 @@ window.updateItemFilterModeButton = function () {
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
 window.loadGame = async function() {
-  // フラグ初期化
   isLoadedFromSave = true;
   window.isFirstBattle = false;
 
@@ -3270,13 +3245,12 @@ window.loadGame = async function() {
   const hasFile = fileInput && fileInput.files.length > 0;
   const hasText = input.length > 0;
 
-  // ✅ どちらも空ならアラートして処理終了
   if (!hasFile && !hasText) {
     alert('セーブデータが入力されていません。');
     return;
   }
 
-  // ✅ ファイルがある場合は優先して読み込む
+  // === 新形式（ファイルまたはピリオド入りの文字列） ===
   if (hasFile) {
     const file = fileInput.files[0];
     const reader = new FileReader();
@@ -3284,43 +3258,84 @@ window.loadGame = async function() {
       const content = e.target.result.trim();
       document.getElementById('saveData').value = content;
       await window.importSaveCode();
+      updateRemainingBattleDisplay();  // ★表示更新
     };
     reader.readAsText(file);
     return;
   }
 
-  // ✅ テキスト入力がある場合
   if (input.includes('.')) {
-    // 新形式コードの場合
     await window.importSaveCode();
-  } else {
-    // 旧形式データの場合
-    try {
-      const parsed = window.decodeBase64(input);
-      player = parsed.player;
-      if (!player.growthBonus) {
-        player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    updateRemainingBattleDisplay();  // ★表示更新
+    return;
+  }
+
+  // === 旧形式データ ===
+  try {
+    const parsed = window.decodeBase64(input);
+    player = parsed.player;
+    if (!player.growthBonus) {
+      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    }
+    player.itemMemory = player.itemMemory || [];
+    drawItemMemoryList();
+
+    currentStreak = parsed.currentStreak || 0;
+
+    do {
+      enemy = makeCharacter('敵' + Math.random());
+    } while (!hasOffensiveSkill(enemy));
+
+    updateStats();
+    document.getElementById('gameScreen').classList.remove('hidden');
+    document.getElementById("battleArea").classList.add("hidden");
+
+      // ★表示更新
+
+  } catch (e) {
+    console.error('旧形式データの読み込み失敗:', e);
+    alert('旧形式のセーブデータが読み込めませんでした。');
+  }
+	updateRemainingBattleDisplay();
+};
+
+// ★共通の戦闘回数表示処理
+function updateRemainingBattleDisplay() {
+	
+
+  const remainDisplay = document.getElementById('remainingBattlesDisplay');
+  const selectEl = document.getElementById('battleCountSelect');
+
+  // targetBattles が未設定なら select 要素から読み取る
+  if ((typeof window.targetBattles !== "number") && selectEl) {
+    const selectedVal = selectEl.value;
+    if (selectedVal === "unlimited") {
+      window.targetBattles = null;
+    } else {
+      const countVal = parseInt(selectedVal, 10);
+      if (!isNaN(countVal)) {
+        window.targetBattles = countVal;
       }
-
-      player.itemMemory = player.itemMemory || [];
-      drawItemMemoryList();
-
-      currentStreak = parsed.currentStreak || 0;
-
-      // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
-      do {
-        enemy = makeCharacter('敵' + Math.random());
-      } while (!hasOffensiveSkill(enemy));
-
-      updateStats();
-      document.getElementById('gameScreen').classList.remove('hidden');
-      document.getElementById("battleArea").classList.add("hidden");
-    } catch (e) {
-      console.error('旧形式データの読み込み失敗:', e);
-      alert('旧形式のセーブデータが読み込めませんでした。');
     }
   }
-};
+
+  // targetBattles に基づいて表示更新
+  if (typeof window.targetBattles === "number") {
+    if (window.remainingBattles == null || window.remainingBattles <= 0) {
+      window.remainingBattles = window.targetBattles;
+    }
+    if (remainDisplay) {
+      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      remainDisplay.style.display = 'block';
+    }
+  } else {
+    // 無制限モード
+    window.remainingBattles = null;
+    if (remainDisplay) {
+      remainDisplay.style.display = 'none';
+    }
+  }
+}
 
 // ゲーム終了処理（タイトル画面に戻る）
 //window.endGame = function() {

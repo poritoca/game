@@ -113,7 +113,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 		<!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
 <div style="margin-top: 8px;">
-  <label for="battleCountSelect">総戦闘回数：</label>
+  <label for="battleCountSelect">総戦闘回数（はじめから・つづきから）：</label>
   <select id="battleCountSelect">
     <option value="100">100</option>
     <option value="200" selected>200</option>
@@ -407,6 +407,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly />
+
 			<button id="returnToTitleBtnInGame" style="
 
   padding: 6px 12px;
