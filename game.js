@@ -2653,10 +2653,28 @@ drawItemMemoryList();
       log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
+		
+	
+		
+	
 drawSkillMemoryList();
 drawItemMemoryList();
 
 }
+
+	// --- 超低確率で FaceCoin 入手イベント ---
+	const coinChance = enemy.rarity / 1000;
+	if (Math.random() < coinChance) {
+	  const coinGain = Math.floor(500 + Math.random() * 501); // 500〜1000
+	  window.faceCoins = (window.faceCoins || 0) + coinGain;
+	
+	  log.push(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
+	  alert(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
+	
+	  const coinElem = document.getElementById('faceCoinCount');
+	  if (coinElem) coinElem.innerText = window.faceCoins;
+	}
+
 } else {
 
   //stopAutoBattle()
@@ -2836,15 +2854,28 @@ finalResEl.innerHTML = `
 
   <div class="final-score-value">合計スコア: ${totalScore}</div>
 
-  <div style="
-    margin-top: 30px;
-    padding: 10px;
-    font-size: 0.95em;
-    color: #ccc;
-    font-style: italic;
-  ">
-    今後、合計スコアによりフェイスコインボーナスがあります。<br>現在のデータを残したいときは、セーブボタンから保存をしてください。<br>その後、続ける場合は画面一番下からタイトルに戻ってください。
-  </div>
+<div style="
+  margin-top: 30px;
+  padding: 10px;
+  font-size: 0.95em;
+  color: #ccc;
+  font-style: italic;
+">
+  今後、合計スコアによりフェイスコインボーナスがあります。<br>
+  <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
+  その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
+  <br><br>
+  <button onclick="window.exportSaveCode()" style="
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: linear-gradient(to right, #444, #777);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+  ">セーブボタン</button>
+</div>
 `;
 // スコア記録（無制限を除く）
 const validTargets = [100, 200, 500, 1000, 5000, 10000];
@@ -3247,6 +3278,7 @@ window.loadGame = async function() {
 
   if (!hasFile && !hasText) {
     alert('セーブデータが入力されていません。');
+		location.reload();
     return;
   }
 
@@ -3744,7 +3776,7 @@ function drawItemMemoryList() {
 }
 
 window.drawHPGraph = function () {
-  if (isAutoBattle) return;
+//  if (isAutoBattle) return;
   const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
