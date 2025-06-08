@@ -79,8 +79,8 @@ button:active {
   border: 1px solid #444;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.85);
-  margin: 10px auto 60px auto;
-  padding: 20px 30px; /* ← 内側に余白追加 */
+
+  padding: 10px 10px; /* ← 内側に余白追加 */
   box-sizing: border-box;
 }
 
@@ -89,30 +89,8 @@ button:active {
   height: 96px;
   image-rendering: pixelated;
   background: transparent;
-  margin: 120 20px 20px 0; /* 画像の下と右に余白 */
+  margin: 20 20px 20px 0; /* 画像の下と右に余白 */
   flex-shrink: 0;
-}
-
-.status-area span {
-  cursor: help;
-  display: inline-block;
-  margin: 3px;
-  padding: 3px 8px;
-  background: #222;
-  border: 1px solid #666;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-#battleLog {
-  font-family: 'Press Start 2P', system-ui;
-  background: #121212;
-  color: #0f0;
-  border: 1px solid #555;
-  padding: 10px;
-  max-height: 30vh;
-  overflow-y: auto;
-  white-space: pre-wrap;
 }
 
 canvas#playerImg,
@@ -129,16 +107,7 @@ canvas#enemyImg {
   display: none;
 }
 
-.status-area div:first-child {
-  font-size: 1.2em;
-  font-weight: normal;
-  color: #ffffff;
-  text-shadow:
-    0 0 1px #ffffff,
-    0 0 2px #cccccc;
-  margin-bottom: 6px;
-  letter-spacing: 1px;
-}
+
 
 .battle-flex {
   display: flex;
@@ -147,14 +116,7 @@ canvas#enemyImg {
   margin-top: 10px;
 }
 
-#baseStatsContainer {
-  margin-top: 1em;
-  padding: 10px;
-  border: 2px dashed #888;
-  background-color: #f9f9f9;
-  font-weight: bold;
-  text-align: center;
-}
+
 
 #titleScreen h1,
 #titleScreen input,
@@ -210,33 +172,38 @@ canvas#enemyImg {
 
 
 #playerStats, #enemyStats {
-  
-width: 600px;         /* ← 幅を固定にする場合 */
+  width: 400px;
   max-width: 92%;
-	position: relative;
-  background: linear-gradient(#222, #000); /* ダークグラデーション背景 */
-  border: 2px solid #444;                  /* 濃いめのボーダー */
+  margin: 0 auto;
+  position: relative;
+  background: linear-gradient(rgba(34, 34, 34, 0.6), rgba(0, 0, 0, 0.6));
+  border: 2px solid #444;
   border-radius: 10px;
-  padding: 15px;
+  padding: 15px 15px 5px 15px; /* 下を少し狭く */
+  box-sizing: border-box;
 
-  color: #00ffff;                          /* 青白いサイバー系文字色 */
+  color: #00ffff;
   font-family: 'Press Start 2P', system-ui;
   text-shadow:
     0 0 5px #00ffff,
     0 0 10px #00ffff,
     0 0 20px #00ffff,
     0 0 40px #00ffff;
+
   box-shadow:
     inset 0 0 15px rgba(255, 255, 255, 0.03),
     0 0 20px rgba(0, 0, 0, 0.9),
     0 0 5px rgba(255, 255, 255, 0.05),
     0 0 15px #00ffff;
-  max-height: 300px;     
-  overflow-y: auto;      /* 長い場合はスクロール */
+
+  max-height: 300px;
+  overflow-y: auto;
   overflow-x: hidden;
-  word-break: break-word; 
-	padding-right: 8px; 
-  animation: flicker 2s infinite alternate; /* 光るアニメーション */
+  scrollbar-width: thin; /* Firefox対策 */
+  word-break: break-word;
+  padding-right: 8px;
+  line-height: 1.3;
+  animation: flicker 2s infinite alternate;
 }
 
 #playerStats::before, #enemyStats::before {
@@ -403,15 +370,26 @@ width: 600px;         /* ← 幅を固定にする場合 */
   background-color: #666;
 }
 
-/* ダークグラデーション背景とネオン風エフェクト */
+/* バトルログ全体スタイル */
 #battleLog {
+  font-family: 'Press Start 2P', system-ui;
+
   background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
   color: #fff;
   padding: 20px;
+
+  border: 1px solid #555;
   border-radius: 12px;
-  box-shadow: 0 0 20px rgba(138, 43, 226, 0.6), inset 0 0 10px rgba(255, 255, 255, 0.2);
+
+  box-shadow:
+    0 0 20px rgba(138, 43, 226, 0.6),
+    inset 0 0 10px rgba(255, 255, 255, 0.2);
+
   overflow-y: auto;
+  white-space: pre-wrap;
   position: relative;
+
+  max-height: 50vh; /* ← 高さを変更したい場合ここを変更 */
   animation: glow 2s ease-in-out infinite alternate;
 }
 
@@ -661,18 +639,7 @@ canvas {
     display: inline-block; /* ←中央寄せ用 */
 }
 
-.status-area {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
-  padding: 10px;
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.8);
-  margin-bottom: 20px;
-}
+
 
 .stats-container {
   z-index: 1;
@@ -1400,17 +1367,7 @@ summary {
   animation: shakeAndGrow 3s ease-in-out;
 }
 
-/* フェイスメモリーUI全体 */
-#faceMemoryUI {
-  margin: 12px 0;
-  padding: 10px 14px;
-  border: 2px solid #555;
-  background: linear-gradient(to bottom, #222, #444); /* ダークグラデ背景 */
-  color: #fff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05), inset 0 0 4px #000;
-  border-radius: 10px;
-  animation: fadeIn 0.6s ease-out;
-}
+
 
 /* フェイスコイン表示 */
 #faceCoinInfo {
@@ -1684,10 +1641,10 @@ summary {
 
 #faceOverlay {
   position: fixed;
-  top: 60px;
-  right: 10px;
-  width: 48px;
-  height: 48px;
+  top: 16px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
   z-index: 9998;
   image-rendering: pixelated;
   opacity: 1;
@@ -1732,5 +1689,19 @@ summary {
   display: none;
 }
 
+#remainingBattlesDisplay {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 

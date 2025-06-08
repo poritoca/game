@@ -63,29 +63,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 	
 	
 	
-<!-- ゲーム画面内に追加：残り戦闘数表示用のエリア（右上に表示） -->
-<div id="remainingBattlesDisplay" style="
-  position: fixed;
-  top: 10px;
-  right: 10px;
-  font-size: 12px;
-  color: #f0f0f0;
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(4px);
-  padding: 10px 16px;
-  border-left: 4px solid #4caf50;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
-  white-space: pre-wrap;
-  line-height: 1.5;
-  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
-  max-width: 260px;
-  pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  display: none;
-">
-  残り戦闘数：◯回
+<!-- ゲーム画面右上：戦闘状態表示エリア -->
+<!-- ゲーム画面右上：戦闘状態表示エリア -->
+<div id="remainingBattlesDisplay" class="battle-status-display" style="display: none;">
+  残り戦闘数：◯回<br>
+  現在の連勝数：◯<br>
+  現在挑戦中の最大連勝数：◯
 </div>
 	
 <div id="scoreOverlay" style="display: none;"></div>
@@ -164,11 +147,11 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <p>
         タイトル画面では総戦闘回数を選択できます。指定した回数の戦闘を終えると、自動的にゲームが終了し、結果画面が表示されます。無制限を選んだ場合は終了がありません。<br>
         ゲーム終了時にはスコアが表示されます。スコアは最大連勝数・ステータス・所持アイテムの合計レアリティから算出され、最大HPは評価に含まれません。<br>
-        ゲーム終了後、再度挑戦する場合は「はじめから」ボタンを押して新しいゲームを開始してください。
+        ゲーム終了後、再度挑戦する場合はセーブボタンでデータを保存し、タイトルに戻って「つづきから」ボタンでゲームを開始してください。
     </p>
 		
 		<p>
-    ゲーム終了後、再度挑戦する場合は「はじめから」ボタンを押して新しいゲームを開始してください。<br><br>
+    キャラクターを作り直したい場合は「はじめから」ボタンを押して新しいゲームを開始してください。<br><br>
 
     <strong style="color: #ff4444;">
 			※重要：ゲームオーバー後には、成長は初期化されますが、<u>スキルやアイテムは引き継がれます</u>。<br>
@@ -252,9 +235,49 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="battleArea" class="hidden">
 <details open>
   <summary><strong>自分のキャラクター情報</strong></summary>
+	
+<!-- フェイスメモリーUIコンテナ（全幅表示・透過背景） -->
+<div id="faceMemoryUI" style="
+  width: 100%;
+	
+  color: #fff;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  animation: fadeIn 0.6s ease-out;
+">
 
-  <div id="uniqueSkillSection" style="margin-top: 15px;">
+  <!-- 表示切替ボタン（スタイル統一） -->
+  <button id="faceMemoryToggle" style="
+    font-size: 11px;
+
+    background: linear-gradient(to bottom, #222, #444);
+    color: #0ff;
+    border: 1px solid #0ff;
+    border-radius: 4px;
+    cursor: pointer;
+    text-shadow: 1px 1px 0 #000;
+    transition: background 0.2s ease, transform 0.1s ease;
+  ">
+    ▶ フェイスメモリーを表示
+  </button>
+
+  <!-- 折りたたみ可能なコンテンツ -->
+  <div id="faceMemoryContent" style="display: none; margin-top: 10px;">
+    <!-- コインとガチャ -->
+    <div id="faceCoinInfo" style="margin-bottom: 10px;">
+      コイン: <span id="faceCoinCount">0</span> 枚 
+      <button id="faceGachaBtn" disabled>ガチャ</button>
+    </div>
+
+    <!-- 所持フェイスアイテム一覧 -->
+    <div id="ownedFaceList"></div>
+  </div>
+</div>
+
+  <div id="uniqueSkillSection" >
     <button id="toggleUniqueSkills" style="
+		  height: 36px;
       font-size: 11px;
       padding: 4px 6px;
       background: linear-gradient(to bottom, #222, #444);
@@ -265,14 +288,16 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       text-shadow: 1px 1px 0 #000;
       transition: background 0.2s ease, transform 0.1s ease;
     ">
-      ▼ 固有スキル候補を表示
+      ▶ 固有スキル候補を表示
     </button>
     <ul id="uniqueSkillList" style="
       display: none;
       list-style: none;
       padding-left: 0;
-      margin-top: 10px;
+
     "></ul>
+		
+		
   </div>
 
     <div class="status-area compact">
@@ -286,6 +311,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         <p id="spdStat">SPD: 0</p>
         <p id="hpStat">HP: 0</p>
         <p id="maxHpStat">MAX HP: 0</p>
+				
     </div>
   </div>
 </details>
@@ -307,7 +333,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <div class="quick-guide-wrapper">
         <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
         <div id="quickGuideLog" class="quick-guide-content">
-          <pre id="battleLog" style="height:200px;"></pre>
+          <pre id="battleLog" style="height:500px;"></pre>
         </div>
       </div>
 
@@ -327,14 +353,20 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <!-- 最終結果はJavaScriptで埋め込まれます -->
 	
 </div>
-    <!-- アイテムー -->
-    <h3>所持アイテム</h3>
+<!-- 折りたたみ可能なスキル・アイテムメモリーセクション -->
+<div id="memoryToggleContainer">
+  <h3 id="memoryToggle" style="cursor: pointer;">▶ アイテム・スキル表示／非表示</h3>
+  <div id="memoryContent" style="display: none; margin-top: 10px;">
+
+    <!-- アイテム -->
+    <h4>所持アイテム</h4>
     <div id="itemMemoryContainer">
       <ul id="itemMemoryList"></ul>
     </div>
+
     <!-- スキルメモリー -->
-    <h3>スキルメモリー</h3>
-    <div id="skillMemoryContainer" style="display: none;">
+    <h4>スキルメモリー</h4>
+    <div id="skillMemoryContainer" style="display: block;">
       <ul id="skillMemoryList"></ul>
       <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
       <label>同時発動スキル数（通常モードのみ）:
@@ -347,42 +379,35 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         </select>
       </label>
     </div>
+
+  </div>
+</div>
 		
-<!-- （既存のスキルメモリーUIの直後に以下を追加）フェイスメモリーUIコンテナ -->
-<div id="faceMemoryUI">
-  <h3 id="faceMemoryToggle" style="cursor: pointer;">▶ フェイスメモリーを表示/非表示</h3>
 
-  <!-- フェイスコイン数とガチャボタン表示エリア -->
-  <div id="faceCoinInfo">
-    コイン: <span id="faceCoinCount">0</span> 枚 
-    <button id="faceGachaBtn" disabled>ガチャ</button>
-  </div>
+<div id="eventSettingsToggleContainer">
+  <h3 id="eventSettingsToggle" style="cursor: pointer;">▶ イベント＆入手設定を表示／非表示</h3>
+  <div id="eventSettingsContent" style="display: none; margin-top: 10px;">
 
-  <!-- 折りたたみ可能なフェイスアイテムリスト -->
-<div id="faceMemoryContent" style="display: block; margin-top: 10px;">
-    <div id="ownedFaceList"></div>
+    <h4>イベント設定</h4>
+    <div id="autoStopControls">
+      <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
+      <button id="toggleSkillDeleteEvents" class="toggle-btn">スキル削除イベント: 発生</button>
+      <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
+    </div>
+
+    <h4 style="margin-top: 20px;">アイテム入手時設定</h4>
+    <div style="margin-bottom: 10px;">
+      <button id="filterModeToggleBtn" class="toggle-mode-btn and">各要素の条件を満たす</button>
+    </div>
+
+    <div id="itemFilterBox" class="styled-filter-box">
+      <details><summary><b>要素1 色で停止</b></summary><div id="filterColorOptions"></div></details>
+      <details><summary><b>要素2 修飾語で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
+      <details><summary><b>要素3 名詞で停止</b></summary><div id="filterNounOptions"></div></details>
+    </div>
+
   </div>
 </div>
-		    <h3>イベント設定</h3>
-		      <!-- イベント設定 -->
-      <div id="autoStopControls">
-        <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
-        <button id="toggleSkillDeleteEvents" class="toggle-btn">スキル削除イベント: 発生</button>
-        <button id="toggleItemInterrupt" class="toggle-btn">アイテム入手: 停止する</button>
-      </div>
-
-			
-      <!-- 停止フィルター -->
-			<h3>アイテム入手時設定</h3>
-<div style="margin-bottom: 10px;">
-  <button id="filterModeToggleBtn" class="toggle-mode-btn and">各要素の条件を満たす</button>
-</div>
-      <div id="itemFilterBox" class="styled-filter-box">
-        <details><summary><b>要素1 色で停止</b></summary><div id="filterColorOptions"></div></details>
-        <details><summary><b>要素2 修飾語で停止</b></summary><div id="filterAdjectiveOptions"></div></details>
-        <details><summary><b>要素3 名詞で停止</b></summary><div id="filterNounOptions"></div></details>
-      </div>
-
 
 
 

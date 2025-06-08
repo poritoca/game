@@ -170,15 +170,15 @@ window.renderUniqueSkillList = function(candidates, chosenSkillName) {
   const listEl = document.getElementById('uniqueSkillList');
   if (!toggleBtn || !listEl) return;
 
-  // 初回のみクリックイベントを設定
-  if (!toggleBtn.hasInit) {
-    toggleBtn.addEventListener('click', () => {
-      const shown = listEl.style.display !== 'none';
-      listEl.style.display = shown ? 'none' : 'block';
-      toggleBtn.textContent = (shown ? '▼' : '▲') + ' 固有スキル候補' + (shown ? 'を表示' : 'を隠す');
-    });
-    toggleBtn.hasInit = true;
-  }
+ // 初回のみクリックイベントを設定
+if (!toggleBtn.hasInit) {
+  toggleBtn.addEventListener('click', () => {
+    const shown = listEl.style.display !== 'none';
+    listEl.style.display = shown ? 'none' : 'block';
+    toggleBtn.textContent = (shown ? '▶' : '▼') + ' 固有スキル候補' + (shown ? 'を表示' : 'を隠す');
+  });
+  toggleBtn.hasInit = true;
+}
 
   listEl.innerHTML = '';
 
@@ -793,11 +793,121 @@ document.addEventListener("DOMContentLoaded", () => {
       const name = document.getElementById("inputStr").value || "プレイヤー";
       startNewGame(name);
     });
+		
   }
+
+(function injectBattleStatusCSS() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .battle-status-display {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: #f0f0f0;
+      background: rgba(30, 30, 30, 0.6);
+      backdrop-filter: blur(6px);
+      padding: 10px 16px;
+      border-left: 4px solid #4caf50;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      max-width: 280px;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .fade-in {
+      animation: fadeInUp 0.6s ease-out;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+const toggle = document.getElementById('memoryToggle');
+const content = document.getElementById('memoryContent');
+
+if (toggle && content) {
+    toggle.addEventListener('click', () => {
+      const isVisible = content.style.display !== 'none';
+      content.style.display = isVisible ? 'none' : 'block';
+      toggle.textContent = isVisible ? '▶ アイテム・スキル表示／非表示' : '▼ アイテム・スキル表示／非表示';
+    });
+}
+  const eventSettingsToggleBtn = document.getElementById('eventSettingsToggle');
+  const eventSettingsContentBox = document.getElementById('eventSettingsContent');
+
+  if (eventSettingsToggleBtn && eventSettingsContentBox) {
+    eventSettingsToggleBtn.addEventListener('click', () => {
+      const isCurrentlyVisible = eventSettingsContentBox.style.display !== 'none';
+      eventSettingsContentBox.style.display = isCurrentlyVisible ? 'none' : 'block';
+      eventSettingsToggleBtn.textContent = isCurrentlyVisible
+        ? '▶ イベント＆入手設定を表示／非表示'
+        : '▼ イベント＆入手設定を表示／非表示';
+    });
+  }
+
+
 
   // === フェイスアイテムUIの構築 ===
 	
-	
+(function injectBattleStatusCSS() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .battle-status-display {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: #f0f0f0;
+      background: rgba(30, 30, 30, 0.6);
+      backdrop-filter: blur(6px);
+      padding: 10px 16px;
+      border-left: 4px solid #4caf50;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      max-width: 280px;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .fade-in {
+      animation: fadeInUp 0.6s ease-out;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+
 	
 	
 // ガチャボタンイベント登録
@@ -1366,8 +1476,8 @@ import { drawCharacterImage } from './drawCharacter.js';
 
 let player = null;
 let enemy = null;
-let currentStreak = 0;
-let sessionMaxStreak = 0;
+window.currentStreak = 0;
+window.sessionMaxStreak = 0;
 let streakBonus = 1;
 let skillSimulCount = 2;
 let hpHistory = [];
@@ -1662,11 +1772,7 @@ window.player = {};            // 新しいプレイヤーオブジェクトを�
                 window.targetBattles = countVal;
                 window.remainingBattles = countVal;
                 const remainDisplay = document.getElementById('remainingBattlesDisplay');
-                if (remainDisplay) {
-                    // 画面右上に残り戦闘回数を表示
-                    remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
-                    remainDisplay.style.display = 'block';
-                }
+updateRemainingBattleDisplay();
             }
         }
         // ★ 初期化処理ここまで
@@ -2795,7 +2901,7 @@ try {
     if (window.remainingBattles > 0) {
       // 残り回数がある場合：表示を更新
       if (remainDisplay) {
-        remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+updateRemainingBattleDisplay();
       }
     } else if (window.remainingBattles <= 0) {
       // 戦闘回数が0になった場合：結果を集計して表示
@@ -3331,34 +3437,34 @@ window.loadGame = async function() {
 	updateRemainingBattleDisplay();
 };
 
-// ★共通の戦闘回数表示処理
 function updateRemainingBattleDisplay() {
-	
-
   const remainDisplay = document.getElementById('remainingBattlesDisplay');
   const selectEl = document.getElementById('battleCountSelect');
 
-  // targetBattles が未設定なら select 要素から読み取る
+  // 初期値設定（未定義なら）
+  if (typeof window.currentStreak !== 'number') window.currentStreak = 0;
+  if (typeof window.sessionMaxStreak !== 'number') window.sessionMaxStreak = 0;
+
+  // 未設定なら select から取得
   if ((typeof window.targetBattles !== "number") && selectEl) {
     const selectedVal = selectEl.value;
-    if (selectedVal === "unlimited") {
-      window.targetBattles = null;
-    } else {
-      const countVal = parseInt(selectedVal, 10);
-      if (!isNaN(countVal)) {
-        window.targetBattles = countVal;
-      }
-    }
+    window.targetBattles = selectedVal === "unlimited" ? null : parseInt(selectedVal, 10);
   }
 
-  // targetBattles に基づいて表示更新
+  // ステータス反映
   if (typeof window.targetBattles === "number") {
     if (window.remainingBattles == null || window.remainingBattles <= 0) {
       window.remainingBattles = window.targetBattles;
     }
+
     if (remainDisplay) {
-      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回\n現在の連勝数：${window.currentStreak}\n現在挑戦中の最大連勝数：${window.sessionMaxStreak}`;
       remainDisplay.style.display = 'block';
+
+      // アニメーション再適用
+      remainDisplay.classList.remove('fade-in');
+      void remainDisplay.offsetWidth;
+      remainDisplay.classList.add('fade-in');
     }
   } else {
     // 無制限モード
