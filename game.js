@@ -13,101 +13,6 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
-window.showAllGlobalVariables = function () {
-  document.getElementById("debugPopup")?.remove(); // 前回のを削除
-
-  const popup = document.createElement("div");
-  popup.id = "debugPopup";
-  popup.style.position = "fixed";
-  popup.style.top = "10%";
-  popup.style.left = "50%";
-  popup.style.transform = "translateX(-50%)";
-  popup.style.maxHeight = "60vh";
-  popup.style.overflow = "auto";
-  popup.style.background = "#222";
-  popup.style.color = "#fff";
-  popup.style.padding = "12px 16px";
-  popup.style.zIndex = "9999";
-  popup.style.border = "2px solid #fff";
-  popup.style.borderRadius = "8px";
-  popup.style.boxShadow = "0 0 10px #fff";
-  popup.style.maxWidth = "80vw";
-  popup.style.fontSize = "14px";
-
-  const title = document.createElement("h3");
-  title.textContent = "変数一覧（デバッグ用）";
-  title.style.marginTop = "0";
-  popup.appendChild(title);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.style.margin = "10px 0";
-  closeBtn.onclick = () => popup.remove();
-  popup.appendChild(closeBtn);
-
-  const keys = Object.keys(window).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-
-  keys.forEach(key => {
-    try {
-      const value = window[key];
-      const container = document.createElement("div");
-      container.style.marginBottom = "6px";
-
-      if (
-        typeof value === "string" ||
-        typeof value === "number" ||
-        typeof value === "boolean" ||
-        value === null ||
-        value === undefined
-      ) {
-        container.innerHTML = `<strong>${key}</strong>: ${JSON.stringify(value)}`;
-      } else if (Array.isArray(value)) {
-        const details = document.createElement("pre");
-        details.style.display = "none";
-        details.style.marginLeft = "1em";
-        details.style.whiteSpace = "pre-wrap";
-        details.textContent = value.map((v, i) => `${i}: ${JSON.stringify(v)}`).join("\n");
-
-        const clickable = document.createElement("div");
-        clickable.innerHTML = `<strong style="color:#4cf">${key}</strong>: [Array(${value.length})]`;
-        clickable.style.cursor = "pointer";
-        clickable.onclick = () => {
-          details.style.display = details.style.display === "none" ? "block" : "none";
-        };
-
-        container.appendChild(clickable);
-        container.appendChild(details);
-      } else if (typeof value === "object") {
-        const entries = Object.entries(value);
-        const details = document.createElement("pre");
-        details.style.display = "none";
-        details.style.marginLeft = "1em";
-        details.style.whiteSpace = "pre-wrap";
-        details.textContent = entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n");
-
-        const clickable = document.createElement("div");
-        clickable.innerHTML = `<strong style="color:#4cf">${key}</strong>: [Object]`;
-        clickable.style.cursor = "pointer";
-        clickable.onclick = () => {
-          details.style.display = details.style.display === "none" ? "block" : "none";
-        };
-
-        container.appendChild(clickable);
-        container.appendChild(details);
-      } else {
-        container.innerHTML = `<strong>${key}</strong>: [function or unknown type]`;
-      }
-
-      popup.appendChild(container);
-    } catch (e) {
-      // 無視
-    }
-  });
-
-  document.body.appendChild(popup);
-};
-
-
 window.updateScoreOverlay = function () {
   const overlay = document.getElementById('scoreOverlay');
   if (!overlay || !window.maxScores) return;
@@ -243,7 +148,7 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
 
-  // 内容を設定
+  // ★ ここを textContent → innerHTML に変更
   title.innerHTML = messageHtml;
   optionsEl.innerHTML = "";
 
@@ -254,24 +159,9 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
     popup.style.display = "none";
     if (typeof onConfirm === "function") onConfirm();
   };
+
   optionsEl.appendChild(okBtn);
-
-  // 一時的に表示してサイズ取得
   popup.style.display = "block";
-  popup.style.visibility = "hidden";
-
-  // ✅ 横幅を広めに設定
-  popup.style.width = "min(90vw, 600px)";
-
-  // 中央に配置（スクロール対応）
-  const scrollTop = window.scrollY || document.documentElement.scrollTop;
-  const popupHeight = popup.offsetHeight;
-  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
-  popup.style.left = "50%";
-  popup.style.transform = "translateX(-50%)";
-
-  // 表示
-  popup.style.visibility = "visible";
 };
 
 window.isFirstBattle = false;
@@ -569,7 +459,7 @@ function performFaceGacha() {
     return;
   }
 
-  if (faceItemsOwned.length >= 100) {
+  if (faceItemsOwned.length >= 30) {
     alert("所持フェイスアイテムが上限に達しています。");
     return;
   }
@@ -880,6 +770,7 @@ function getRarityMultiplierFromRand(randFunc) {
 }
 
 function onItemClick(item, index) {
+  // まずポップアップを完全に初期化
   clearEventPopup();
 
   const name = `${item.color}${item.adjective}${item.noun}`;
@@ -889,6 +780,7 @@ function onItemClick(item, index) {
 
   title.innerHTML = `アイテム <b>${name}</b> をどうする？`;
 
+  // 保護 / 保護を外すボタン
   const protectBtn = document.createElement("button");
   protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
   protectBtn.onclick = () => {
@@ -897,11 +789,12 @@ function onItemClick(item, index) {
       return;
     }
     item.protected = !item.protected;
-    clearEventPopup();
+    clearEventPopup(); // ボタン動作後にも片付け
     drawItemMemoryList();
   };
   container.appendChild(protectBtn);
 
+  // 削除ボタン（保護中は不可）
   const deleteBtn = document.createElement("button");
   deleteBtn.textContent = "削除する";
   deleteBtn.onclick = () => {
@@ -915,18 +808,15 @@ function onItemClick(item, index) {
   };
   container.appendChild(deleteBtn);
 
+  // キャンセルボタン
   const cancelBtn = document.createElement("button");
   cancelBtn.textContent = "キャンセル";
   cancelBtn.onclick = () => {
     showCustomAlert("キャンセルしました", 1500);
-    clearEventPopup();
+    clearEventPopup(); // ←キャンセル時にも完全に片付け
   };
   container.appendChild(cancelBtn);
 
-  // ★ スクロール位置に合わせた表示
-  popup.style.top = `${window.scrollY + 150}px`;
-  popup.style.left = '50%';
-  popup.style.transform = 'translateX(-50%)';
   popup.style.display = "block";
 }
 
@@ -1154,17 +1044,6 @@ function updatePlayerImage() {
   }
 }
 
-let scrollTimeout;
-window.addEventListener('scroll', () => {
-  document.getElementById('faceOverlay')?.classList.add('hidden');
-  clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(() => {
-    if (faceItemEquipped) {
-      document.getElementById('faceOverlay')?.classList.remove('hidden');
-    }
-  }, 300);
-});
-
 // アニメーション開始
 if (!window.faceItemGlowInterval) {
   window.faceItemGlowInterval = setInterval(() => {
@@ -1375,7 +1254,7 @@ let sslot = 0;
 let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
 // --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
-// フェイスコイン獲得確率 (勝利時)
+// フェイスコイン獲得確率 (勝利時2%)
 const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
@@ -1593,10 +1472,6 @@ if (isPlayer) {
 window.startNewGame = function() {
 	
 	  window.isFirstBattle = true;
-		const battleBtn = document.getElementById("startBattleBtn");
-		if (battleBtn && battleBtn.classList.contains("hidden")) {
-		  battleBtn.classList.remove("hidden");
-		}
 
     // テキストボックスから名前を取得（空ならデフォルト名を使用）
     const playerName = name || document.getElementById('inputStr').value || 'プレイヤー';
@@ -2328,15 +2203,10 @@ function hasAnyHighScore() {
 
 if (window.isFirstBattle && !hasAnyHighScore()) {
   showConfirmationPopup(
-`<div style="text-align:center">
-  <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
-	ゲームの世界へようこそ！<br>
-  さっそくだけど、作ったキャラクターが戦闘をしたよ。<br>
-  戦闘ログを確認してみよう。<br><br>
-  最初はフェイスコインを使ってガチャを引いたり、<br>
-  鬼畜モードで何かアイテムを入手して保護するのもおすすめだよ。<br><br>
-  詳しくは一番上の「遊び方」を見てね。
-</div>`,
+    `<div style="text-align:center">
+      <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
+      作ったキャラクターが戦闘をしたよ。戦闘ログを確認してみよう。
+    </div>`,
     () => {
       window.isFirstBattle = false;
     }
@@ -2593,31 +2463,15 @@ player.skills.forEach(sk => {
 
 // --- startBattle関数（または勝利判定部分）の中に追記 ---
 // （例）勝利時報酬処理の直後に以下を追加
-// 最高スコアの合計を取得
-let totalScore = 0;
-if (window.maxScores && typeof window.maxScores === 'object') {
-  for (const score of Object.values(window.maxScores)) {
-    if (typeof score === 'number' && score > 0) {
-      totalScore += score;
-    }
-  }
+
+  if (Math.random() < FACE_COIN_DROP_RATE) {
+    faceCoins++;
+    //alert("フェイスコインを獲得！");
+    // UI上のコイン表示を更新
+    const coinElem = document.getElementById('faceCoinCount');
+    if (coinElem) coinElem.innerText = faceCoins;
+
 }
-
-// ドロップ確率チェック
-if (Math.random() < FACE_COIN_DROP_RATE) {
-  // スコアが高いほど平均コイン数が増える（最大10枚）
-  const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2); // 40万で約3枚
-  const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1); // 1〜averageCoinsの乱数
-
-  faceCoins += coinGain;
-
-  const coinElem = document.getElementById('faceCoinCount');
-  if (coinElem) coinElem.innerText = faceCoins;
-
-  // 任意：デバッグログ
-  // console.log(`フェイスコイン +${coinGain}（合計: ${faceCoins}） totalScore=${totalScore}`);
-}
-
 updateFaceUI();
 
 
@@ -2653,28 +2507,10 @@ drawItemMemoryList();
       log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
-		
-	
-		
-	
 drawSkillMemoryList();
 drawItemMemoryList();
 
 }
-
-	// --- 超低確率で FaceCoin 入手イベント ---
-	const coinChance = enemy.rarity / 1000;
-	if (Math.random() < coinChance) {
-	  const coinGain = Math.floor(500 + Math.random() * 501); // 500〜1000
-	  window.faceCoins = (window.faceCoins || 0) + coinGain;
-	
-	  log.push(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
-	  alert(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
-	
-	  const coinElem = document.getElementById('faceCoinCount');
-	  if (coinElem) coinElem.innerText = window.faceCoins;
-	}
-
 } else {
 
   //stopAutoBattle()
@@ -2853,29 +2689,20 @@ finalResEl.innerHTML = `
   </div>
 
   <div class="final-score-value">合計スコア: ${totalScore}</div>
-
-<div style="
+  <button id="backToTitleButton" style="
   margin-top: 30px;
-  padding: 10px;
-  font-size: 0.95em;
-  color: #ccc;
-  font-style: italic;
+  padding: 10px 20px;
+  font-size: 1em;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(to right, #333, #666);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.2);
+  cursor: pointer;
 ">
-  今後、合計スコアによりフェイスコインボーナスがあります。<br>
-  <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
-  その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
-  <br><br>
-  <button onclick="window.exportSaveCode()" style="
-    margin-top: 10px;
-    padding: 8px 16px;
-    background: linear-gradient(to right, #444, #777);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-  ">セーブボタン</button>
-</div>
+  タイトルに戻る
+</button>
 `;
 // スコア記録（無制限を除く）
 const validTargets = [100, 200, 500, 1000, 5000, 10000];
@@ -2889,23 +2716,11 @@ if (validTargets.includes(target)) {
   }
 }
 
-finalResEl.style.display = 'block';
+document.getElementById('backToTitleButton').onclick = function () {
 
-
-window.targetBattles = null;
-window.remainingBattles = null;
-document.getElementById('remainingBattlesDisplay').style.display = 'none';
-
-
-finalResEl.onclick = () => {
-  finalResEl.style.display = 'none';
-	battleBtn.classList.add("hidden");
-	
-	
-
-								
-								
+  returnToTitleScreen();
 };
+finalResEl.style.display = 'block';
 }
       // 自動戦闘を停止し、戦闘ボタンを無効化
       if (typeof stopAutoBattle === 'function') stopAutoBattle();
@@ -2934,7 +2749,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (returnBtn) {
     returnBtn.addEventListener('click', () => {
       if (confirm("本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）")) {
-location.reload();
+        if (typeof returnToTitleScreen === 'function') returnToTitleScreen();
       }
     });
   }
@@ -3017,7 +2832,90 @@ async function generateHash(input) {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+window.exportSaveCode = async function() {
+  if (!player) return;
 
+  // 成長ステータスを最新化
+  if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
+
+  // itemFilterStates 再構築
+  window.itemFilterStates = buildItemFilterStates();
+
+  // 初期スキルをplayerに追加
+  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+  // --- グローバル変数を一貫して使用 ---
+  window.faceCoins = window.faceCoins || 0;
+  window.faceItemsOwned = window.faceItemsOwned || [];
+  window.faceItemEquipped = window.faceItemEquipped || null;
+
+  const payload = {
+    player,
+    currentStreak,
+    sslot,
+    growthMultiplier: window.growthMultiplier,
+    skillMemoryOrder: Object.entries(player.skillMemory),
+    itemMemory: player.itemMemory || [],
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+    levelCapExemptSkills: window.levelCapExemptSkills || [],
+    specialMode: window.specialMode || 'normal',
+    allowGrowthEvent: window.allowGrowthEvent || false,
+    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+    allowItemInterrupt: window.allowItemInterrupt || false,
+    itemFilterMode: window.itemFilterMode || 'and',
+    itemFilterStates: window.itemFilterStates || {},
+
+    // 戦闘回数
+    remainingBattles: window.remainingBattles ?? null,
+    targetBattles: window.targetBattles ?? null,
+    maxScores: window.maxScores || {},
+
+    // ✅ フェイスアイテム関連（window 明示）
+    faceCoins: window.faceCoins,
+    faceItemsOwned: window.faceItemsOwned,
+    faceItemEquipped: window.faceItemEquipped,
+  };
+
+  const raw = JSON.stringify(payload);
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  const hash = await generateHash(b64);
+  const code = `${b64}.${hash}`;
+
+  // 表示とクリップボード
+  const box = document.getElementById('saveCodeBox');
+  box.value = code;
+
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch (e) {
+    box.focus(); box.select();
+  }
+
+  // ダウンロード
+  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
+  const now = new Date();
+  const timestamp = now.toLocaleString('ja-JP', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(/[^\d]/g, '');
+  const filename = `${charName}_${timestamp}.txt`;
+
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 
 window.exportSaveCode = async function () {
@@ -3115,18 +3013,25 @@ window.importSaveCode = async function () {
     const parsed = JSON.parse(raw);
     player = parsed.player;
     window.maxScores = parsed.maxScores || {};
- //   if (!player.growthBonus) {
+    if (!player.growthBonus) {
       player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-//    }
+    }
 
     player.itemMemory = parsed.itemMemory || [];
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
     window.growthMultiplier = parsed.growthMultiplier || 1;
-//    currentStreak = parsed.currentStreak || 0;
-//    window.remainingBattles = parsed.remainingBattles ?? null;
-//    window.targetBattles = parsed.targetBattles ?? null;
+    currentStreak = parsed.currentStreak || 0;
+    window.remainingBattles = parsed.remainingBattles ?? null;
+    window.targetBattles = parsed.targetBattles ?? null;
 
+    const remainDisplay = document.getElementById('remainingBattlesDisplay');
+    if (window.remainingBattles != null && remainDisplay) {
+      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
+      remainDisplay.style.display = 'block';
+    } else if (remainDisplay) {
+      remainDisplay.style.display = 'none';
+    }
 
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
@@ -3263,111 +3168,59 @@ window.updateItemFilterModeButton = function () {
 
 // 「つづきから」ボタン処理（セーブデータ入力から復元）
 window.loadGame = async function() {
+  // ファイル入力がある場合は読み込む
   isLoadedFromSave = true;
   window.isFirstBattle = false;
 
   document.getElementById("skillMemoryList").classList.remove("hidden");
   document.getElementById("skillMemoryContainer").style.display = "block";
   drawSkillMemoryList();
-
   const fileInput = document.getElementById('saveFileInput');
-  const input = document.getElementById('saveData').value.trim();
-
-  const hasFile = fileInput && fileInput.files.length > 0;
-  const hasText = input.length > 0;
-
-  if (!hasFile && !hasText) {
-    alert('セーブデータが入力されていません。');
-		location.reload();
-    return;
-  }
-
-  // === 新形式（ファイルまたはピリオド入りの文字列） ===
-  if (hasFile) {
+  if (fileInput && fileInput.files.length > 0) {
     const file = fileInput.files[0];
     const reader = new FileReader();
     reader.onload = async function(e) {
       const content = e.target.result.trim();
       document.getElementById('saveData').value = content;
       await window.importSaveCode();
-      updateRemainingBattleDisplay();  // ★表示更新
     };
     reader.readAsText(file);
     return;
   }
-
-  if (input.includes('.')) {
-    await window.importSaveCode();
-    updateRemainingBattleDisplay();  // ★表示更新
+  const input = document.getElementById('saveData').value.trim();
+  if (!input) {
     return;
   }
-
-  // === 旧形式データ ===
-  try {
-    const parsed = window.decodeBase64(input);
-    player = parsed.player;
-    if (!player.growthBonus) {
-      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-    }
-    player.itemMemory = player.itemMemory || [];
-    drawItemMemoryList();
-
-    currentStreak = parsed.currentStreak || 0;
-
-    do {
-      enemy = makeCharacter('敵' + Math.random());
-    } while (!hasOffensiveSkill(enemy));
-
-    updateStats();
-    document.getElementById('gameScreen').classList.remove('hidden');
-    document.getElementById("battleArea").classList.add("hidden");
-
-      // ★表示更新
-
-  } catch (e) {
-    console.error('旧形式データの読み込み失敗:', e);
-    alert('旧形式のセーブデータが読み込めませんでした。');
-  }
-	updateRemainingBattleDisplay();
-};
-
-// ★共通の戦闘回数表示処理
-function updateRemainingBattleDisplay() {
-	
-
-  const remainDisplay = document.getElementById('remainingBattlesDisplay');
-  const selectEl = document.getElementById('battleCountSelect');
-
-  // targetBattles が未設定なら select 要素から読み取る
-  if ((typeof window.targetBattles !== "number") && selectEl) {
-    const selectedVal = selectEl.value;
-    if (selectedVal === "unlimited") {
-      window.targetBattles = null;
-    } else {
-      const countVal = parseInt(selectedVal, 10);
-      if (!isNaN(countVal)) {
-        window.targetBattles = countVal;
-      }
-    }
-  }
-
-  // targetBattles に基づいて表示更新
-  if (typeof window.targetBattles === "number") {
-    if (window.remainingBattles == null || window.remainingBattles <= 0) {
-      window.remainingBattles = window.targetBattles;
-    }
-    if (remainDisplay) {
-      remainDisplay.textContent = `残り戦闘数：${window.remainingBattles}回`;
-      remainDisplay.style.display = 'block';
-    }
+  if (input.includes('.')) {
+    // 新形式コードの場合
+    await window.importSaveCode();
   } else {
-    // 無制限モード
-    window.remainingBattles = null;
-    if (remainDisplay) {
-      remainDisplay.style.display = 'none';
+    // 旧形式データの場合
+    try {
+      const parsed = window.decodeBase64(input);
+      player = parsed.player;
+      if (!player.growthBonus) {
+        player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+      }
+
+      player.itemMemory = player.itemMemory || [];
+      drawItemMemoryList();
+
+      currentStreak = parsed.currentStreak || 0;
+// 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
+do {
+    enemy = makeCharacter('敵' + Math.random());
+} while (!hasOffensiveSkill(enemy));
+      //alert('[A006] [A778] enemy生成: ' + JSON.stringify(enemy?.baseStats));
+      updateStats();
+      //document.getElementById('titleScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('hidden');
+      document.getElementById("battleArea").classList.add("hidden");
+    } catch (e) {
     }
   }
-}
+
+};
 
 // ゲーム終了処理（タイトル画面に戻る）
 //window.endGame = function() {
@@ -3397,8 +3250,6 @@ function updateRemainingBattleDisplay() {
     } else {
     }
   });
-	
-
 window.makeCharacter = function(name) {
 
     if (player) {
@@ -3489,32 +3340,20 @@ window.showEventOptions = function(title, options, onSelect) {
   titleEl.textContent = title;
   optionsEl.innerHTML = '';
 
-  // ボタン生成
   options.forEach(opt => {
     const btn = document.createElement('button');
     btn.textContent = opt.label;
     btn.onclick = () => {
       popup.style.display = 'none';
-      clearEventPopup();
+      clearEventPopup();  // ← 念のため、選択後にも片付け
       onSelect(opt.value);
     };
     optionsEl.appendChild(btn);
   });
 
-  // 一時的に表示して高さを取得（非表示にしながらレイアウト計算）
-  popup.style.display = "block";
-  popup.style.visibility = "hidden";
-
-  // 中央に配置（スクロール位置に追従）
-  const scrollTop = window.scrollY || document.documentElement.scrollTop;
-  const popupHeight = popup.offsetHeight;
-  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
-  popup.style.left = "50%";
-  popup.style.transform = "translateX(-50%)";
-
-  // 最終表示
-  popup.style.visibility = "visible";
+  popup.style.display = 'block';
 };
+
   // 【白スキルを選んで削除するポップアップ】
 window.showWhiteSkillSelector = function(callback) {
     clearEventPopup();
@@ -3776,7 +3615,7 @@ function drawItemMemoryList() {
 }
 
 window.drawHPGraph = function () {
-//  if (isAutoBattle) return;
+  if (isAutoBattle) return;
   const canvas = document.getElementById('hpChart');
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -4181,4 +4020,3 @@ window.addEventListener('scroll', () => {
     }
   }, 1500);
 });
-

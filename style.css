@@ -1684,7 +1684,7 @@ summary {
 
 #faceOverlay {
   position: fixed;
-  top: 60px;
+  top: 100px;
   right: 10px;
   width: 48px;
   height: 48px;
@@ -1700,4 +1700,3 @@ summary {
 #faceOverlay.hidden {
   display: none;
 }
-
