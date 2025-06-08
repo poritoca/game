@@ -75,7 +75,7 @@ button:active {
   justify-content: space-between;
   align-items: flex-start;  /* 上揃えにして画像とテキストが均等に */
   width: 100%;
-  max-width: 1000px;  /* 固定サイズ */
+
   border: 1px solid #444;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.85);
@@ -172,14 +172,15 @@ canvas#enemyImg {
 
 
 #playerStats, #enemyStats {
-  width: 400px;
-  max-width: 92%;
+  width: 90%;
+  max-width: 90%;        /* 最大幅も90%に */
   margin: 0 auto;
   position: relative;
+
   background: linear-gradient(rgba(34, 34, 34, 0.6), rgba(0, 0, 0, 0.6));
   border: 2px solid #444;
   border-radius: 10px;
-  padding: 15px 15px 5px 15px; /* 下を少し狭く */
+  padding: 15px 15px 5px 15px;
   box-sizing: border-box;
 
   color: #00ffff;
@@ -199,7 +200,7 @@ canvas#enemyImg {
   max-height: 300px;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin; /* Firefox対策 */
+  scrollbar-width: thin;
   word-break: break-word;
   padding-right: 8px;
   line-height: 1.3;
