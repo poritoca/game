@@ -1684,7 +1684,7 @@ summary {
 
 #faceOverlay {
   position: fixed;
-  top: 100px;
+  top: 60px;
   right: 10px;
   width: 48px;
   height: 48px;
@@ -1700,3 +1700,37 @@ summary {
 #faceOverlay.hidden {
   display: none;
 }
+
+.rainbow-select {
+  font-size: 1.5em;
+  font-weight: bold;
+  padding: 12px 24px;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff00cc, #3333ff, #00ffcc, #ffcc00, #ff3300);
+  background-size: 400% 400%;
+  color: white;
+  animation: rainbowMove 5s infinite linear;
+  box-shadow: 0 0 15px rgba(255,255,255,0.7);
+  cursor: pointer;
+}
+
+@keyframes rainbowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+#battleEffectOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
+}
+
+
+
