@@ -3584,9 +3584,9 @@ window.clearEventPopup = function () {
   if (selectContainer) selectContainer.style.display = 'none';
 };
 
-  // 【選択肢イベントポップアップを表示する】
+// 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
-  clearEventPopup(); // ← 前回のゴミをすべて除去
+  clearEventPopup(); // 前回の内容をクリア
 
   const popup = document.getElementById('eventPopup');
   const titleEl = document.getElementById('eventPopupTitle');
@@ -3607,19 +3607,9 @@ window.showEventOptions = function(title, options, onSelect) {
     optionsEl.appendChild(btn);
   });
 
-  // 一時的に表示して高さを取得（非表示にしながらレイアウト計算）
-  popup.style.display = "block";
-  popup.style.visibility = "hidden";
-
-  // 中央に配置（スクロール位置に追従）
-  const scrollTop = window.scrollY || document.documentElement.scrollTop;
-  const popupHeight = popup.offsetHeight;
-  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
-  popup.style.left = "50%";
-  popup.style.transform = "translateX(-50%)";
-
-  // 最終表示
-  popup.style.visibility = "visible";
+  // ✅ 中央表示のCSSに任せる（ここで位置をいじらない）
+  popup.style.display = 'block';
+  popup.style.visibility = 'visible';
 };
   // 【白スキルを選んで削除するポップアップ】
 window.showWhiteSkillSelector = function(callback) {

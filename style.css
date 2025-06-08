@@ -172,8 +172,8 @@ canvas#enemyImg {
 
 
 #playerStats, #enemyStats {
-  width: 90%;
-  max-width: 90%;        /* 最大幅も90%に */
+  width: 98%;
+  max-width: 98%;        /* 最大幅も90%に */
   margin: 0 auto;
   position: relative;
 
@@ -1706,3 +1706,14 @@ summary {
 }
 
 
+
+@keyframes fadeInPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}

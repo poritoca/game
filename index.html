@@ -411,17 +411,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 
 
-    <!-- イベントポップアップ -->
-    <div id="eventPopup" style="display:none; position:fixed; top:30%; left:50%; transform:translateX(-50%);
-      background:rgba(34,34,34,0.95); color:#fff; padding:20px; border:2px solid #fff; border-radius:8px;
-      box-shadow:0 0 10px #fff; z-index:9999; text-align:center; max-width:90%;">
-      <h3 id="eventPopupTitle"></h3>
-      <div id="eventPopupOptions" style="margin-top:10px;"></div>
-      <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
-        <select id="eventPopupSelect"></select>
-        <button id="eventPopupSelectBtn">決定</button>
-      </div>
-    </div>
+
 
     <!-- セーブ出力 -->
     <h3>出力</h3>
@@ -487,6 +477,31 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   </div>
 </div>
 
+<!-- イベントポップアップ -->
+<div id="eventPopup" style="
+  display: none;
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(34,34,34,0.95);
+  color: #fff;
+  padding: 20px;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px #fff;
+  z-index: 2147483647; /* 最大の前面値 */
+  text-align: center;
+  max-width: 90%;
+  pointer-events: auto;
+">
+  <h3 id="eventPopupTitle"></h3>
+  <div id="eventPopupOptions" style="margin-top: 10px;"></div>
+  <div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
+    <select id="eventPopupSelect"></select>
+    <button id="eventPopupSelectBtn">決定</button>
+  </div>
+</div>
 
 <script>
 (function() {
