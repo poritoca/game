@@ -787,6 +787,9 @@ window.startBattle = undefined;
 
 document.addEventListener("DOMContentLoaded", () => {
   // 新規スタートボタンのイベント登録
+	
+	updateLocalSaveButton();
+
   const btn = document.getElementById("startNewGameBtn");
   if (btn) {
     btn.addEventListener("click", () => {
@@ -2184,10 +2187,13 @@ function restoreMissingItemUses() {
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
+	
 
     if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
 }
+
+markLocalSaveDirty();
 
 restoreMissingItemUses();
 if (player.itemMemory) {
@@ -2436,11 +2442,11 @@ if (window.isFirstBattle && !hasAnyHighScore()) {
   showConfirmationPopup(
 `<div style="text-align:center">
   <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
-	ゲームの世界へようこそ！<br>
+	ようこそ！<br>
   さっそくだけど、作ったキャラクターが戦闘をしたよ。<br>
   戦闘ログを確認してみよう。<br><br>
   最初はフェイスコインを使ってガチャを引いたり、<br>
-  鬼畜モードで何かアイテムを入手して保護するのもおすすめだよ。<br><br>
+  鬼畜モードで何かアイテムを入手して<br>保護するのもおすすめだよ。<br><br>
   詳しくは一番上の「遊び方」を見てね。
 </div>`,
     () => {
@@ -2944,21 +2950,20 @@ const totalScore = Math.round(
 
 if (finalResEl) {
   const maxStreak = sessionMaxStreak || 0;
-finalResEl.innerHTML = `
-  <div class="final-death-title">${displayName(player.name)} は息絶えた…</div>
+finalResEl.innerHTML = `<div class="final-death-title">${displayName(player.name)} は息絶えた…</div>
 
-  <div class="final-stats">
-    <p>設定戦闘回数: ${window.targetBattles || "未設定"}</p>
-    <p>最大連勝数: ${sessionMaxStreak}</p>
-    <p>最終ステータス：<br>
-       攻撃力: ${finalAtk}<br>
-       防御力: ${finalDef}<br>
-       素早さ: ${finalSpd}<br>
-       最大HP: ${finalHP}</p>
-    <p>アイテム総レアリティ: ${rarityStr}</p>
-  </div>
+<div class="final-stats">
+  <p>設定戦闘回数: ${window.targetBattles || "未設定"}</p>
+  <p>最大連勝数: ${sessionMaxStreak}</p>
+  <p>最終ステータス：<br>
+     攻撃力: ${finalAtk}<br>
+     防御力: ${finalDef}<br>
+     素早さ: ${finalSpd}<br>
+     最大HP: ${finalHP}</p>
+  <p>アイテム総レアリティ: ${rarityStr}</p>
+</div>
 
-  <div class="final-score-value">合計スコア: ${totalScore}</div>
+<div class="final-score-value">合計スコア: ${totalScore}</div>
 
 <div style="
   margin-top: 30px;
@@ -2970,7 +2975,22 @@ finalResEl.innerHTML = `
   今後、合計スコアによりフェイスコインボーナスがあります。<br>
   <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
   その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
+
   <br><br>
+
+  <button id="localSaveBtn" onclick="window.saveToLocalStorage()" style="
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: linear-gradient(to right, #222, #555);
+    color: #ffaaaa;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+  ">ローカルにセーブ（未保存）</button>
+
+  <br>
+
   <button onclick="window.exportSaveCode()" style="
     margin-top: 10px;
     padding: 8px 16px;
@@ -2980,9 +3000,10 @@ finalResEl.innerHTML = `
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
-  ">セーブボタン</button>
+  ">テキストデータにセーブ</button>
 </div>
 `;
+
 // スコア記録（無制限を除く）
 const validTargets = [100, 200, 500, 1000, 5000, 10000];
 const target = Number(window.targetBattles);
@@ -3200,9 +3221,10 @@ window.exportSaveCode = async function () {
 
 
 
-window.importSaveCode = async function () {
+window.importSaveCode = async function (code = null) {
   document.getElementById("skillMemoryList").classList.remove("hidden");
-  const input = document.getElementById('saveData').value.trim();
+
+  const input = code ?? document.getElementById('saveData').value.trim();
 
   try {
     const parts = input.split('.');
@@ -3221,18 +3243,12 @@ window.importSaveCode = async function () {
     const parsed = JSON.parse(raw);
     player = parsed.player;
     window.maxScores = parsed.maxScores || {};
- //   if (!player.growthBonus) {
-      player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-//    }
+    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
     player.itemMemory = parsed.itemMemory || [];
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
     window.growthMultiplier = parsed.growthMultiplier || 1;
-//    currentStreak = parsed.currentStreak || 0;
-//    window.remainingBattles = parsed.remainingBattles ?? null;
-//    window.targetBattles = parsed.targetBattles ?? null;
-
 
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
@@ -3266,7 +3282,6 @@ window.importSaveCode = async function () {
     updateStats();
     if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
     if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
-    if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
 
     const title = document.getElementById('titleScreen');
     const game = document.getElementById('gameScreen');
@@ -3296,10 +3311,9 @@ window.importSaveCode = async function () {
 
   } catch (e) {
     alert('セーブデータの読み込みに失敗しました：' + e.message);
+    console.error(e);
   }
 };
-
-
 
 
 
@@ -4230,6 +4244,9 @@ let itemTimeout;
 let faceTimeout;
 
 window.addEventListener('scroll', () => {
+	
+		updateLocalSaveButton();
+		
   const battleEl = document.getElementById('remainingBattlesDisplay');
   const scoreEl = document.getElementById('scoreOverlay');
   const skillEl = document.getElementById('skillOverlay');
@@ -4321,3 +4338,108 @@ document.getElementById("battleCountSelect").addEventListener("change", (e) => {
     overlay.innerHTML = "";
   }, 2000);
 });
+
+
+window.isLocalSaveDirty = true; 
+
+function markLocalSaveDirty() {
+  isLocalSaveDirty = true;
+  updateLocalSaveButton();
+}
+
+function markLocalSaveClean() {
+  isLocalSaveDirty = false;
+  updateLocalSaveButton();
+}
+
+function updateLocalSaveButton() {
+  const btn = document.getElementById('localSaveBtn');
+  if (!btn) return;
+
+  if (isLocalSaveDirty) {
+    btn.textContent = 'ローカルにセーブ（未保存）';
+    btn.classList.remove('saved');
+    btn.classList.add('unsaved');
+  } else {
+    btn.textContent = 'ローカルにセーブ（保存済）';
+    btn.classList.remove('unsaved');
+    btn.classList.add('saved');
+  }
+}
+
+
+window.saveToLocalStorage = async function () {
+  if (!player) return;
+
+  // 成長ステータスを最新化
+  if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
+
+  window.itemFilterStates = buildItemFilterStates();
+  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+  const payload = {
+    player,
+    currentStreak,
+    sslot,
+    growthMultiplier: window.growthMultiplier,
+    skillMemoryOrder: Object.entries(player.skillMemory),
+    itemMemory: player.itemMemory || [],
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+    levelCapExemptSkills: window.levelCapExemptSkills || [],
+    specialMode: window.specialMode || 'normal',
+    allowGrowthEvent: window.allowGrowthEvent || false,
+    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+    allowItemInterrupt: window.allowItemInterrupt || false,
+    itemFilterMode: window.itemFilterMode || 'and',
+    itemFilterStates: window.itemFilterStates || {},
+    remainingBattles: window.remainingBattles ?? null,
+    targetBattles: window.targetBattles ?? null,
+    maxScores: window.maxScores || {},
+
+    faceCoins: window.faceCoins || 0,
+    faceItemsOwned: window.faceItemsOwned || [],
+    faceItemEquipped: window.faceItemEquipped || null,
+  };
+
+  const raw = JSON.stringify(payload);
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  const hash = await generateHash(b64);
+  const code = `${b64}.${hash}`;
+
+  localStorage.setItem('rpgLocalSave', code);
+	
+	markLocalSaveClean();  // ← 状態を更新
+	
+	alert(
+	  'ローカルにセーブしました。\n\n' +
+	  '※このセーブデータはブラウザ内に保存されています。\n' +
+	  '「履歴の削除」や「サイトデータの消去」で消える可能性があります。\n\n' +
+	  '大切なデータはテキスト形式でも保存しておくことをおすすめします。'
+	);
+	markAsSaved();
+	updateLocalSaveButton();
+};
+
+window.loadFromLocalStorage = async function () {
+  const code = localStorage.getItem('rpgLocalSave');
+  if (!code) {
+    alert("保存データがありません。");
+    return;
+  }
+
+  try {
+    await importSaveCode(code);
+    alert("ローカル保存データを読み込みました。");
+		updateRemainingBattleDisplay();
+  } catch (e) {
+    alert("ローカル保存データの読み込みに失敗しました。");
+    console.error(e);
+  }
+};
+

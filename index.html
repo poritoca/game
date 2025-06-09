@@ -110,6 +110,9 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 	
     <button id="startNewGameBtn">はじめから</button>
     <button id="loadGameBtn">つづきから</button>
+		
+
+<button onclick="loadFromLocalStorage()">ローカルからロード</button>
 
     <div id="loadSection">
       <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br />
@@ -419,6 +422,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly />
+			
+<button id="localSaveBtn" onclick="saveToLocalStorage()">ローカルにセーブ（未保存）</button>
 
 			<button id="returnToTitleBtnInGame" style="
 

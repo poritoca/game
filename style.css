@@ -1717,3 +1717,27 @@ summary {
     transform: translate(-50%, -50%);
   }
 }
+
+#localSaveBtn {
+  padding: 8px 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+/* 未保存時の強調デザイン */
+#localSaveBtn.unsaved {
+  background: linear-gradient(to right, #880000, #cc0000);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 80, 80, 0.7);
+}
+
+/* 保存済み時の落ち着いたデザイン */
+#localSaveBtn.saved {
+  background: linear-gradient(to right, #444, #777);
+  color: #ddd;
+  box-shadow: none;
+  opacity: 0.8;
+}
