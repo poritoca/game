@@ -790,14 +790,8 @@ document.addEventListener("DOMContentLoaded", () => {
 	
 	updateLocalSaveButton();
 
-  const btn = document.getElementById("startNewGameBtn");
-  if (btn) {
-    btn.addEventListener("click", () => {
-      const name = document.getElementById("inputStr").value || "プレイヤー";
-      startNewGame(name);
-    });
-		
-  }
+
+
 
 (function injectBattleStatusCSS() {
   const style = document.createElement('style');
@@ -910,8 +904,6 @@ if (toggle && content) {
   document.head.appendChild(style);
 })();
 
-
-	
 	
 // ガチャボタンイベント登録
 const gachaBtn = document.getElementById('faceGachaBtn');
@@ -2224,7 +2216,11 @@ document.getElementById("battleArea").classList.remove("hidden");
     return;
   }
 
-  const name = document.getElementById('inputStr').value || 'あなた';
+// 元のコード
+// const name = document.getElementById('inputStr').value || 'あなた';
+
+// 修正版: player.name が既にあるならそのまま、なければ入力欄の値またはデフォルト
+	const name = player?.name || document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
 
       window.isFirstBattle = true;
