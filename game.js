@@ -1065,14 +1065,19 @@ function updateFaceUI() {
     equipBtn.innerText = (faceItemEquipped === itemPath) ? '解除' : '装備';
     equipBtn.style.marginRight = '5px';
     equipBtn.addEventListener('click', () => {
-      if (faceItemEquipped === itemPath) {
-        faceItemEquipped = null;
-      } else {
-        faceItemEquipped = itemPath;
-      }
-      // UIとキャラ画像を更新
-      updateFaceUI();
-      updatePlayerImage();
+	  if (faceItemEquipped === itemPath) {
+	    faceItemEquipped = null;
+	  } else {
+	    // 他の装備を解除（背景・画像を消去）
+	    document.getElementById('faceItemDisplayImg')?.remove();
+	    document.getElementById('faceItemGlowBg')?.remove();
+	    
+	    faceItemEquipped = itemPath;
+	  }
+  
+	  updateFaceUI();
+	  updatePlayerImage();
+
     });
     container.appendChild(equipBtn);
 
@@ -4420,6 +4425,7 @@ window.saveToLocalStorage = async function () {
 	);
 	markAsSaved();
 	updateLocalSaveButton();
+//	location.reload();
 };
 
 window.loadFromLocalStorage = async function () {
