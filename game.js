@@ -1845,8 +1845,12 @@ if (user !== player) {
   }
 
   if (Math.random() < failChance) {
-    log.push(`${displayName(user.name)}のスキル「${skill.name}」は発動失敗した！`);
-    return; // 発動処理を中止
+    if (window.barrierUsesLeft > 0) {
+      window.barrierUsesLeft--;
+      log.push(`${displayName(player.name)}は、不思議な結界に守られている！（残り${window.barrierUsesLeft}回）`);
+      log.push(`${displayName(user.name)}のスキル「${skill.name}」は発動失敗した！`);
+      return; // 発動処理を中止
+    }
   }
 }
 
@@ -2193,6 +2197,9 @@ window.startBattle = function() {
     if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
 }
+
+window.barrierUsesLeft = 5;
+
 
 markLocalSaveDirty();
 
@@ -3626,10 +3633,22 @@ window.showEventOptions = function(title, options, onSelect) {
     optionsEl.appendChild(btn);
   });
 
-  // ✅ 中央表示のCSSに任せる（ここで位置をいじらない）
+  // 先に一旦表示（サイズを取得するため）
   popup.style.display = 'block';
+  popup.style.visibility = 'hidden';
+
+  // --- 表示位置を設定 ---
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const popupHeight = popup.offsetHeight;
+
+  popup.style.position = 'absolute';
+  popup.style.top = `${scrollTop - popupHeight / 2}px`;  // ★ ← ここを調整
+  popup.style.left = '50%';
+  popup.style.transform = 'translate(-50%, 50%)'; // ★ ← Y方向の中央補正もここで
   popup.style.visibility = 'visible';
 };
+
+
   // 【白スキルを選んで削除するポップアップ】
 window.showWhiteSkillSelector = function(callback) {
     clearEventPopup();
