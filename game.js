@@ -984,7 +984,7 @@ function getRarityMultiplierFromRand(randFunc) {
   return 1.0 + (max - 1.0) * Math.pow(1 - seed, power);
 }
 
-function onItemClick(item, index) {
+function onItemClick(item, index, event) {
   clearEventPopup();
 
   const name = `${item.color}${item.adjective}${item.noun}`;
@@ -1028,11 +1028,15 @@ function onItemClick(item, index) {
   };
   container.appendChild(cancelBtn);
 
-  // ★ スクロール位置に合わせた表示
-  popup.style.top = `${window.scrollY + 150}px`;
-  popup.style.left = '50%';
-  popup.style.transform = 'translateX(-50%)';
-  popup.style.display = "block";
+	// クリック位置のY座標に合わせる
+	const y = event.clientY + window.scrollY;
+	
+	// Xは常に中央に（画面幅の50%）
+	popup.style.position = "absolute";
+	popup.style.top = `${y}px`;
+	popup.style.left = "50%";
+	popup.style.transform = "translateX(-50%)";
+	popup.style.display = "block";
 }
 
 // --- 所持アイテムリストをUIに表示・更新する関数 ---
@@ -3881,7 +3885,7 @@ function drawItemMemoryList() {
   if (item.protected) {
     li.classList.add("item-protected");
   }
-    li.onclick = () => onItemClick(item, idx);
+	li.onclick = (e) => onItemClick(item, idx, e);
     list.appendChild(li);
   });
 }
