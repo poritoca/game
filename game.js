@@ -3189,7 +3189,7 @@ location.reload();
     isAutoBattle = true;  // ← 長押し中にセット
     if (!battleInterval) {
       battleInterval = setInterval(() => {
-        if (isWaitingGrowth) return;
+//        if (isWaitingGrowth) return;
         window.startBattle();
       }, 100); // 連打間隔（ミリ秒）調整可
     }
