@@ -261,7 +261,7 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
   popup.style.visibility = "hidden";
 
   // ✅ 横幅を広めに設定
-  popup.style.width = "min(90vw, 600px)";
+//  popup.style.width = "min(90vw, 400px)";
 
   // 中央に配置（スクロール対応）
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -2277,7 +2277,7 @@ window.startBattle = function() {
 
     if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
-}
+		}
 
 window.barrierUsesLeft = 5;
 
@@ -2308,10 +2308,56 @@ document.getElementById("battleArea").classList.remove("hidden");
 
   const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 
-  if (customAlertVisible && isWaitingGrowth) {
-    alert('ステータス上昇を選んでください！');
-    return;
+
+if (isWaitingGrowth) {
+  isWaitingGrowth = false;
+
+  const growthOptions = [
+    { label: "攻撃を上げる", value: 'attack' },
+    { label: "防御を上げる", value: 'defense' },
+    { label: "速度を上げる", value: 'speed' },
+    { label: "HPを上げる", value: 'maxHp' },
+    { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
+  ];
+
+  const selected = growthOptions[Math.floor(Math.random() * growthOptions.length)];
+  const selectedValue = selected.value;
+
+  // ✅ 成長処理
+  if (selectedValue === 'skip') {
+    window.skipGrowth(); // 成長倍率だけを増やす
+  } else {
+    window.chooseGrowth(selectedValue); // ステータス成長処理
   }
+
+  clearEventPopup();
+
+  const popup = document.getElementById("eventPopup");
+  const title = document.getElementById("eventPopupTitle");
+  const optionsEl = document.getElementById("eventPopupOptions");
+
+  title.innerHTML = `オートバトル中のため「${selected.label}」を自動選択しました`;
+  optionsEl.innerHTML = "";
+
+  popup.style.display = "block";
+  popup.style.visibility = "visible";
+  //popup.style.width = "min(90vw, 600px)"; // 忘れず幅を設定
+
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const popupHeight = popup.offsetHeight;
+  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";
+
+  setTimeout(() => {
+    popup.style.display = "none";
+  }, 1000);
+}
+ 
+
+
+	
+
 
 // 元のコード
 // const name = document.getElementById('inputStr').value || 'あなた';
