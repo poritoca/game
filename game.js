@@ -478,6 +478,87 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
   player.skills = newSkills;
 }
 
+
+// グローバル
+let battleLogTimerId = null;
+let isBattleLogRunning = false;
+
+function displayBattleLogWithoutAsync(log) {
+  if (isBattleLogRunning && battleLogTimerId !== null) {
+    clearTimeout(battleLogTimerId);
+    battleLogTimerId = null;
+  }
+
+  const battleLogEl = document.getElementById('battleLog');
+  battleLogEl.innerHTML = '';
+
+  let i = 0;
+  isBattleLogRunning = true;
+
+  function showNextLine() {
+    if (i >= log.length) {
+      isBattleLogRunning = false;
+      battleLogTimerId = null;
+      drawHPGraph();
+      updateStats();
+      return;
+    }
+
+    const lineText = log[i].trim(); // ← trimで前後の空白を削除
+    const div = document.createElement('div');
+
+if (/^[-–]{2,}\s*\d+ターン\s*[-–]{2,}$/.test(lineText)) {
+  div.textContent = lineText;
+  div.classList.add('turn-banner');
+}
+
+else if (lineText.includes('勝者')) {
+  div.textContent = lineText;
+  div.classList.add('battle-result', 'win');
+}
+else if (lineText.includes('敗北')) {
+  div.textContent = lineText;
+  div.classList.add('battle-result', 'lose');
+}
+
+    // --- 通常行（HP色分け含む） ---
+    else {
+      div.textContent = lineText;
+
+      // % を含む行すべてを対象（敵・自）
+      if (lineText.match(/\d+%/)) {
+        const matches = [...lineText.matchAll(/(\d+)%/g)];
+        let html = lineText;
+
+        for (const match of matches) {
+          const hp = parseInt(match[1], 10);
+          const hue = Math.floor((hp / 100) * 120); // 赤〜緑
+          const color = `hsl(${hue}, 100%, 45%)`;
+          const span = `<span style="color: ${color}; font-weight: bold;">${hp}%</span>`;
+          html = html.replace(`${hp}%`, span);
+        }
+
+        div.innerHTML = html;
+      }
+    }
+
+    battleLogEl.appendChild(div);
+
+    requestAnimationFrame(() => {
+      battleLogEl.scrollTo({
+        top: battleLogEl.scrollHeight,
+        behavior: 'smooth'
+      });
+    });
+
+    i++;
+    battleLogTimerId = setTimeout(showNextLine, 160);
+  }
+
+  showNextLine();
+}
+
+
 function updateSkillDeleteButton() {
     skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
     if (window.skillDeleteUsesLeft > 0) {
@@ -2752,7 +2833,7 @@ let skillGainChance = Math.min(1.0, 0.02 * rarity);
 if (window.specialMode === 'brutal') {
     skillGainChance = 0.02;  // 鬼畜モードで変更する
 }
-  log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
+ // log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
     const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
@@ -2871,9 +2952,11 @@ if (currentStreak > maxStreak) {
 
 maybeTriggerEvent();
 
-document.getElementById('battleLog').textContent = log.join('\n');
+displayBattleLogWithoutAsync(log);
+
 drawHPGraph();
 updateStats();
+
 
 window.returnToTitleScreen = function () {
   // 画面の各部品を取得
