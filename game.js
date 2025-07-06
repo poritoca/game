@@ -2708,9 +2708,11 @@ log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) 
 
 let baseRate = 0.1;
 if (window.specialMode === 'brutal') {
-    baseRate = 0.00003; // 鬼畜モードでは基礎確率を低下
+    baseRate = 0.00003;
 }
-const streakFactor = Math.pow(0.06, currentStreak / 100);
+
+// 緩やかな減少（下限0.2倍まで）
+const streakFactor = Math.max(1 - currentStreak * 0.005, 0.2);
 const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
