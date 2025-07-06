@@ -2308,19 +2308,38 @@ document.getElementById("battleArea").classList.remove("hidden");
 
   const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 
-
 if (isWaitingGrowth) {
   isWaitingGrowth = false;
 
+  // 連勝率の計算
+  const streakRatio = Math.min(window.currentStreak / window.sessionMaxStreak, 1.0);
+
+  // skipの重み（低いほどskipが優先される）
+  // streakRatioが0なら weight=10、1なら weight=1（高いほど選ばれにくく）
+  const skipWeight = 1 + 9 * streakRatio; // 1〜10
+  const normalWeight = 1;
+
   const growthOptions = [
-    { label: "攻撃を上げる", value: 'attack' },
-    { label: "防御を上げる", value: 'defense' },
-    { label: "速度を上げる", value: 'speed' },
-    { label: "HPを上げる", value: 'maxHp' },
-    { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
+    { label: "攻撃を上げる", value: 'attack', weight: normalWeight },
+    { label: "防御を上げる", value: 'defense', weight: normalWeight },
+    { label: "速度を上げる", value: 'speed', weight: normalWeight },
+    { label: "HPを上げる", value: 'maxHp', weight: normalWeight },
+    {
+      label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`,
+      value: 'skip',
+      weight: skipWeight
+    }
   ];
 
-  const selected = growthOptions[Math.floor(Math.random() * growthOptions.length)];
+  // 重み付きランダム選択
+  const totalWeight = growthOptions.reduce((sum, opt) => sum + opt.weight, 0);
+  let rand = Math.random() * totalWeight;
+  let selected = growthOptions.find(opt => {
+    if (rand < opt.weight) return true;
+    rand -= opt.weight;
+    return false;
+  });
+
   const selectedValue = selected.value;
 
   // ✅ 成長処理
@@ -2341,7 +2360,6 @@ if (isWaitingGrowth) {
 
   popup.style.display = "block";
   popup.style.visibility = "visible";
-  //popup.style.width = "min(90vw, 600px)"; // 忘れず幅を設定
 
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
   const popupHeight = popup.offsetHeight;
