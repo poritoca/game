@@ -412,10 +412,8 @@ if (window.specialMode === 'normal') {
 const skillDeleteButton = document.getElementById('skillDeleteButton');
 
 function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
-  // 再構築するスキル枠数（基本3枠 + 追加スロット）
   const totalSlots = 3 + sslot;
 
-  // 1. プレイヤー名に基づく固有スキル候補3つを導出し、その中から1つ選択
   const nameSeed = Array.from(player.name).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const allSkillNames = skillPool.map(s => s.name);
   const uniqueCandidates = new Set();
@@ -428,7 +426,6 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
   const candidates = Array.from(uniqueCandidates);
   const uniqueSkillName = candidates[Math.floor(Math.random() * candidates.length)];
 
-  // 2. スキルメモリーから攻撃スキルを1つ選出（固有スキルと重複しない）
   const entries = Object.entries(player.skillMemory);
   const isOffensiveSkill = name => {
     const def = skillPool.find(s => s.name === name);
@@ -444,7 +441,6 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     }
   }
 
-  // 攻撃スキルがなければ、固有スキル以外の1つ目を採用
   if (!attackSkillName) {
     for (const [name] of entries) {
       if (name !== uniqueSkillName) {
@@ -454,13 +450,13 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     }
   }
 
-  // それでもなければ、固有スキルで代用
   if (!attackSkillName) {
     attackSkillName = uniqueSkillName;
   }
 
-  // 3. 新スキル配列を構築（重複なし）
   const newSkills = [];
+  const usedNames = new Set();
+
   const uniqueLevel = player.skillMemory[uniqueSkillName] || 1;
   newSkills.push({ name: uniqueSkillName, level: uniqueLevel, uses: 0 });
 
@@ -475,7 +471,32 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     newSkills.push({ name, level, uses: 0 });
   }
 
-  player.skills = newSkills;
+  // 初期化
+  player.skills = [];
+  if (!player.mixedSkills) player.mixedSkills = [];
+
+  // 固有スキル先に追加
+  const uniqueSkillObj = { name: uniqueSkillName, level: uniqueLevel, uses: 0, isUnique: true };
+  player.skills.push(uniqueSkillObj);
+
+  for (const sk of newSkills) {
+    if (sk.name === uniqueSkillName) continue;
+    const fullSkill = { ...sk, isUnique: false };
+    onSkillAcquired(fullSkill);
+  }
+
+  // 固有スキルからの明示的な混合スキル生成
+  const mixCandidates = player.skills.filter(s => s.name !== uniqueSkillName);
+  if (mixCandidates.length > 0) {
+    const partner = mixCandidates[Math.floor(Math.random() * mixCandidates.length)];
+    const combinedSkill = createMixedSkill(uniqueSkillObj, partner);
+    player.mixedSkills.push(combinedSkill);
+      player.skills.push(combinedSkill); 
+		 // ← 追加：メモリにも表示されるように
+  }
+
+  if (typeof drawSkillMemoryList === 'function') drawSkillMemoryList();
+  if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
 }
 
 
@@ -492,11 +513,18 @@ function displayBattleLogWithoutAsync(log) {
   const battleLogEl = document.getElementById('battleLog');
   battleLogEl.innerHTML = '';
 
+  // HTMLタグの混入防止：一度DOMで解釈してテキスト化
+  const cleanLog = log.map(line => {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = line;
+    return tempDiv.textContent || '';
+  });
+
   let i = 0;
   isBattleLogRunning = true;
 
   function showNextLine() {
-    if (i >= log.length) {
+    if (i >= cleanLog.length) {
       isBattleLogRunning = false;
       battleLogTimerId = null;
       drawHPGraph();
@@ -504,44 +532,65 @@ function displayBattleLogWithoutAsync(log) {
       return;
     }
 
-    const lineText = log[i].trim(); // ← trimで前後の空白を削除
+    const lineText = cleanLog[i].trim();
     const div = document.createElement('div');
 
-if (/^[-–]{2,}\s*\d+ターン\s*[-–]{2,}$/.test(lineText)) {
-  div.textContent = lineText;
-  div.classList.add('turn-banner');
-}
-
-else if (lineText.includes('勝者')) {
-  div.textContent = lineText;
-  div.classList.add('battle-result', 'win');
-}
-else if (lineText.includes('敗北')) {
-  div.textContent = lineText;
-  div.classList.add('battle-result', 'lose');
-}
-
-    // --- 通常行（HP色分け含む） ---
-    else {
+    // ─ ターン区切り ─
+    if (/^[-–]{2,}\s*\d+ターン\s*[-–]{2,}$/.test(lineText)) {
       div.textContent = lineText;
+      div.classList.add('turn-banner');
+    }
 
-      // % を含む行すべてを対象（敵・自）
+    // ─ 勝敗行 ─
+    else if (lineText.includes('勝者')) {
+      div.textContent = lineText;
+      div.classList.add('battle-result', 'win');
+    }
+    else if (lineText.includes('敗北')) {
+      div.textContent = lineText;
+      div.classList.add('battle-result', 'lose');
+    }
+
+    // ─ 通常ログ行 ─
+    else {
+      // HP％を含む場合（色付き）
       if (lineText.match(/\d+%/)) {
         const matches = [...lineText.matchAll(/(\d+)%/g)];
-        let html = lineText;
+        let lastIndex = 0;
 
         for (const match of matches) {
           const hp = parseInt(match[1], 10);
-          const hue = Math.floor((hp / 100) * 120); // 赤〜緑
-          const color = `hsl(${hue}, 100%, 45%)`;
-          const span = `<span style="color: ${color}; font-weight: bold;">${hp}%</span>`;
-          html = html.replace(`${hp}%`, span);
+          const start = match.index;
+          const end = start + match[0].length;
+
+          // 前のプレーンテキストを追加
+          if (start > lastIndex) {
+            const text = lineText.slice(lastIndex, start);
+            div.appendChild(document.createTextNode(text));
+          }
+
+          // 色付きのパーセント表示
+          const hue = Math.floor((hp / 100) * 120);
+          const span = document.createElement('span');
+          span.textContent = `${hp}%`;
+          span.style.color = `hsl(${hue}, 100%, 45%)`;
+          span.style.fontWeight = 'bold';
+          div.appendChild(span);
+
+          lastIndex = end;
         }
 
-        div.innerHTML = html;
+        // 残りのテキストを追加
+        if (lastIndex < lineText.length) {
+          div.appendChild(document.createTextNode(lineText.slice(lastIndex)));
+        }
+      } else {
+        // 通常行（%なし）
+        div.textContent = lineText;
       }
     }
 
+    // 追加＆スクロール
     battleLogEl.appendChild(div);
 
     requestAnimationFrame(() => {
@@ -552,12 +601,11 @@ else if (lineText.includes('敗北')) {
     });
 
     i++;
-    battleLogTimerId = setTimeout(showNextLine, 160);
+    battleLogTimerId = setTimeout(showNextLine, 20);
   }
 
   showNextLine();
 }
-
 
 function updateSkillDeleteButton() {
     skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
@@ -600,6 +648,377 @@ updateSkillDeleteButton();
 window.allowGrowthEvent = true;
 window.allowSkillDeleteEvent = true;
 window.allowItemInterrupt = true;  // ← 新規追加
+
+
+
+/********************************
+ * データ構造と初期設定
+ ********************************/
+
+// プレイヤーオブジェクトに混合スキルリストを追加（存在しない場合のみ初期化）
+
+
+// 混合スキル生成関数
+function createMixedSkill(skillA, skillB) {
+  function flattenBaseSkills(skill) {
+    if (skill.isMixed && Array.isArray(skill.baseSkills)) {
+      return skill.baseSkills.flatMap(flattenBaseSkills);
+    }
+    return [skill];
+  }
+
+  const baseSkills = [...flattenBaseSkills(skillA), ...flattenBaseSkills(skillB)];
+  const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
+  const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
+
+  const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
+  const nameLength = Math.floor(Math.random() * 4) + 3;
+  const randomKana = Array.from({ length: nameLength }, () => kanaChars[Math.floor(Math.random() * kanaChars.length)]).join("");
+
+  const minProb = 0.1;
+  const maxProb = 0.8;
+  const activationProb = Math.random() * (maxProb - minProb) + minProb;
+
+  const effectType = Math.ceil(Math.random() * 7);
+  const effectValueTable = {
+    1: { min: 10, max: 30, rareScale: 2 },
+    2: { min: 10, max: 100, rareScale: 4 },
+    3: { min: 50, max: 90, rareScale: 2 },
+    4: { min: 2.0, max: 5.0, rareScale: 3 },
+    5: { min: 2.0, max: 5.0, rareScale: 3 },
+    6: { min: 2.0, max: 5.0, rareScale: 3 },
+    7: { min: 2.0, max: 5.0, rareScale: 3 }
+  };
+
+  const config = effectValueTable[effectType];
+  let effectValue;
+  if (effectType <= 3) {
+    effectValue = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
+  } else {
+    const t = Math.pow(Math.random(), config.rareScale);
+    const rawValue = config.min + (config.max - config.min) * t;
+    effectValue = Math.round(rawValue * 10) / 10;
+  }
+
+  // --- 接頭語（40×40） ---
+  const activationPrefixes = [
+    "白く", "淡く", "儚く", "静かに", "柔らかく", "ほのかに", "静穏な", "風のように", "水面のように", "さざ波のように",
+    "鈍く", "灰色の", "くすんだ", "ぼんやりと", "霧のように", "薄暮の", "幻のように", "深く", "ゆるやかに", "澄んだ",
+    "赤黒く", "光り輝く", "燃え上がる", "熱を帯びた", "紅蓮の", "揺らめく", "照らすように", "きらめく", "煌く", "きつく",
+    "刺すように", "鋭く", "ひらめく", "咆哮する", "激しく", "電撃の", "鼓動する", "天を裂く", "神速の", "超越せし"
+  ];
+
+  const effectValuePrefixes = [
+    "ささやく", "照らす", "包み込む", "揺らす", "引き寄せる", "誘う", "癒す", "染み込む", "憑依する", "導く",
+    "支配する", "増幅する", "研ぎ澄ます", "貫く", "解き放つ", "覚醒させる", "爆発する", "焼き尽くす", "断ち切る", "消し去る",
+    "裂く", "砕く", "覚醒する", "解放する", "粉砕する", "叫ぶ", "轟かせる", "駆け抜ける", "高鳴る", "躍動する",
+    "躍らせる", "爆ぜる", "瞬く", "砲撃する", "宇宙を裂く", "世界を断つ", "深淵を覗く", "魂を燃やす", "全てを覆う", "運命を導く"
+  ];
+
+  const activationIndex = Math.min(39, Math.floor((activationProb - minProb) / (maxProb - minProb) * 40));
+  const valueIndex = Math.min(39, Math.floor((effectValue - config.min) / (config.max - config.min) * 40));
+  const prefix1 = activationPrefixes[activationIndex];
+  const prefix2 = effectValuePrefixes[valueIndex];
+  const fullName = `${prefix1}×${prefix2}${randomKana}`;
+
+  // --- レアリティ評価（1600通り → S～D、星1～5） ---
+  const rarityScore = activationIndex * 40 + valueIndex;
+
+  let rarity = "d";
+  if (rarityScore > 1550) rarity = "s";
+  else if (rarityScore > 1400) rarity = "a";
+  else if (rarityScore > 1000) rarity = "b";
+  else if (rarityScore > 500) rarity = "c";
+
+  let starCount = 1;
+  if (rarityScore > 1550) starCount = 5;
+  else if (rarityScore > 1400) starCount = 4;
+  else if (rarityScore > 1000) starCount = 3;
+  else if (rarityScore > 500) starCount = 2;
+
+  const starRating = "★".repeat(starCount) + "☆".repeat(5 - starCount);
+
+  return {
+    name: fullName,
+    isMixed: true,
+    baseSkills,
+    level: averageLevel,
+    activationProb,
+    specialEffectType: effectType,
+    specialEffectValue: effectValue,
+    rarityClass: `skill-rank-${rarity}`,
+    starRating
+  };
+}
+
+
+/********************************
+ * スキル取得時の混合スキル生成処理
+ ********************************/
+
+// スキル取得イベント時に呼ばれる関数（固有スキル取得時に混合スキルを生成）
+function onSkillAcquired(newSkill) {
+  if (!player.mixedSkills) {
+    player.mixedSkills = [];
+  }
+
+  const canMix = player.skills.length > 0;
+
+  // 固有スキル処理
+  if (newSkill.isUnique) {
+    if (Math.random() < 0.05 && canMix) {
+			alert("生成されます")
+      const partnerSkill = player.skills[Math.floor(Math.random() * player.skills.length)];
+      const mixedSkill = createMixedSkill(newSkill, partnerSkill);
+
+      player.skills.push(mixedSkill);
+      player.mixedSkills.push(mixedSkill);
+    } else {
+      player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+    }
+
+    return;
+  }
+
+  // 通常スキル処理
+  if (Math.random() < 0.1 && canMix) {
+    const partnerSkill = player.skills[Math.floor(Math.random() * player.skills.length)];
+    const mixedSkill = createMixedSkill(newSkill, partnerSkill);
+
+    player.skills.push(mixedSkill);
+    player.mixedSkills.push(mixedSkill);
+    drawCombinedSkillList();
+  } else {
+    player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+  }
+}
+
+// ※既存のスキル取得処理の最後で onSkillAcquired(newSkill) が呼ばれるように組み込んでください。
+
+
+/********************************
+ * 混合スキルの発動処理
+ ********************************/
+function useMixedSkill(mixedSkill, user, target, log) {
+  if (!mixedSkill || !user || !target || !log) return;
+
+  // 1回制限チェック
+  if (mixedSkill.usedInBattle) {
+    log.push(`※ ${mixedSkill.name} はこの戦闘で既に使用されています`);
+    return;
+  }
+  mixedSkill.usedInBattle = true;
+  if (mixedSkill.buttonElement) {
+    mixedSkill.buttonElement.disabled = true;
+    mixedSkill.buttonElement.classList.add("used");
+  }
+
+  // 成功判定
+  const prob = mixedSkill.activationProb || 0;
+  if (Math.random() >= prob) {
+    log.push(`※ ${mixedSkill.name} は発動に失敗した！`);
+    return;
+  }
+
+  log.push(`★ ${mixedSkill.name} を発動！（成功率 ${Math.floor(prob * 100)}%）`);
+
+  // ベーススキル再帰発動
+  function applySkillRecursive(s) {
+    if (target.hp <= 0) return;
+    if (s.isMixed && Array.isArray(s.baseSkills)) {
+      for (const base of s.baseSkills) {
+        applySkillRecursive(base);
+      }
+    } else {
+      getSkillEffect(s, user, target, log);
+    }
+  }
+
+  if (Array.isArray(mixedSkill.baseSkills)) {
+    for (const baseSkill of mixedSkill.baseSkills) {
+      applySkillRecursive(baseSkill);
+    }
+  }
+
+  // 特殊効果マップ（typeごとの処理）
+  const specialEffectHandlers = {
+    1: (value) => {
+      if (target.hp > 0) {
+        const dmg = Math.floor(target.hp * (value / 100));
+        target.hp -= dmg;
+        log.push(`▶ 特殊効果: 敵に追加ダメージ ${dmg}（残りHPの${value}%）を与えた`);
+      }
+    },
+    2: (value) => {
+      mixedSkill.reviveUsed = false;
+      log.push(`▶ 特殊効果: 戦闘不能時に HP${value}% で復活する効果を付与（発動後、戦闘中1回）`);
+    },
+    3: (value) => {
+      log.push(`▶ 特殊効果: 毒/火傷ダメージを受ける度に ${value}% 即時回復する効果を付与（発動後、戦闘中有効）`);
+    },
+    4: (value) => {
+      log.push(`▶ 特殊効果（発動時は無効）: 攻撃力 ${value}倍バフは所持時に自動適用済み`);
+    },
+    5: (value) => {
+      log.push(`▶ 特殊効果（発動時は無効）: 防御力 ${value}倍バフは所持時に自動適用済み`);
+    },
+    6: (value) => {
+      log.push(`▶ 特殊効果（発動時は無効）: 素早さ ${value}倍バフは所持時に自動適用済み`);
+    },
+    7: (value) => {
+      log.push(`▶ 特殊効果（発動時は無効）: 最大HP ${value}倍バフは所持時に自動適用済み`);
+    }
+  };
+
+  // 特殊効果適用（初期化）
+  if (!mixedSkill.specialEffects && mixedSkill.specialEffectType != null) {
+    mixedSkill.specialEffects = [{
+      type: mixedSkill.specialEffectType,
+      value: mixedSkill.specialEffectValue
+    }];
+  }
+
+  // 特殊効果処理
+  if (Array.isArray(mixedSkill.specialEffects)) {
+    for (const effect of mixedSkill.specialEffects) {
+      const handler = specialEffectHandlers[effect.type];
+      if (typeof handler === "function") {
+        handler(effect.value);
+      }
+    }
+  }
+
+  // 特殊効果フラグ更新（2,3 は効果持続型）
+  mixedSkill.specialEffectActive = mixedSkill.specialEffects?.some(e =>
+    [2, 3].includes(e.type)
+  );
+}
+
+
+
+
+function showSpecialEffectDetail(mixedSkill, event) {
+  const existingPopup = document.getElementById("effect-popup");
+  if (existingPopup) existingPopup.remove();
+
+  const popup = document.createElement("div");
+  popup.id = "effect-popup";
+  popup.className = "effect-popup";
+
+  // --- 効果説明の構築 ---
+  let detailText = "";
+
+  if (mixedSkill.isProtected) {
+    detailText += `🔒 【保護中のスキル】\n`;
+  }
+
+  const type = mixedSkill.specialEffectType;
+  const value = mixedSkill.specialEffectValue;
+  const star = mixedSkill.starRating || "";
+  const name = mixedSkill.name || "？？？";
+  const rarity = mixedSkill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "";
+
+  detailText += `【${star} / RANK: ${rarity}】\n${name}\n\n`;
+
+  switch (type) {
+    case 1:
+      detailText += `特殊効果: 敵の残りHPの${value}%分の追加ダメージ（敵が生存している場合のみ）`; break;
+    case 2:
+      detailText += `特殊効果: 使用者戦闘不能時に一度だけHP${value}%で復活（発動後、戦闘中1回有効）`; break;
+    case 3:
+      detailText += `特殊効果: 毒/火傷ダメージ直後に${value}%即時回復（発動後、戦闘中有効）`; break;
+    case 4:
+      detailText += `特殊効果: 戦闘中、攻撃力が${value}倍になる（スキル所持時）`; break;
+    case 5:
+      detailText += `特殊効果: 戦闘中、防御力が${value}倍になる（スキル所持時）`; break;
+    case 6:
+      detailText += `特殊効果: 戦闘中、素早さが${value}倍になる（スキル所持時）`; break;
+    case 7:
+      detailText += `特殊効果: 戦闘中、最大HPが${value}倍になる（スキル所持時）`; break;
+    default:
+      detailText += `特殊効果: なし`; break;
+  }
+
+  if (Array.isArray(mixedSkill.baseSkills) && mixedSkill.baseSkills.length > 0) {
+    detailText += `\n\n◆ 構成スキル:\n`;
+    for (const base of mixedSkill.baseSkills) {
+      const baseName = base.name || "(不明なスキル)";
+      const baseLv = base.level !== undefined ? `Lv${base.level}` : "";
+      detailText += `・${baseName} ${baseLv}\n`;
+    }
+  }
+
+  popup.textContent = detailText;
+
+  // --- スタイル設定 ---
+  popup.style.position = "absolute";
+  popup.style.left = `10px`;
+  popup.style.top = `${(event?.pageY || 0) + 10}px`;
+  popup.style.padding = "12px 16px";
+  popup.style.background = "linear-gradient(145deg, #f0f0f0, #e0e0e0)";
+  popup.style.border = "1px solid #888";
+  popup.style.borderRadius = "8px";
+  popup.style.color = "#222";
+  popup.style.fontSize = "14px";
+  popup.style.whiteSpace = "pre-line";
+  popup.style.overflowWrap = "break-word";
+  popup.style.zIndex = "9999";
+  popup.style.opacity = "0";
+  popup.style.transition = "opacity 0.3s ease";
+  popup.style.minWidth = "320px";
+  popup.style.maxWidth = "600px";
+  popup.style.width = "fit-content";
+
+  // ✅ 保護スキルなら強調枠
+  if (mixedSkill.isProtected) {
+    popup.style.borderColor = "#f4b400"; // 金色系
+    popup.style.boxShadow = "0 0 10px rgba(255, 215, 0, 0.6)";
+  } else {
+    popup.style.borderColor = "#888";
+    popup.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+  }
+
+  // ✅ クリックで即削除
+  popup.onclick = () => popup.remove();
+
+  document.body.appendChild(popup);
+
+  requestAnimationFrame(() => {
+    popup.style.opacity = "1";
+  });
+
+  setTimeout(() => {
+    if (popup.parentNode) {
+      popup.style.opacity = "0";
+      setTimeout(() => popup.remove(), 300);
+    }
+  }, 3000);
+}
+
+// 戦闘開始時に混合スキル使用状態をリセットする関数（各戦闘の最初に呼び出す）
+function resetMixedSkillUsage() {
+  if (!player || !player.mixedSkills) return;
+
+  for (const mSkill of player.mixedSkills) {
+    mSkill.usedInBattle = false;
+    mSkill.used = false;
+    mSkill.specialEffectActive = false;
+    mSkill.reviveUsed = false;
+    if (mSkill.buttonElement) {
+      mSkill.buttonElement.disabled = false;
+      mSkill.buttonElement.classList.remove("used");
+    }
+  }
+
+  // ★ ステータスバフのリセット
+  player.tempEffects = {};
+}
+
+// ※戦闘開始処理の中で resetMixedSkillUsage() を呼び出し、前の戦闘からの使用済みフラグや特殊効果をクリアしてください。
+// （混合スキルの特殊効果は戦闘ごとの効果のため、戦闘終了時や次の戦闘開始時にリセットします）
+
+
+
 
 function updateFaceCoinDisplay() {
   const coinElem = document.getElementById('faceCoinCount');
@@ -740,6 +1159,195 @@ function setupToggleButtons() {
   updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
 }
 
+function cleanUpAllMixedSkills() {
+  if (!player || !Array.isArray(player.mixedSkills) || player.mixedSkills.length === 0) return;
+
+  // 保護されていない混合スキルのみ削除対象
+  const toRemove = player.mixedSkills.filter(skill => !skill.isProtected);
+
+  // 保護されていない混合スキルだけを mixedSkills から除去
+  player.mixedSkills = player.mixedSkills.filter(skill => skill.isProtected);
+
+  // skills 配列から、削除対象の混合スキルを除外
+  player.skills = player.skills.filter(skill => {
+    if (!skill.isMixed) return true; // 通常スキルは維持
+    return !toRemove.some(s => s.name === skill.name);
+  });
+
+  // skillMemory からも削除（名前一致）
+  if (player.skillMemory) {
+    for (const s of toRemove) {
+      if (s.name && player.skillMemory[s.name]) {
+        delete player.skillMemory[s.name];
+      }
+    }
+  }
+
+  // UI 再描画
+  if (typeof syncSkillsUI === "function") {
+    syncSkillsUI(); // drawSkillList なども含めて再描画される
+  } else {
+    if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+    if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
+    if (typeof drawSkillList === "function") drawSkillList();
+  }
+}
+
+function createMixedSkillProtectionUI(containerId = "protect-skill-ui") {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // 初期化
+  container.innerHTML = "";
+
+  const label = document.createElement("label");
+  label.textContent = "混合スキルを保護：";
+  container.appendChild(label);
+
+  const select = document.createElement("select");
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "-- スキルを選択 --";
+  select.appendChild(defaultOption);
+
+  for (const skill of player.mixedSkills || []) {
+    const option = document.createElement("option");
+    option.value = skill.name;
+    option.textContent = skill.name + (skill.isProtected ? "（保護中）" : "");
+    select.appendChild(option);
+  }
+
+  container.appendChild(select);
+
+  // 保護切り替えボタン
+  const button = document.createElement("button");
+  button.textContent = "保護/解除";
+  button.onclick = () => {
+    const name = select.value;
+    const target = player.mixedSkills.find(s => s.name === name);
+    if (target) {
+      target.isProtected = !target.isProtected;
+      alert(`${target.name} を${target.isProtected ? "保護しました" : "解除しました"}`);
+      createMixedSkillProtectionUI(containerId); // UI 再描画
+      if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+    }
+  };
+  container.appendChild(button);
+}
+
+// うまく1つを残せないため保留
+function cleanUpMixedSkillsExceptOne() {
+  if (!player || !Array.isArray(player.mixedSkills) || player.mixedSkills.length === 0) return;
+
+  // ランダムに1つ残す混合スキルを選択
+  const skillToKeep = player.mixedSkills[Math.floor(Math.random() * player.mixedSkills.length)];
+
+  // 混合スキル以外を削除（player.mixedSkills）
+  const toRemove = player.mixedSkills.filter(s => s !== skillToKeep);
+  player.mixedSkills = [skillToKeep];
+
+  // skills から isMixed 且つ削除対象のものを除外
+  player.skills = player.skills.filter(s => !s.isMixed || s === skillToKeep);
+
+  // skillMemory からも除去
+  if (player.skillMemory) {
+    for (const s of toRemove) {
+      if (s.name && player.skillMemory[s.name]) {
+        delete player.skillMemory[s.name];
+      }
+    }
+  }
+
+  // UI を再描画
+  if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+  if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
+}
+
+function drawCombinedSkillList() {
+  const list = document.getElementById("combinedSkillList");
+  if (!player || !player.mixedSkills || !list) return;
+
+  list.innerHTML = "";
+
+  player.mixedSkills.forEach(skill => {
+    const li = document.createElement("li");
+    li.className = "skill-entry";
+
+    const activation = skill.activationRate ?? skill.activationProb ?? 0;
+    const activationPercent = Math.round(activation * 100);
+
+    li.textContent = `${skill.starRating || ""} ${skill.name}（Lv: ${skill.level}｜発動率: ${activationPercent}%）`;
+
+    if (skill.rarityClass) {
+      li.classList.add(skill.rarityClass);
+    }
+
+    if (skill.isProtected) {
+      li.textContent += "【保護】";
+      li.style.textShadow = "0 0 5px gold";
+    }
+
+    // --- クリックイベント ---
+    li.onclick = (event) => {
+      const alreadyProtected = player.mixedSkills.find(s => s.isProtected);
+      const isDoubleClick = (window.lastSelectedSkill === skill);
+      window.lastSelectedSkill = skill;
+
+      // 常に効果説明は表示
+      if (typeof showSpecialEffectDetail === "function") {
+        showSpecialEffectDetail(skill, event);
+      }
+
+      // 1回目のクリックは説明表示のみ
+      if (!isDoubleClick) return;
+
+      // --- 保護解除 ---
+      if (skill.isProtected) {
+        const confirmed = confirm(`${skill.name} の保護を解除しますか？`);
+        if (confirmed) {
+          skill.isProtected = false;
+          window.lastSelectedSkill = null;
+          drawCombinedSkillList();
+        }
+        return;
+      }
+
+      // --- 保護移し替え ---
+      if (alreadyProtected && alreadyProtected !== skill) {
+        const confirmed = confirm(
+          `既に「${alreadyProtected.name}」が保護されています。\nその保護を解除して「${skill.name}」を保護しますか？`
+        );
+        if (confirmed) {
+          alreadyProtected.isProtected = false;
+          skill.isProtected = true;
+          window.lastSelectedSkill = null;
+          drawCombinedSkillList();
+        }
+        return;
+      }
+
+      // --- 新規保護 ---
+      const confirmed = confirm(`${skill.name} を保護しますか？`);
+      if (confirmed) {
+        skill.isProtected = true;
+        window.lastSelectedSkill = null;
+        drawCombinedSkillList();
+      }
+    };
+
+    list.appendChild(li);
+  });
+}
+
+function syncSkillsUI() {
+  if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
+  if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+  if (typeof drawItemMemoryList === "function") drawItemMemoryList();
+  if (typeof createMixedSkillProtectionUI === "function") {
+    createMixedSkillProtectionUI();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', setupToggleButtons);
 
 function hasOffensiveSkill(char) {
@@ -749,14 +1357,30 @@ function hasOffensiveSkill(char) {
     });
 }
 
+function clearPassiveStatBuffs(player) {
+  const stats = ['attack', 'defense', 'speed', 'maxHp'];
+  for (const stat of stats) {
+    const base = player.baseStats?.[stat] || 0;
+    const growth = player.growthBonus?.[stat] || 0;
+    player[stat] = base + growth;
+  }
+  player.hp = Math.min(player.hp, player.maxHp);
+}
+
+
+
 function decideSkillsToUse(actor, maxActivations) {
     if (!actor.usedSkillNames) actor.usedSkillNames = new Set();
 
-    const usableSkills = actor.skills.filter(skill => {
-        const data = skillPool.find(s => s.name === skill.name);
-        const isPassive = data?.category === 'passive';
-        return !skill.sealed && !isPassive;
-    });
+		const usableSkills = actor.skills.filter(skill => {
+		    const data = skillPool.find(s => s.name === skill.name);
+		    const isPassive = data?.category === 'passive';
+		
+		    // 発動済みの混合スキルは除外
+		    if (skill.isMixed && skill.usedInBattle) return false;
+		
+		    return !skill.sealed && !isPassive;
+		});
 
     let availableSkills = usableSkills;
 
@@ -1042,10 +1666,7 @@ function getEffectiveStat(char, stat) {
     mod = char.tempEffects[stat + 'Mod'];
   }
 
-  if (!char.baseStats || typeof char.baseStats[stat] !== 'number') {
-    //alert(`[ERROR] getEffectiveStat: baseStats.${stat} is invalid: ` + JSON.stringify(char.baseStats));
-    return 0;
-  }
+  if (!char.baseStats || typeof char.baseStats[stat] !== 'number') return 0;
 
   return (char.baseStats[stat] + growthValue) * mod;
 }
@@ -1569,13 +2190,23 @@ let hpHistory = [];
 let sslot = 0;
 let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
+
+
 // --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
 // フェイスコイン獲得確率 (勝利時)
 const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
 // ランクごとの出現確率 (合計1.00になるよう調整)
-const FACE_RARITY_PROBS = { S: 0.01, A: 0.04, B: 0.15, C: 0.30, D: 0.50 };
+//const FACE_RARITY_PROBS = { S: 0.01, A: 0.04, B: 0.15, C: 0.30, D: 0.50 };
+
+const FACE_RARITY_PROBS = {
+  S: 0.001,  // 0.1%
+  A: 0.004,  // 0.4%
+  B: 0.045,  // 4.5%
+  C: 0.05,   // 5%
+  D: 0.90    // 90%
+};
 
 window.faceCoins = 1000;
 window.faceItemsOwned = [];       // 例: ['face/S/face1.png', ...]
@@ -1635,8 +2266,8 @@ window.chooseGrowth = function(stat) {
   const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
   showCustomAlert(message, 2000);  // ← 追加：カスタムアラート表示
 
-  const logEl = document.getElementById('battleLog');
-  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
+ // const logEl = document.getElementById('battleLog');
+//  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
 
   window.growthMultiplier = 1;  // リセット
   isWaitingGrowth = false;
@@ -1644,8 +2275,8 @@ window.chooseGrowth = function(stat) {
 
 window.skipGrowth = function() {
   window.growthMultiplier = Math.min(window.growthMultiplier * 2, 256);
-  const logEl = document.getElementById('battleLog');
-  logEl.textContent += `\n今回は成長をスキップ。次回成長値は倍率x${window.growthMultiplier}になります（最大256倍）。\n`;
+//  const logEl = document.getElementById('battleLog');
+//  logEl.textContent += `\n今回は成長をスキップ。次回成長値は倍率x${window.growthMultiplier}になります（最大256倍）。\n`;
 
   showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2000);  // ← 追加
 
@@ -1787,7 +2418,9 @@ if (isPlayer) {
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
 window.startNewGame = function() {
 	
-	  window.isFirstBattle = true;
+	 // window.isFirstBattle = true;
+	 //ガイド いるならtrueに
+	  window.isFirstBattle = false;
 		const battleBtn = document.getElementById("startBattleBtn");
 		if (battleBtn && battleBtn.classList.contains("hidden")) {
 		  battleBtn.classList.remove("hidden");
@@ -1878,29 +2511,6 @@ window.showBattleMode = function() {
   document.getElementById('vsMode').classList.remove('hidden');
 };
 
-// 2人対戦モード開始（キャラ2体生成して直接バトル画面へ）
-window.startVsMode = function() {
-  const n1 = document.getElementById('vsName1').value || 'VS1';
-  const n2 = document.getElementById('vsName2').value || 'VS2';
-  const tmpChar = makeCharacter(n1);
-  player = {
-    ...tmpChar,
-  growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 }
-};
-try {
-} catch (e) {
-}
-enemy = makeCharacter(n2);
-//alert("[A008] enemy 初期ステータス = " + JSON.stringify(enemy.baseStats));
-//alert("[A008] enemy 初期ステータス = " + JSON.stringify(enemy.baseStats));
-document.getElementById('titleScreen').classList.add('hidden');
-document.getElementById('gameScreen').classList.remove('hidden');
-document.getElementById("battleArea").classList.add("hidden");
-updateStats();
-updatePlayerDisplay(player);
-updateEnemyDisplay(enemy);
-
-};
 
 // スキル効果を適用（カテゴリ別に処理）
 
@@ -1937,13 +2547,20 @@ if (user !== player) {
 
   let statusLogged = false;
   let totalDamage = 0;
-  skill.uses = (skill.uses || 0) + 1;
-  const skillData = skillPool.find(sk => sk.name === skill.name);
-  if (!skillData) return;
+    skill.uses = (skill.uses || 0) + 1;
+    let skillData = skillPool.find(sk => sk.name === skill.name);
+    // 混合スキルは静的データがないため特別処理
+    if (!skillData) {
+        if (skill.isMixed) {
+            skillData = { category: 'mixed' };  // ダミーのスキルデータでカテゴリーを指定
+        } else {
+            return log;
+        }
+    }
+    skill.level = (typeof skill.level === 'number' && !isNaN(skill.level)) ? skill.level : 1;
 
-  skill.level = (typeof skill.level === 'number' && !isNaN(skill.level)) ? skill.level : 1;
-
-  switch (skillData.category) {
+    switch (skillData.category) {
+			
 case 'multi': {
     let baseDmg = Math.max(0, user.attack);
     const baseHits = skillData.baseHits || 1;
@@ -2241,13 +2858,77 @@ if (user === player && skill.level < 9999) {
     // スキルメモリー画面が表示されていれば即時更新
     const skillListVisible = document.getElementById("skillMemoryList");
     if (skillListVisible && !skillListVisible.classList.contains("hidden")) {
-      drawSkillMemoryList();
+      syncSkillsUI();
     }
   }
 }
   // ダメージ実績を記録
-  user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
+    user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
+    return log;
 };
+
+function checkReviveOnDeath(character, log) {
+  if (character.hp > 0) return false;
+  if (!character.mixedSkills) return false;
+
+  let bestSkill = null;
+  let bestValue = 0;
+
+  for (const mSkill of character.mixedSkills) {
+    const reviveEffect = mSkill.specialEffects?.find(e => e.type === 2);
+    if (mSkill.usedInBattle && reviveEffect && reviveEffect.used === false) {
+      if (reviveEffect.value > bestValue) {
+        bestValue = reviveEffect.value;
+        bestSkill = mSkill;
+      }
+    }
+  }
+
+  if (bestSkill && bestValue > 0) {
+    const reviveEffect = bestSkill.specialEffects.find(e => e.type === 2);
+    const reviveHP = Math.floor(character.maxHp * (reviveEffect.value / 100));
+    character.hp = Math.max(reviveHP, 1);
+    reviveEffect.used = true;
+
+    const stillActive = bestSkill.specialEffects.some(e => e.type !== 2 && (e.type === 3));
+    bestSkill.specialEffectActive = stillActive;
+
+    if (log && typeof log.push === "function") {
+      log.push(`※ ${displayName(bestSkill.name)}の特殊効果により${displayName(character.name)}がHP${reviveEffect.value}%で復活！`);
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function handlePoisonBurnDamage(character, damage, log) {
+  if (damage <= 0 || !character.mixedSkills) return;
+
+  let totalHealPercent = 0;
+
+  for (const mSkill of character.mixedSkills) {
+    const healEffect = mSkill.specialEffects?.find(e => e.type === 3);
+    if (mSkill.usedInBattle && healEffect) {
+      totalHealPercent += healEffect.value;
+    }
+  }
+
+  if (totalHealPercent > 0) {
+    const healAmount = Math.floor(damage * (totalHealPercent / 100));
+    if (healAmount > 0) {
+      character.hp = Math.min(character.maxHp, character.hp + healAmount);
+      if (log && typeof log.push === "function") {
+        log.push(`※ 継続ダメージ${damage}に対し、混合スキル特殊効果で${healAmount}HP即時回復（${totalHealPercent}%分）`);
+      }
+    }
+  }
+}
+
+
+
+
 
 function restoreMissingItemUses() {
   if (!player || !player.itemMemory) return;
@@ -2271,9 +2952,54 @@ function restoreMissingItemUses() {
   }
 }
 
+window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
+  const statTypeMap = {
+    4: 'attack',
+    5: 'defense',
+    6: 'speed',
+    7: 'maxHp'
+  };
+
+  player.tempEffects = {}; // 毎戦リセット
+
+  for (const skill of player.mixedSkills || []) {
+    const type = skill.specialEffectType;
+    const value = skill.specialEffectValue;
+
+    if ([4, 5, 6, 7].includes(type)) {
+      const stat = statTypeMap[type];
+
+      const base = (player.baseStats && typeof player.baseStats[stat] === 'number') ? player.baseStats[stat] : 0;
+      const growth = (player.growthBonus && typeof player.growthBonus[stat] === 'number') ? player.growthBonus[stat] : 0;
+      const prevMultiplier = player.tempEffects[stat + 'Mod'] || 1;
+      const before = (base + growth) * prevMultiplier;
+
+      // バフ乗算（重ねがけ）
+      const newMultiplier = prevMultiplier * value;
+      player.tempEffects[stat + 'Mod'] = newMultiplier;
+
+      const after = (base + growth) * newMultiplier;
+
+      if (log && Array.isArray(log)) {
+        log.push(`◎ ${skill.name} により ${stat} が ${value} 倍に増加`);
+				
+				
+			log.push(`${stat.toUpperCase()}：${Math.floor(before)} → ${Math.floor(after)}`);
+      }
+
+      if (stat === 'maxHp') {
+        player.maxHp = Math.floor(after);
+				player.hp = player.maxHp;
+      }
+    }
+  }
+};
+
+
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
-	
+		//戦闘ログはここに入れる
+	window.log = [];
 
     if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
@@ -2281,6 +3007,32 @@ window.startBattle = function() {
 
 window.barrierUsesLeft = 5;
 
+resetMixedSkillUsage();
+
+if (player.baseStats && player.growthBonus) {
+  player.attack = player.baseStats.attack + player.growthBonus.attack;
+  player.defense = player.baseStats.defense + player.growthBonus.defense;
+  player.speed = player.baseStats.speed + player.growthBonus.speed;
+  player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+  player.hp = player.maxHp;
+
+  // ★ ここに追加！
+	window.applyPassiveStatBuffsFromSkills(player, log);
+}
+
+
+
+// 戦闘開始時の混合スキル状態リセット
+for (const mSkill of player.mixedSkills || []) {
+  mSkill.usedInBattle = false;
+  mSkill.specialEffectActive = false;
+  // 各特殊効果の使用フラグをリセット
+  if (mSkill.specialEffects) {
+    mSkill.specialEffects.forEach(effect => {
+      if (effect.type === 2) effect.used = false;
+    });
+  }
+}
 
 markLocalSaveDirty();
 
@@ -2301,8 +3053,7 @@ document.getElementById("battleArea").classList.remove("hidden");
     item.remainingUses = item.usesPerBattle;
   });
 }
-  drawSkillMemoryList();
-  drawItemMemoryList();
+syncSkillsUI();
 
   window.eventTriggered = false;
 
@@ -2384,7 +3135,7 @@ if (isWaitingGrowth) {
 	const name = player?.name || document.getElementById('inputStr').value || 'あなた';
   if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
 
-      window.isFirstBattle = true;
+   //   window.isFirstBattle = true;
 
     const tmpChar = makeCharacter(name);
     player = {
@@ -2411,8 +3162,7 @@ if (isWaitingGrowth) {
 
   }
 
-drawSkillMemoryList();
-drawItemMemoryList();
+syncSkillsUI();
   player.effects = [];
 
 // 敵を生成（攻撃スキルが必ず1つ以上あるようにする）
@@ -2515,17 +3265,6 @@ if (window.specialMode === 'brutal') {
   enemy.effects = [];
   updateStats();
 
-    // 戦闘後に baseStats + growthBonus に再初期化
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-
-  const log = [];
-
   applyPassiveSeals(player, enemy, log);
 
 const factor = Math.pow(1.05, currentStreak);
@@ -2537,10 +3276,13 @@ if (window.specialMode === 'brutal') {
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
-  //player.hp = player.maxHp;
+  player.hp = player.maxHp;
   enemy.hp = enemy.maxHp;
   player.battleStats = {};
   enemy.battleStats = {};
+	recordHP();
+	
+
   // ターン制バトル開始
 
   while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
@@ -2552,36 +3294,59 @@ if (window.specialMode === 'brutal') {
     updateSealedSkills(player);
     updateSealedSkills(enemy);
 
-    recordHP();
+		if (player.mixedSkills && player.mixedSkills.length > 0) {
+		  const msg = player.mixedSkills.map((ms, i) => 
+		    `混合スキル${i + 1}「${ms.name}」: 発動率 ${Math.round(ms.activationProb * 100)}%`
+		  ).join('\n');
+	//	  console.log(msg);
+		} else {
+	//	  console.log("混合スキルはまだ取得していません。");
+		}
+	//	console.log(player.skills);
 
-    // 継続効果の処理（毒・火傷・再生など）
-    [player, enemy].forEach(ch => {
-// 各効果を処理
-for (let eff of ch.effects) {
-  if (eff.remaining > 0) {
-    if (eff.type === '毒') {
-      let dmg = eff.damage;
+		
+		player.mixedSkills?.forEach(mixedSkill => {
+		  if (!mixedSkill.used && Math.random() < mixedSkill.activationProb) {
+		    useMixedSkill(mixedSkill,player,enemy, log);  // ← 発動
+		    mixedSkill.used = true;
+		  }
+		});
+		
 
-      // 成長型毒（growthRateあり）の場合
-      if (eff.damageSequence) {
-        dmg = eff.damageSequence[eff.turnIndex] || eff.damageSequence.at(-1);
-        eff.turnIndex++;
-      }
 
-      ch.hp -= dmg;
-      log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
-      ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
+		// 継続効果の処理（毒・火傷・再生など）
+		[player, enemy].forEach(ch => {
+		  for (let eff of ch.effects) {
+		    if (eff.remaining > 0) {
+		      if (eff.type === '毒') {
+		        let dmg = eff.damage;
+		
+		        // 成長型毒（growthRateあり）の場合
+		        if (eff.damageSequence) {
+		          dmg = eff.damageSequence[eff.turnIndex] || eff.damageSequence.at(-1);
+		          eff.turnIndex++;
+		        }
+		
+		        ch.hp -= dmg;
+		        log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
+		        ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
+		
+		        handlePoisonBurnDamage(ch, dmg, log); // ← 即時回復
+		
+		      } else if (eff.type === '火傷') {
+		        ch.hp -= eff.damage;
+		        log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
+		        ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
+		
+		        handlePoisonBurnDamage(ch, eff.damage, log); // ← 即時回復
+		
+		      } else if (eff.type === 'regen') {
+		        const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
+		        ch.hp += heal;
+		        if (heal > 0) {
+		          log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
+		        }}
 
-    } else if (eff.type === '火傷') {
-      ch.hp -= eff.damage;
-      log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
-      ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
-
-    } else if (eff.type === 'regen') {
-      const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
-      ch.hp += heal;
-      if (heal > 0) log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
-    }
 
     // ターン経過
     eff.remaining--;
@@ -2598,7 +3363,7 @@ function hasAnyHighScore() {
 if (window.isFirstBattle && !hasAnyHighScore()) {
   showConfirmationPopup(
 `<div style="text-align:center">
-  <img src="ghost.png" alt="Wizard" style="width:100px; height:auto; margin-bottom: 10px;"><br>
+  <img src="ghost.png" alt="Wizard" style="width:180px; height:auto; margin-bottom: 10px;"><br>
 	ようこそ！<br>
   さっそくだけど、作ったキャラクターが戦闘をしたよ。<br>
   戦闘ログを確認してみよう。<br><br>
@@ -2673,7 +3438,7 @@ if (window.isFirstBattle && !hasAnyHighScore()) {
           }
         }
 
-        // プレイヤーのアイテムメモリー発動
+
 // プレイヤーのアイテムメモリー発動（1ターンに1度のみ）
 let triggeredItemsThisTurn = new Set();
 
@@ -2743,6 +3508,14 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
       }
     }
 
+if (player.hp <= 0) {
+  const revived = checkReviveOnDeath(player, window.log);
+  if (!revived) {
+    window.log.push(`${displayName(player.name)}は力尽きた……`);
+  }
+}
+		
+		
 const safeRatio = (hp, maxHp) => {
   if (maxHp <= 0) return 0;
   const raw = hp / maxHp;
@@ -2762,10 +3535,16 @@ const bar = (filled, total = 10) => {
 log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
 log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
 
+
+  recordHP();
     turn++;
   }
+		
+	
+	
+	
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
-  recordHP();
+ // recordHP();
 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
@@ -2780,6 +3559,7 @@ const streakFactor = Math.max(1 - currentStreak * 0.005, 0.2);
 const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
+
 
 if (!window.isFirstBattle &&
 playerWon &&
@@ -2801,8 +3581,8 @@ Math.random() < finalRate) {
       window.chooseGrowth(chosen);
     }
 
-    const logEl = document.getElementById('battleLog');
-    logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
+ //   const logEl = document.getElementById('battleLog');
+ //   logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
   });
 
 } else if (playerWon) {
@@ -2835,13 +3615,7 @@ showCustomAlert(victoryMessage, 800);
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
     saveBattleLog(log);
 
-    // 戦闘終了時に残る強化・弱体を解除
-    player.effects.forEach(eff => {
-      if (eff.type === 'buff') player[eff.stat] = eff.original;
-      if (eff.type === 'debuff') player[eff.stat] = eff.original;
-    if (eff.type === 'berserk') { player.attack = eff.originalAttack; player.defense = eff.originalDefense; }
-  });
-  player.effects = [];
+
 
 player.skills.forEach(sk => {
   const isExempt = window.levelCapExemptSkills.includes(sk.name);
@@ -2857,8 +3631,7 @@ player.skills.forEach(sk => {
     sk.level++;
     player.skillMemory[sk.name] = sk.level;
     log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
-    drawSkillMemoryList();
-    drawItemMemoryList();
+syncSkillsUI();
   }
 });
 
@@ -2894,8 +3667,8 @@ updateFaceUI();
 
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
-const rarity = enemy.rarity * (1 + currentStreak * 0.01);
-let skillGainChance = Math.min(1.0, 0.02 * rarity);
+const rarity = enemy.rarity * (0.2 + currentStreak * 0.01);
+let skillGainChance = Math.min(1.0, 0.01 * rarity);
 if (window.specialMode === 'brutal') {
     skillGainChance = 0.02;  // 鬼畜モードで変更する
 }
@@ -2907,11 +3680,14 @@ if (Math.random() < skillGainChance) {
         const newSkill = enemyOwned[Math.floor(Math.random() * enemyOwned.length)];
         const savedLv = player.skillMemory[newSkill.name] || 1;
         player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
+				
+				
+				onSkillAcquired(newSkill)
+				
         log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
         showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1000, "#a8ffb0", "#000");
         if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
-drawSkillMemoryList();
-drawItemMemoryList();
+syncSkillsUI();
         }
     }
 }
@@ -2924,19 +3700,14 @@ drawItemMemoryList();
       log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
       alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
     }
-		
-	
-		
-	
-drawSkillMemoryList();
-drawItemMemoryList();
+syncSkillsUI();
 
 }
 
 	// --- 超低確率で FaceCoin 入手イベント ---
 	const coinChance = enemy.rarity / 1000;
 	if (Math.random() < coinChance) {
-	  const coinGain = Math.floor(500 + Math.random() * 501); // 500〜1000
+	  const coinGain = Math.floor(Math.random() * 200); // 最大500
 	  window.faceCoins = (window.faceCoins || 0) + coinGain;
 	
 	  log.push(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
@@ -2960,21 +3731,16 @@ if (window.growthMultiplier !== 1) {
   window.skillDeleteUsesLeft = 3;
 updateSkillDeleteButton();  // ボタン表示もリセット
   streakBonus = 1;
+	
+	cleanUpAllMixedSkills();
+	
   log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
   saveBattleLog(log);
-if (player.baseStats && player.growthBonus) {
-  player.attack = player.baseStats.attack + player.growthBonus.attack;
-  player.defense = player.baseStats.defense + player.growthBonus.defense;
-  player.speed = player.baseStats.speed + player.growthBonus.speed;
-  player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
 
-  // HPは勝利時のみ最大に回復。敗北時は回復しない
-  if (playerWon) {
-    player.hp = player.maxHp;
-  } else {
-    player.hp = Math.max(0, player.hp); // 敗北後の残りHPがマイナスなら0に
-  }
-}
+
+	
+
+
 
     // スキル記憶を更新（各スキルの最高Lvを保持）
     for (const sk of player.skills) {
@@ -2990,15 +3756,44 @@ showSubtitle(
   2500
 );
 updateSkillOverlay();
-drawSkillMemoryList();
+syncSkillsUI();
 currentStreak = 0;
 }
 
 document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
 
 // 最終HP表示
-//  log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
+log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
+
+// 戦闘終了時に残る強化・弱体を解除
+
+player.effects.forEach(eff => {
+  if (eff.type === 'buff') player[eff.stat] = eff.original;
+  if (eff.type === 'debuff') player[eff.stat] = eff.original;
+if (eff.type === 'berserk') { player.attack = eff.originalAttack; player.defense = eff.originalDefense; }
+});
+player.effects = [];
+clearPassiveStatBuffs(player);
+
+if (player.baseStats && player.growthBonus) {
+  player.attack = player.baseStats.attack + player.growthBonus.attack;
+  player.defense = player.baseStats.defense + player.growthBonus.defense;
+  player.speed = player.baseStats.speed + player.growthBonus.speed;
+  player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+	
+
+
+  // HPは勝利時のみ最大に回復。敗北時は回復しない
+  if (playerWon) {
+    player.hp = player.maxHp;
+  } else {
+    player.hp = Math.max(0, player.hp); // 敗北後の残りHPがマイナスなら0に
+  }
+}
+
+
+
 // ダメージ内訳表示
 //log.push(`\n${displayName(player.name)} のダメージ内訳`);
 //for (let key in player.battleStats) {
@@ -3206,8 +4001,8 @@ finalResEl.onclick = () => {
   // （エラーハンドリング）
 }
 
-drawSkillMemoryList();
-drawItemMemoryList();
+syncSkillsUI();
+
 try {
 } catch (error) {
 }
@@ -3242,7 +4037,7 @@ location.reload();
     });
   }
 
-  document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
+  //document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
   //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
   document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
@@ -3279,7 +4074,7 @@ location.reload();
   battleBtn.addEventListener("touchend", stopAutoBattle);
   battleBtn.addEventListener("touchcancel", stopAutoBattle);
 
-  document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
+  //document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
   //document.getElementById('endGameBtn').addEventListener('click', window.endGame);
 document.getElementById('skillSimulCountSelect').addEventListener('change', e => {
   skillSimulCount = parseInt(e.target.value);
@@ -3308,173 +4103,7 @@ async function generateHash(input) {
 
 
 
-window.exportSaveCode = async function () {
-  if (!player) return;
 
-  // 成長ステータスを最新化
-  if (player.baseStats && player.growthBonus) {
-    player.attack = player.baseStats.attack + player.growthBonus.attack;
-    player.defense = player.baseStats.defense + player.growthBonus.defense;
-    player.speed = player.baseStats.speed + player.growthBonus.speed;
-    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-    player.hp = player.maxHp;
-  }
-
-  window.itemFilterStates = buildItemFilterStates();
-  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
-
-  const payload = {
-    player,
-    currentStreak,
-    sslot,
-    growthMultiplier: window.growthMultiplier,
-    skillMemoryOrder: Object.entries(player.skillMemory),
-    itemMemory: player.itemMemory || [],
-    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
-    levelCapExemptSkills: window.levelCapExemptSkills || [],
-    specialMode: window.specialMode || 'normal',
-    allowGrowthEvent: window.allowGrowthEvent || false,
-    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
-    allowItemInterrupt: window.allowItemInterrupt || false,
-    itemFilterMode: window.itemFilterMode || 'and',
-    itemFilterStates: window.itemFilterStates || {},
-    remainingBattles: window.remainingBattles ?? null,
-    targetBattles: window.targetBattles ?? null,
-    maxScores: window.maxScores || {},
-
-    // ✅ フェイスアイテム情報を明示的に保存
-    faceCoins: window.faceCoins || 0,
-    faceItemsOwned: window.faceItemsOwned || [],
-    faceItemEquipped: window.faceItemEquipped || null,
-  };
-
-  const raw = JSON.stringify(payload);
-  const b64 = btoa(unescape(encodeURIComponent(raw)));
-  const hash = await generateHash(b64);
-  const code = `${b64}.${hash}`;
-
-  const box = document.getElementById('saveCodeBox');
-  box.value = code;
-  try {
-    await navigator.clipboard.writeText(code);
-  } catch (e) {
-    box.focus(); box.select();
-  }
-
-  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
-  const now = new Date();
-  const timestamp = now.toLocaleString('ja-JP', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit'
-  }).replace(/[^\d]/g, '');
-  const filename = `${charName}_${timestamp}.txt`;
-
-  const blob = new Blob([code], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-
-
-window.importSaveCode = async function (code = null) {
-  document.getElementById("skillMemoryList").classList.remove("hidden");
-
-  const input = code ?? document.getElementById('saveData').value.trim();
-
-  try {
-    const parts = input.split('.');
-    if (parts.length !== 2) throw new Error('形式が不正です');
-    const [b64, hash] = parts;
-    const computed = await generateHash(b64);
-    if (computed !== hash) throw new Error('署名不一致');
-
-    let raw = '';
-    try {
-      raw = decodeURIComponent(escape(atob(b64)));
-    } catch (e) {
-      throw new Error('デコード失敗');
-    }
-
-    const parsed = JSON.parse(raw);
-    player = parsed.player;
-    window.maxScores = parsed.maxScores || {};
-    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-
-    player.itemMemory = parsed.itemMemory || [];
-    window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
-    window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
-    window.growthMultiplier = parsed.growthMultiplier || 1;
-
-    const rebirth = (parsed.rebirthCount || 0) + 1;
-    localStorage.setItem('rebirthCount', rebirth);
-
-    // ✅ フェイスアイテム情報の復元とUI更新
-    window.faceCoins = parsed.faceCoins ?? 0;
-    window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
-    window.faceItemEquipped = parsed.faceItemEquipped ?? null;
-
-    const coinElem = document.getElementById('faceCoinCount');
-    if (coinElem) coinElem.innerText = window.faceCoins;
-    if (typeof updateFaceUI === 'function') updateFaceUI();
-    if (typeof updatePlayerImage === 'function') updatePlayerImage();
-
-    // --- その他設定の復元 ---
-    window.specialMode = parsed.specialMode || 'normal';
-    window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
-    window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
-    window.allowItemInterrupt = parsed.allowItemInterrupt ?? true;
-    window.itemFilterMode = parsed.itemFilterMode || 'and';
-    window.itemFilterStates = parsed.itemFilterStates || {};
-
-    if (typeof setupItemFilters === 'function') setupItemFilters();
-    if (typeof setupToggleButtons === 'function') setupToggleButtons();
-    if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
-
-    do {
-      enemy = makeCharacter('敵' + Math.random());
-    } while (!hasOffensiveSkill(enemy));
-
-    updateStats();
-    if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
-    if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
-
-    const title = document.getElementById('titleScreen');
-    const game = document.getElementById('gameScreen');
-    title.classList.add('fade-out');
-
-    setTimeout(() => {
-      title.classList.add('hidden');
-      game.classList.remove('hidden');
-      game.classList.add('fade-in');
-      document.getElementById("battleArea").classList.add("hidden");
-
-      const streakDisplay = document.getElementById('currentStreakDisplay');
-      if (streakDisplay) {
-        const baseBoost = 1.02;
-        const boostMultiplier = Math.pow(baseBoost, currentStreak);
-        streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
-      }
-
-      const rebirthDisplay = document.getElementById('rebirthCountDisplay');
-      if (rebirthDisplay) {
-        rebirthDisplay.textContent = '転生回数：' + rebirth;
-      }
-
-      if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
-      startBattle();
-    }, 500);
-
-  } catch (e) {
-    alert('セーブデータの読み込みに失敗しました：' + e.message);
-    console.error(e);
-  }
-};
 
 
 
@@ -3549,7 +4178,8 @@ window.loadGame = async function() {
 
   document.getElementById("skillMemoryList").classList.remove("hidden");
   document.getElementById("skillMemoryContainer").style.display = "block";
-  drawSkillMemoryList();
+
+	syncSkillsUI();
 
   const fileInput = document.getElementById('saveFileInput');
   const input = document.getElementById('saveData').value.trim();
@@ -3768,7 +4398,11 @@ window.showEventOptions = function(title, options, onSelect) {
   const optionsEl = document.getElementById('eventPopupOptions');
 
   titleEl.textContent = title;
-  optionsEl.innerHTML = '';
+
+  // 安全なクリア方法に変更
+  while (optionsEl.firstChild) {
+    optionsEl.removeChild(optionsEl.firstChild);
+  }
 
   // ボタン生成
   options.forEach(opt => {
@@ -3782,18 +4416,17 @@ window.showEventOptions = function(title, options, onSelect) {
     optionsEl.appendChild(btn);
   });
 
-  // 先に一旦表示（サイズを取得するため）
+  // 表示設定
   popup.style.display = 'block';
   popup.style.visibility = 'hidden';
 
-  // --- 表示位置を設定 ---
   const scrollTop = window.scrollY || document.documentElement.scrollTop;
   const popupHeight = popup.offsetHeight;
 
   popup.style.position = 'absolute';
-  popup.style.top = `${scrollTop - popupHeight / 2}px`;  // ★ ← ここを調整
+  popup.style.top = `${scrollTop - popupHeight / 2}px`;
   popup.style.left = '50%';
-  popup.style.transform = 'translate(-50%, 50%)'; // ★ ← Y方向の中央補正もここで
+  popup.style.transform = 'translate(-50%, 50%)';
   popup.style.visibility = 'visible';
 };
 
@@ -3815,7 +4448,7 @@ const whiteSkills = player.skills.slice(); // 所持スキル全てをそのま�
 
 if (whiteSkills.length === 0) {
     popup.style.display = 'none';
-    showCustomAlert("削除できる白スキルがありません！");
+    showCustomAlert("削除できるスキルがありません！");
     return;
 }
 
@@ -3856,7 +4489,7 @@ selectBtn.onclick = () => {
     callback(selectedName);
 };
 
-titleEl.textContent = "消す白スキルを選んでください";
+titleEl.textContent = "消すスキルを選んでください";
 selectContainer.style.display = 'block';
 popup.style.display = 'block';
 };
@@ -3934,44 +4567,43 @@ window.maybeTriggerEvent = function() {
 };
 
 function drawSkillMemoryList() {
-  //if (isAutoBattle) return;
   const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
+
+  // 1. 一旦非表示にして再描画（ちらつき防止＆DOM安定化）
+  list.style.display = "none";
   list.innerHTML = "";
 
   const categoryColors = {
-    "multi": "#ff4d4d", "poison": "#9933cc", "burn": "#ff6600", "lifesteal": "#66ccff",
-    "skillSeal": "#9999ff", "barrier": "#66ff66", "regen": "#66ff99", "reflect": "#ffff66",
-    "evasion": "#ff99cc", "buff": "#ffd700", "debuff": "#cc66ff", "heal": "#00ffcc",
-    "damage": "#ff3333", "stun": "#ff99cc", "buffExtension": "#00ccff",
-    "debuffExtension": "#cc66ff", "berserk": "#ff3333", "passive": "gold", "others": "#cccccc"
+    multi: "#ff4d4d", poison: "#9933cc", burn: "#ff6600", lifesteal: "#66ccff",
+    skillSeal: "#9999ff", barrier: "#66ff66", regen: "#66ff99", reflect: "#ffff66",
+    evasion: "#ff99cc", buff: "#ffd700", debuff: "#cc66ff", heal: "#00ffcc",
+    damage: "#ff3333", stun: "#ff99cc", buffExtension: "#00ccff",
+    debuffExtension: "#cc66ff", berserk: "#ff3333", passive: "gold", others: "#cccccc"
   };
 
   const ownedSkillNames = player.skills.map(sk => sk.name);
   const memoryEntries = Object.entries(player.skillMemory);
 
-  const owned = [];
-  const others = [];
-  for (const entry of memoryEntries) {
-    if (ownedSkillNames.includes(entry[0])) {
-      owned.push(entry);
-    } else {
-      others.push(entry);
-    }
-  }
+  const isOwned = name => ownedSkillNames.includes(name);
+  const sortedEntries = memoryEntries.sort((a, b) => {
+    const aOwned = isOwned(a[0]) ? 0 : 1;
+    const bOwned = isOwned(b[0]) ? 0 : 1;
+    return aOwned - bOwned;
+  });
 
-  const sortedEntries = [...owned, ...others];
-
-  sortedEntries.forEach(([name, level]) => {
+  for (const [name, level] of sortedEntries) {
     const li = document.createElement("li");
     const skillDef = skillPool.find(s => s.name === name);
     const category = skillDef?.category || "others";
     const desc = skillDef?.description || "";
+    const isPassive = category === "passive";
 
+    // 色の決定
     let color = "white";
-    if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(name)) {
+    if (window.initialAndSlotSkills?.includes(name)) {
       color = "deepskyblue";
-    } else if (category === "passive") {
+    } else if (isPassive) {
       color = "gold";
     } else {
       color = categoryColors[category] || "white";
@@ -3982,17 +4614,16 @@ function drawSkillMemoryList() {
     li.setAttribute("data-level", level);
     li.setAttribute("draggable", "true");
 
-    const isOwnedPassive = player.skills.some(s => s.name === name && category === "passive");
-    if (isOwnedPassive) {
+    // クラス付与
+    if (isPassive && ownedSkillNames.includes(name)) {
       li.classList.add("passive-skill");
     } else if (window.lastChosenSkillNames?.includes(name)) {
       li.classList.add("chosen-skill");
+    } else if (ownedSkillNames.includes(name)) {
+      li.classList.add("owned-skill");
     }
 
-    if (ownedSkillNames.includes(name)) {
-      li.classList.add("owned-skill"); // ← 覚えているスキルには背景強調クラス
-    }
-
+    // --- Drag & Drop 設定 ---
     li.ondragstart = e => {
       e.dataTransfer.setData("text/plain", name);
     };
@@ -4013,17 +4644,18 @@ function drawSkillMemoryList() {
       if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
         const dragged = items[draggedIndex];
         list.removeChild(dragged);
-        if (targetIndex < list.children.length) {
-          list.insertBefore(dragged, list.children[targetIndex]);
-        } else {
-          list.appendChild(dragged);
-        }
+        list.insertBefore(dragged, list.children[targetIndex]);
         updateSkillMemoryOrder();
       }
       li.style.border = "";
     };
 
     list.appendChild(li);
+  }
+
+  // --- DOM安定後に表示再開（ちらつき防止＆再描画のタイミング調整） ---
+  requestAnimationFrame(() => {
+    list.style.display = "";
   });
 }
 
@@ -4216,7 +4848,7 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
                 container.removeChild(alert);
             }
             if (container.children.length === 0) {
-                container.innerHTML = '';
+								container.style.display = 'none';
             }
         }, 300); // フェードアウト待機時間
     }, duration);
@@ -4574,7 +5206,7 @@ window.saveToLocalStorage = async function () {
     remainingBattles: window.remainingBattles ?? null,
     targetBattles: window.targetBattles ?? null,
     maxScores: window.maxScores || {},
-
+		mixedSkills: player.mixedSkills || [],
     faceCoins: window.faceCoins || 0,
     faceItemsOwned: window.faceItemsOwned || [],
     faceItemEquipped: window.faceItemEquipped || null,
@@ -4592,13 +5224,205 @@ window.saveToLocalStorage = async function () {
 	alert(
 	  'ローカルにセーブしました。\n\n' +
 	  '※このセーブデータはブラウザ内に保存されています。\n' +
-	  '「履歴の削除」や「サイトデータの消去」で消える可能性があります。\n\n' +
-	  '大切なデータはテキスト形式でも保存しておくことをおすすめします。'
+	  '「履歴の削除」や「サイトデータの消去」で消える可能性があります。'
+		//\n\n' +
+	//  '大切なデータはテキスト形式でも保存しておくことをおすすめします。'
 	);
 	markAsSaved();
 	updateLocalSaveButton();
 //	location.reload();
 };
+
+
+window.exportSaveCode = async function () {
+  if (!player) return;
+
+  // 成長ステータスを最新化
+  if (player.baseStats && player.growthBonus) {
+    player.attack = player.baseStats.attack + player.growthBonus.attack;
+    player.defense = player.baseStats.defense + player.growthBonus.defense;
+    player.speed = player.baseStats.speed + player.growthBonus.speed;
+    player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+    player.hp = player.maxHp;
+  }
+
+  window.itemFilterStates = buildItemFilterStates();
+  player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+  // ✅ 混合スキル情報も保存（保護状態含む）
+  player.mixedSkills = player.mixedSkills || [];
+
+  const payload = {
+    player,
+    currentStreak,
+    sslot,
+    growthMultiplier: window.growthMultiplier,
+    skillMemoryOrder: Object.entries(player.skillMemory),
+    itemMemory: player.itemMemory || [],
+    rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+    levelCapExemptSkills: window.levelCapExemptSkills || [],
+    specialMode: window.specialMode || 'normal',
+    allowGrowthEvent: window.allowGrowthEvent || false,
+    allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+    allowItemInterrupt: window.allowItemInterrupt || false,
+    itemFilterMode: window.itemFilterMode || 'and',
+    itemFilterStates: window.itemFilterStates || {},
+    remainingBattles: window.remainingBattles ?? null,
+    targetBattles: window.targetBattles ?? null,
+    maxScores: window.maxScores || {},
+		
+		    // ✅ フェイスアイテム情報を明示的に保存
+    faceCoins: window.faceCoins || 0,
+    faceItemsOwned: window.faceItemsOwned || [],
+    faceItemEquipped: window.faceItemEquipped || null,
+  };
+
+  const raw = JSON.stringify(payload);
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  const hash = await generateHash(b64);
+  const code = `${b64}.${hash}`;
+
+  const box = document.getElementById('saveCodeBox');
+  box.value = code;
+  try {
+    await navigator.clipboard.writeText(code);
+  } catch (e) {
+    box.focus(); box.select();
+  }
+
+  const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
+  const now = new Date();
+  const timestamp = now.toLocaleString('ja-JP', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(/[^\d]/g, '');
+  const filename = `${charName}_${timestamp}.txt`;
+
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+window.importSaveCode = async function (code = null) {
+  document.getElementById("skillMemoryList").classList.remove("hidden");
+
+  const input = code ?? document.getElementById('saveData').value.trim();
+
+  try {
+    const parts = input.split('.');
+    if (parts.length !== 2) throw new Error('形式が不正です');
+    const [b64, hash] = parts;
+    const computed = await generateHash(b64);
+    if (computed !== hash) throw new Error('署名不一致');
+
+    let raw = '';
+    try {
+      raw = decodeURIComponent(escape(atob(b64)));
+    } catch (e) {
+      throw new Error('デコード失敗');
+    }
+
+    const parsed = JSON.parse(raw);
+    player = parsed.player;
+
+    // ✅ 混合スキル情報の復元（保護状態を正規化）
+    player.mixedSkills = Array.isArray(parsed.mixedSkills)
+      ? parsed.mixedSkills.map(s => {
+          if (s.protected) s.isProtected = true;
+          return s;
+        })
+      : [];
+
+    window.maxScores = parsed.maxScores || {};
+    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+
+    player.itemMemory = parsed.itemMemory || [];
+    window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
+    window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
+    window.growthMultiplier = parsed.growthMultiplier || 1;
+
+    const rebirth = (parsed.rebirthCount || 0) + 1;
+    localStorage.setItem('rebirthCount', rebirth);
+
+    // ✅ フェイスアイテム情報の復元とUI更新
+    window.faceCoins = parsed.faceCoins ?? 0;
+    window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
+    window.faceItemEquipped = parsed.faceItemEquipped ?? null;
+
+    const coinElem = document.getElementById('faceCoinCount');
+    if (coinElem) coinElem.innerText = window.faceCoins;
+    if (typeof updateFaceUI === 'function') updateFaceUI();
+    if (typeof updatePlayerImage === 'function') updatePlayerImage();
+
+    // --- その他設定の復元 ---
+    window.specialMode = parsed.specialMode || 'normal';
+    window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
+    window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
+    window.allowItemInterrupt = parsed.allowItemInterrupt ?? true;
+    window.itemFilterMode = parsed.itemFilterMode || 'and';
+    window.itemFilterStates = parsed.itemFilterStates || {};
+
+    if (typeof setupItemFilters === 'function') setupItemFilters();
+    if (typeof setupToggleButtons === 'function') setupToggleButtons();
+    if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
+
+    do {
+      enemy = makeCharacter('敵' + Math.random());
+    } while (!hasOffensiveSkill(enemy));
+
+    updateStats();
+    if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
+    if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
+
+    const title = document.getElementById('titleScreen');
+    const game = document.getElementById('gameScreen');
+    title.classList.add('fade-out');
+
+    setTimeout(() => {
+      title.classList.add('hidden');
+      game.classList.remove('hidden');
+      game.classList.add('fade-in');
+      document.getElementById("battleArea").classList.add("hidden");
+
+      const streakDisplay = document.getElementById('currentStreakDisplay');
+      if (streakDisplay) {
+        const baseBoost = 1.02;
+        const boostMultiplier = Math.pow(baseBoost, currentStreak);
+        streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
+      }
+
+      const rebirthDisplay = document.getElementById('rebirthCountDisplay');
+      if (rebirthDisplay) {
+        rebirthDisplay.textContent = '転生回数：' + rebirth;
+      }
+
+      if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+      startBattle();
+
+      // ✅ 混合スキルリストを再描画
+      if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
+
+    }, 500);
+
+  } catch (e) {
+    alert('セーブデータの読み込みに失敗しました：' + e.message);
+    console.error(e);
+  }
+
+  // ✅ スキルUI同期（スロットや記憶）
+  if (typeof syncSkillsUI === 'function') syncSkillsUI();
+};
+
+
+
+
+
 
 window.loadFromLocalStorage = async function () {
   const code = localStorage.getItem('rpgLocalSave');

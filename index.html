@@ -129,7 +129,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     z-index: 10;
     cursor: pointer;
   ">
-      🔔 更新情報：ローカル保存に対応しました！（2025/6/14）
+      🔔 更新情報：「混合スキル」を実装しました！（2025/7/23）
     </div>
 		
 		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
@@ -150,7 +150,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <small>（ゲーム終了までの戦闘数を選択してください）</small>
 	
     <button id="startNewGameBtn">はじめから</button>
-    <button id="loadGameBtn">つづきから</button>
+  <!--   <button id="loadGameBtn">つづきから</button> -->
 		
 
 <button id="loadLocalBtn" onclick="loadFromLocalStorage()">ローカルからロード</button>
@@ -208,6 +208,74 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、発動率に影響する順番をドラッグで調整できます。<br>
         初期スキルは白色で表示され、それ以外の習得スキルは色付きで表示されます。パッシブスキル（補助効果）はゴールドで表示され、常時効果を発揮します。
     </p>
+		
+		<h3>混合スキル</h3>
+		<p>
+		  混合スキルとは、固有スキルや通常スキルを複数組み合わせて生成される強力なスキルです。<br>
+		  通常のスキルと異なり、<strong>1つの混合スキルは1戦につき1回のみ発動可能</strong>です。<br>
+		  ただし<strong>複数の混合スキルを所持している場合は、それぞれ1回ずつ使用可能</strong>です。
+		</p>
+		<p>
+		  混合スキルは戦闘中に発動すると、構成されている複数のスキルを連続で自動発動します。<br>
+		  また、混合スキルには様々な「特殊効果」がランダムで付与されており、発動時に追加効果が発生します。
+		</p>
+		<p>
+		  <strong>特殊効果の例：</strong>
+		  <ul>
+		    <li>敵の残りHPに応じた追加ダメージ</li>
+		    <li>戦闘不能時に一度だけ自動復活</li>
+		    <li>継続ダメージを受けた際の即時回復</li>
+		    <li>攻撃・防御・素早さ・最大HPの戦闘中バフ（スキルを持っているだけで常時発動）</li>
+		  </ul>
+		</p>
+		<p>
+		  混合スキルは強力ですが、<strong>戦闘に敗北すると全て消滅</strong>します。<br>
+		  ただし、<strong>1つだけ「保護」することが可能</strong>で、保護された混合スキルはゲームオーバー後も保持されます。
+		</p>
+		<p>
+		  保護設定は混合スキルの一覧からスキル名を2回クリックすることで行えます。<br>
+		  既に別のスキルが保護されている場合は、そちらを明示的に解除しない限り新たな保護はできません。
+		</p>
+		
+		<h3>混合スキル名の構造</h3>
+		<p>
+		  混合スキルの名前は、発動率・効果値に応じた<strong>2つの接頭語</strong>と、ランダムなカタカナ名で構成されています。<br>
+		  これにより、<strong>スキル名を見るだけでレア度や性能の目安</strong>がわかるようになっています。
+		</p>
+		
+		<p><strong>構成例：</strong><br>
+		「<span style='color:#aaa;'>素早い</span> × <span style='color:#f39;'>煌めく</span> エリュシオン」<br>
+		（発動率中程度／効果値が非常に高い）</p>
+		
+		<h4>発動率による接頭語例（一部）</h4>
+		<table border="1" cellspacing="0" cellpadding="6">
+		  <thead><tr><th>発動率（目安）</th><th>接頭語例</th></tr></thead>
+		  <tbody>
+		    <tr><td>75%〜80%</td><td>神速の、白銀の、刹那の</td></tr>
+		    <tr><td>60%〜75%</td><td>軽快な、反応する、流星の</td></tr>
+		    <tr><td>40%〜60%</td><td>普通の、揺れる、均衡の</td></tr>
+		    <tr><td>20%〜40%</td><td>鈍い、停滞した、緩慢な</td></tr>
+		    <tr><td>10%〜20%</td><td>錆びついた、眠たげな、遅い</td></tr>
+		  </tbody>
+		</table>
+		
+		<h4>効果値による接頭語例（一部）</h4>
+		<table border="1" cellspacing="0" cellpadding="6">
+		  <thead><tr><th>効果倍率／値</th><th>接頭語例</th></tr></thead>
+		  <tbody>
+		    <tr><td>4.5倍〜5.0倍以上<br>（または30%以上）</td><td>煌めく、烈火の、極彩の</td></tr>
+		    <tr><td>3.5倍〜4.5倍</td><td>紅蓮の、深紅の、激しい</td></tr>
+		    <tr><td>2.5倍〜3.5倍</td><td>やや強力な、重厚な、妖しい</td></tr>
+		    <tr><td>1.5倍〜2.5倍</td><td>微細な、儚い、かすかな</td></tr>
+		    <tr><td>1.0倍〜1.5倍未満</td><td>曇った、薄い、平凡な</td></tr>
+		  </tbody>
+		</table>
+		
+		<h4>視覚的なランク表示</h4>
+		<ul>
+		  <li>★の数や色でスキルの<strong>総合評価（S〜Dランク）</strong>が分かります</li>
+		  <li>接頭語の組み合わせによって、スキルの<strong>強さ・発動しやすさ</strong>が直感的に把握できます</li>
+		</ul>
 
     <h3>所持アイテム</h3>
     <p>
@@ -412,6 +480,15 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <h4>スキルメモリー</h4>
     <div id="skillMemoryContainer" style="display: block;">
       <ul id="skillMemoryList"></ul>
+			
+			<!-- 混合スキル（新規追加） -->
+			<h4>混合スキル(選択で1つまで保護/解除可能)</h4>
+			<div id="combinedSkillContainer">
+			  <ul id="combinedSkillList"></ul>
+			</div>
+			
+
+			
       <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
       <label>同時発動スキル数（通常モードのみ）:
         <select id="skillSimulCountSelect">
@@ -422,7 +499,11 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
           <option value="5">5個</option>
         </select>
       </label>
+			
+			
     </div>
+		
+		
 
   </div>
 </div>
@@ -460,9 +541,9 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <!-- セーブ出力 -->
     <h3>出力</h3>
 		      <button id="downloadLogsBtn">バトルログ出力</button>
-    <div id="saveControls">
+     <!--   <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
-      <input type="text" id="saveCodeBox" readonly />
+      <input type="text" id="saveCodeBox" readonly /> -->
 			
 <button id="localSaveBtn" onclick="saveToLocalStorage()">ローカルにセーブ（未保存）</button>
 

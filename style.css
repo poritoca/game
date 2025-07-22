@@ -1811,3 +1811,46 @@ summary {
   box-shadow: 0 0 15px rgba(255, 100, 100, 0.6);
 }
 
+#log-box {
+  white-space: pre-line;
+}
+
+.skill-rank-s {
+  background: linear-gradient(135deg, gold, orange);
+  color: white;
+  font-weight: bold;
+  text-shadow: 0 0 6px gold;
+}
+
+.skill-rank-a {
+  background: linear-gradient(135deg, crimson, darkred);
+  color: white;
+  font-weight: bold;
+}
+
+.skill-rank-b {
+  background: linear-gradient(135deg, royalblue, navy);
+  color: #eef;
+}
+
+.skill-rank-c {
+  background: linear-gradient(135deg, forestgreen, seagreen);
+  color: #dfd;
+}
+
+.skill-rank-d {
+  background: #444;
+  color: #ddd;
+}
+
+.skill-entry {
+  cursor: pointer;
+  margin-bottom: 4px;
+  padding: 6px;
+  transition: background 0.3s;
+}
+
+.skill-entry:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+

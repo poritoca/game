@@ -643,30 +643,6 @@ export const skillPool = [
     "description": "病気をもたらし敵の攻撃・防御力を低下させる"
   },
   {
-    "name": "太陽の恵み",
-    "category": "buffExtension",
-    "extendTurns": 2,
-    "description": "自身の強化効果の持続時間を延長する"
-  },
-  {
-    "name": "闇の呪詛",
-    "category": "debuffExtension",
-    "extendTurns": 2,
-    "description": "相手の弱体効果の持続時間を延長する"
-  },
-  {
-    "name": "時の祈り",
-    "category": "buffExtension",
-    "extendTurns": 3,
-    "description": "時間を操り自身の強化効果を延長する"
-  },
-  {
-    "name": "呪詛延長",
-    "category": "debuffExtension",
-    "extendTurns": 3,
-    "description": "呪詛の効力を強め、敵の弱体効果を延長する"
-  },
-  {
     "name": "治癒",
     "category": "heal",
     "healRatio": 0.6,
