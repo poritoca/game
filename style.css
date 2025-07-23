@@ -1854,3 +1854,39 @@ summary {
   background: rgba(255, 255, 255, 0.1);
 }
 
+#combinedSkillList {
+  list-style-type: none;  /* ← 丸を消す */
+  padding: 0;
+  margin: 0;
+}
+
+.skill-entry {
+  background: rgba(255, 255, 255, 0.07);  /* 半透明の白背景 */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 6px 0;
+  color: #f0f0f0;
+  font-size: 14px;
+  font-family: 'Segoe UI', sans-serif;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.3s ease, box-shadow 0.2s ease;
+  animation: fadeInSkill 0.4s ease both;
+}
+
+.skill-entry:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
+}
+
+@keyframes fadeInSkill {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

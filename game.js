@@ -921,22 +921,14 @@ function showSpecialEffectDetail(mixedSkill, event) {
   detailText += `【${star} / RANK: ${rarity}】\n${name}\n\n`;
 
   switch (type) {
-    case 1:
-      detailText += `特殊効果: 敵の残りHPの${value}%分の追加ダメージ（敵が生存している場合のみ）`; break;
-    case 2:
-      detailText += `特殊効果: 使用者戦闘不能時に一度だけHP${value}%で復活（発動後、戦闘中1回有効）`; break;
-    case 3:
-      detailText += `特殊効果: 毒/火傷ダメージ直後に${value}%即時回復（発動後、戦闘中有効）`; break;
-    case 4:
-      detailText += `特殊効果: 戦闘中、攻撃力が${value}倍になる（スキル所持時）`; break;
-    case 5:
-      detailText += `特殊効果: 戦闘中、防御力が${value}倍になる（スキル所持時）`; break;
-    case 6:
-      detailText += `特殊効果: 戦闘中、素早さが${value}倍になる（スキル所持時）`; break;
-    case 7:
-      detailText += `特殊効果: 戦闘中、最大HPが${value}倍になる（スキル所持時）`; break;
-    default:
-      detailText += `特殊効果: なし`; break;
+    case 1: detailText += `特殊効果: 敵の残りHPの${value}%分の追加ダメージ（敵が生存している場合のみ）`; break;
+    case 2: detailText += `特殊効果: 使用者戦闘不能時に一度だけHP${value}%で復活（発動後、戦闘中1回有効）`; break;
+    case 3: detailText += `特殊効果: 毒/火傷ダメージ直後に${value}%即時回復（発動後、戦闘中有効）`; break;
+    case 4: detailText += `特殊効果: 戦闘中、攻撃力が${value}倍になる（スキル所持時）`; break;
+    case 5: detailText += `特殊効果: 戦闘中、防御力が${value}倍になる（スキル所持時）`; break;
+    case 6: detailText += `特殊効果: 戦闘中、素早さが${value}倍になる（スキル所持時）`; break;
+    case 7: detailText += `特殊効果: 戦闘中、最大HPが${value}倍になる（スキル所持時）`; break;
+    default: detailText += `特殊効果: なし`; break;
   }
 
   if (Array.isArray(mixedSkill.baseSkills) && mixedSkill.baseSkills.length > 0) {
@@ -950,18 +942,20 @@ function showSpecialEffectDetail(mixedSkill, event) {
 
   popup.textContent = detailText;
 
-  // --- スタイル設定 ---
+  // --- スタイル設定（透明背景＋ぼかし含む） ---
   popup.style.position = "absolute";
   popup.style.left = `10px`;
   popup.style.top = `${(event?.pageY || 0) + 10}px`;
   popup.style.padding = "12px 16px";
-  popup.style.background = "linear-gradient(145deg, #f0f0f0, #e0e0e0)";
-  popup.style.border = "1px solid #888";
+  popup.style.background = "rgba(0, 0, 0, 0.6)"; // ← 透過黒
+  popup.style.color = "#fff";
+  popup.style.border = "1px solid rgba(255, 255, 255, 0.2)";
   popup.style.borderRadius = "8px";
-  popup.style.color = "#222";
   popup.style.fontSize = "14px";
   popup.style.whiteSpace = "pre-line";
   popup.style.overflowWrap = "break-word";
+  popup.style.backdropFilter = "blur(6px)";
+  popup.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.5)";
   popup.style.zIndex = "9999";
   popup.style.opacity = "0";
   popup.style.transition = "opacity 0.3s ease";
@@ -969,13 +963,10 @@ function showSpecialEffectDetail(mixedSkill, event) {
   popup.style.maxWidth = "600px";
   popup.style.width = "fit-content";
 
-  // ✅ 保護スキルなら強調枠
+  // 保護スキルなら強調
   if (mixedSkill.isProtected) {
-    popup.style.borderColor = "#f4b400"; // 金色系
-    popup.style.boxShadow = "0 0 10px rgba(255, 215, 0, 0.6)";
-  } else {
-    popup.style.borderColor = "#888";
-    popup.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+    popup.style.border = "2px solid gold";
+    popup.style.boxShadow = "0 0 12px gold";
   }
 
   // ✅ クリックで即削除
@@ -1260,7 +1251,7 @@ function cleanUpMixedSkillsExceptOne() {
 
   // UI を再描画
   if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
-  if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
+
 }
 
 function drawCombinedSkillList() {
@@ -4039,7 +4030,7 @@ location.reload();
 
   //document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
   //document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
-  document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
+  //document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
   document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
 
   // スマホ・PC 両対応の連打処理
