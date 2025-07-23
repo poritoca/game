@@ -107,30 +107,32 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div style="text-align: center; margin-bottom: 20px;">
 <img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
     </div>
-		    <!-- 更新情報オーバーレイ -->
-  <div id="updateNotice" style="
-    position: absolute;
-    top: 30%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 90%;
-    max-width: 380px;
-    padding: 12px 16px;
-    font-size: 15px;
-    font-weight: bold;
-    color: #fff0e0;
-    text-align: center;
-    background: linear-gradient(135deg, rgba(255, 100, 100, 0.3), rgba(255, 200, 150, 0.2));
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 12px;
-    backdrop-filter: blur(6px);
-    box-shadow: 0 0 12px rgba(255, 150, 100, 0.6);
-    text-shadow: 0 0 4px rgba(255, 180, 130, 0.8);
-    z-index: 10;
-    cursor: pointer;
-  ">
-      🔔 更新情報：「混合スキル」を実装しました！（2025/7/23）
-    </div>
+<!-- 更新情報オーバーレイ -->
+<div id="updateNotice" style="
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 400px;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff8f0;
+  text-align: center;
+  background: linear-gradient(145deg, rgba(255, 100, 100, 0.35), rgba(255, 180, 120, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 25px rgba(255, 150, 100, 0.7);
+  text-shadow: 0 0 6px rgba(255, 180, 130, 0.8);
+  opacity: 1;
+  transition: opacity 1s ease, transform 1s ease;
+  z-index: 1000;
+  cursor: pointer;
+">
+  🔔 更新情報：「混合スキル」を実装しました！
+</div>
 		
 		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
 <input type="text" id="inputStr" placeholder="名前を入力" />
@@ -194,7 +196,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     キャラクターを作り直したい場合は「はじめから」ボタンを押して新しいゲームを開始してください。<br><br>
 
     <strong style="color: #ff4444;">
-			※重要：ゲームオーバー後には、成長は初期化されますが、<u>スキルやアイテムは引き継がれます</u>。<br>
+			※重要：ゲームオーバー後には、成長は初期化されますが、<u>スキルメモリー、混合スキルやアイテムは一部引き継がれます</u>。<br>
         継続的にプレイすることで、成長したスキルや貴重なアイテムを維持して次の攻略に活かせます。
     </strong>
 </p>
@@ -205,16 +207,20 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         初期スキルは白色で表示され、それ以外の習得スキルは色付きで表示されます。パッシブスキル（補助効果）はゴールドで表示され、常時効果を発揮します。
     </p>
 		
-		<h3>混合スキル</h3>
+		<h3>混合スキルについて</h3>
+		
 		<p>
 		  混合スキルとは、固有スキルや通常スキルを複数組み合わせて生成される強力なスキルです。<br>
 		  通常のスキルと異なり、<strong>1つの混合スキルは1戦につき1回のみ発動可能</strong>です。<br>
 		  ただし<strong>複数の混合スキルを所持している場合は、それぞれ1回ずつ使用可能</strong>です。
 		</p>
+		
 		<p>
 		  混合スキルは戦闘中に発動すると、構成されている複数のスキルを連続で自動発動します。<br>
-		  また、混合スキルには様々な「特殊効果」がランダムで付与されており、発動時に追加効果が発生します。
+		  また、混合スキルには様々な「特殊効果」がランダムで付与されており、発動時に追加効果が発生します。<br>
+		  内包されている各スキルの威力や効果は、混合スキル自体の<strong>レベルに依存</strong>するため、<strong>同じ構成でもレベルが高いほど強力になります</strong>。
 		</p>
+		
 		<p>
 		  <strong>特殊効果の例：</strong>
 		  <ul>
@@ -224,13 +230,21 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		    <li>攻撃・防御・素早さ・最大HPの戦闘中バフ（スキルを持っているだけで常時発動）</li>
 		  </ul>
 		</p>
+		
 		<p>
 		  混合スキルは強力ですが、<strong>戦闘に敗北すると全て消滅</strong>します。<br>
 		  ただし、<strong>1つだけ「保護」することが可能</strong>で、保護された混合スキルはゲームオーバー後も保持されます。
 		</p>
+		
 		<p>
-		  保護設定は混合スキルの一覧からスキル名を2回クリックすることで行えます。<br>
-		  既に別のスキルが保護されている場合は、そちらを明示的に解除しない限り新たな保護はできません。
+		  保護設定は混合スキルの一覧からスキル名を<strong>2回クリック</strong>することで行えます。<br>
+		  既に別のスキルが保護されている場合は、そちらを<strong>明示的に解除しない限り新たな保護はできません</strong>。<br>
+		  なお、<strong>保護された混合スキルはレベルが成長しない</strong>ため、<strong>効果が物足りないと感じた場合は、新たに生成し直す</strong>のが現実的な選択肢となります。
+		</p>
+		
+		<p>
+		  混合スキルは、生成時に使用したスキルのレベルに応じて初期レベルが決定されます。<br>
+		  そのため、<strong>高レベルスキルを使って作り直せば、より強力な混合スキルが得られる可能性があります</strong>。
 		</p>
 		
 		<h3>混合スキル名の構造</h3>
@@ -331,7 +345,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <ul>
         <li><strong>スキル構成の再構築：</strong>増えたスキルの取捨選択が重要です。不要なスキルはスキル削除機能（残り使用回数に注意）で整理し、強力なスキルがより発動しやすい構成を目指しましょう。</li>
         <li><strong>連勝による敵の強化：</strong>敵は連勝を重ねるごとに強くなるため、油断せずキャラクターを強化し続ける必要があります。連勝が進むほど成長イベントで得られるステータス上昇量も増加するため、この機会に戦力を底上げしましょう。特に鬼畜モードでは敵の強化幅が大きい分、勝利時に得られるアイテムの活用が攻略の鍵となります。</li>
-        <li><strong>スキルメモリーの活用：</strong>スキルメモリー内のスキル順序を工夫して、狙ったスキルが発動しやすいようにしましょう。同じスキルを複数習得した場合、そのスキルのレベルが上がり威力も増します。特定のスキルを集中して育成する戦略も有効です。</li>
+        <li><strong>スキルメモリーの活用：</strong>スキルメモリー内のスキル順序を工夫して、狙ったスキルが発動しやすいようにしましょう。</li>
     </ul>
 
     <h3>アイテム構成要素の数値一覧</h3>
@@ -466,22 +480,26 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <h3 id="memoryToggle" style="cursor: pointer;">▶ アイテム・スキル表示／非表示</h3>
   <div id="memoryContent" style="display: none; margin-top: 10px;">
 
-    <!-- アイテム -->
-    <h4>所持アイテム</h4>
-    <div id="itemMemoryContainer">
-      <ul id="itemMemoryList"></ul>
-    </div>
+<!-- 所持アイテム -->
+<h4>所持アイテム</h4>
+<div class="subnote">※選択で1つまで保護 / 解除可能</div>
+<div id="itemMemoryContainer">
+  <ul id="itemMemoryList"></ul>
+</div>
 
-    <!-- スキルメモリー -->
-    <h4>スキルメモリー</h4>
-    <div id="skillMemoryContainer" style="display: block;">
-      <ul id="skillMemoryList"></ul>
-			
-			<!-- 混合スキル（新規追加） -->
-			<h4>混合スキル(選択で1つまで保護/解除可能)</h4>
-			<div id="combinedSkillContainer">
-			  <ul id="combinedSkillList"></ul>
-			</div>
+<!-- スキルメモリー -->
+<h4>スキルメモリー</h4>
+<div class="subnote">※左上ほど高選出率</div>
+<div id="skillMemoryContainer" style="display: block;">
+  <ul id="skillMemoryList"></ul>
+</div>
+
+<!-- 混合スキル -->
+<h4>混合スキル</h4>
+<div class="subnote">※選択で1つまで保護 / 解除可能</div>
+<div id="combinedSkillContainer">
+  <ul id="combinedSkillList"></ul>
+</div>
 			
 
 			
@@ -497,7 +515,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       </label>
 			
 			
-    </div>
+
 		
 		
 
@@ -689,6 +707,26 @@ document.getElementById("updateNotice").addEventListener("click", function() {
     });
   });
 })();
+
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const notice = document.getElementById("updateNotice");
+    if (!notice) return;
+
+    // 4秒後にフェードアウト＋縮小
+    setTimeout(() => {
+      notice.style.opacity = "0";
+      notice.style.transform = "translate(-50%, -50%) scale(0.95)";
+      
+      // ぼやけ感を強めるなら追加
+      notice.style.filter = "blur(2px)";
+
+      // 完全に削除
+      setTimeout(() => {
+        if (notice.parentNode) notice.remove();
+      }, 1000); // transition完了後に消す
+    }, 1000);
+  });
 
 
 

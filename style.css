@@ -1890,3 +1890,11 @@ summary {
     transform: translateY(0);
   }
 }
+
+.subnote {
+  font-size: 12px;
+  color: #666;
+  margin-top: -6px;
+  margin-bottom: 8px;
+  margin-left: 4px;
+}
