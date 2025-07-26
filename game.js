@@ -3947,8 +3947,7 @@ finalResEl.innerHTML = `<div class="final-death-title">${displayName(player.name
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
-  ">テキストデータにセーブ</button>
-</div>
+		
 `;
 
 // スコア記録（無制限を除く）
