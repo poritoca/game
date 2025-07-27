@@ -659,69 +659,35 @@ window.allowItemInterrupt = true;  // ← 新規追加
 
 
 // 混合スキル生成関数
-function createMixedSkill(skillA, skillB) {
-  function flattenBaseSkills(skill) {
-    if (skill.isMixed && Array.isArray(skill.baseSkills)) {
-      return skill.baseSkills.flatMap(flattenBaseSkills);
-    }
-    return [skill];
-  }
+// 内包階層を再帰的に計算
+function getMixedSkillDepth(skill) {
+  if (!skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
+  return 1 + Math.max(...skill.baseSkills.map(getMixedSkillDepth));
+}
 
-  const baseSkills = [...flattenBaseSkills(skillA), ...flattenBaseSkills(skillB)];
-  const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
-  const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
+// 混合スキル名を生成
+function generateSkillName(activationProb, effectValue, config, kanaPart) {
+  const activationPrefixes = [...Array(40)].map((_, i) => {
+    const list = ["白く","淡く","儚く","静かに","柔らかく","ほのかに","静穏な","風のように","水面のように","さざ波のように",
+                  "鈍く","灰色の","くすんだ","ぼんやりと","霧のように","薄暮の","幻のように","深く","ゆるやかに","澄んだ",
+                  "赤黒く","光り輝く","燃え上がる","熱を帯びた","紅蓮の","揺らめく","照らすように","きらめく","煌く","きつく",
+                  "刺すように","鋭く","ひらめく","咆哮する","激しく","電撃の","鼓動する","天を裂く","神速の","超越せし"];
+    return list[i] || "未知の";
+  });
 
-  const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
-  const nameLength = Math.floor(Math.random() * 4) + 3;
-  const randomKana = Array.from({ length: nameLength }, () => kanaChars[Math.floor(Math.random() * kanaChars.length)]).join("");
+  const effectValuePrefixes = [...Array(40)].map((_, i) => {
+    const list = ["ささやく","照らす","包み込む","揺らす","引き寄せる","誘う","癒す","染み込む","憑依する","導く",
+                  "支配する","増幅する","研ぎ澄ます","貫く","解き放つ","覚醒させる","爆発する","焼き尽くす","断ち切る","消し去る",
+                  "裂く","砕く","覚醒する","解放する","粉砕する","叫ぶ","轟かせる","駆け抜ける","高鳴る","躍動する",
+                  "躍らせる","爆ぜる","瞬く","砲撃する","宇宙を裂く","世界を断つ","深淵を覗く","魂を燃やす","全てを覆う","運命を導く"];
+    return list[i] || "未知の力";
+  });
 
-  const minProb = 0.1;
-  const maxProb = 0.8;
-  const activationProb = Math.random() * (maxProb - minProb) + minProb;
-
-  const effectType = Math.ceil(Math.random() * 7);
-  const effectValueTable = {
-    1: { min: 10, max: 30, rareScale: 2 },
-    2: { min: 10, max: 100, rareScale: 4 },
-    3: { min: 50, max: 90, rareScale: 2 },
-    4: { min: 2.0, max: 5.0, rareScale: 3 },
-    5: { min: 2.0, max: 5.0, rareScale: 3 },
-    6: { min: 2.0, max: 5.0, rareScale: 3 },
-    7: { min: 2.0, max: 5.0, rareScale: 3 }
-  };
-
-  const config = effectValueTable[effectType];
-  let effectValue;
-  if (effectType <= 3) {
-    effectValue = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
-  } else {
-    const t = Math.pow(Math.random(), config.rareScale);
-    const rawValue = config.min + (config.max - config.min) * t;
-    effectValue = Math.round(rawValue * 10) / 10;
-  }
-
-  // --- 接頭語（40×40） ---
-  const activationPrefixes = [
-    "白く", "淡く", "儚く", "静かに", "柔らかく", "ほのかに", "静穏な", "風のように", "水面のように", "さざ波のように",
-    "鈍く", "灰色の", "くすんだ", "ぼんやりと", "霧のように", "薄暮の", "幻のように", "深く", "ゆるやかに", "澄んだ",
-    "赤黒く", "光り輝く", "燃え上がる", "熱を帯びた", "紅蓮の", "揺らめく", "照らすように", "きらめく", "煌く", "きつく",
-    "刺すように", "鋭く", "ひらめく", "咆哮する", "激しく", "電撃の", "鼓動する", "天を裂く", "神速の", "超越せし"
-  ];
-
-  const effectValuePrefixes = [
-    "ささやく", "照らす", "包み込む", "揺らす", "引き寄せる", "誘う", "癒す", "染み込む", "憑依する", "導く",
-    "支配する", "増幅する", "研ぎ澄ます", "貫く", "解き放つ", "覚醒させる", "爆発する", "焼き尽くす", "断ち切る", "消し去る",
-    "裂く", "砕く", "覚醒する", "解放する", "粉砕する", "叫ぶ", "轟かせる", "駆け抜ける", "高鳴る", "躍動する",
-    "躍らせる", "爆ぜる", "瞬く", "砲撃する", "宇宙を裂く", "世界を断つ", "深淵を覗く", "魂を燃やす", "全てを覆う", "運命を導く"
-  ];
-
-  const activationIndex = Math.min(39, Math.floor((activationProb - minProb) / (maxProb - minProb) * 40));
+  const activationIndex = Math.min(39, Math.floor((activationProb - 0.1) / 0.7 * 40));
   const valueIndex = Math.min(39, Math.floor((effectValue - config.min) / (config.max - config.min) * 40));
   const prefix1 = activationPrefixes[activationIndex];
   const prefix2 = effectValuePrefixes[valueIndex];
-  const fullName = `${prefix1}×${prefix2}${randomKana}`;
-
-  // --- レアリティ評価（1600通り → S～D、星1～5） ---
+  const fullName = `${prefix1}×${prefix2}${kanaPart}`;
   const rarityScore = activationIndex * 40 + valueIndex;
 
   let rarity = "d";
@@ -736,7 +702,125 @@ function createMixedSkill(skillA, skillB) {
   else if (rarityScore > 1000) starCount = 3;
   else if (rarityScore > 500) starCount = 2;
 
-  const starRating = "★".repeat(starCount) + "☆".repeat(5 - starCount);
+  return {
+    fullName,
+    rarityClass: `skill-rank-${rarity}`,
+    starRating: "★".repeat(starCount) + "☆".repeat(5 - starCount)
+  };
+}
+
+// 混合スキル生成本体
+function createMixedSkill(skillA, skillB) {
+  const maxDepth = 5;
+
+  function getMixedSkillDepth(skill) {
+    if (!skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
+    return 1 + Math.max(...skill.baseSkills.map(getMixedSkillDepth));
+  }
+
+  function isValidNestedMixedSkill(skill) {
+    return skill.isMixed && Array.isArray(skill.specialEffects) && skill.specialEffects.length > 0;
+  }
+
+  function flattenIfTooDeepOrInvalid(skill, currentDepth = 1) {
+    if (skill.isMixed && Array.isArray(skill.baseSkills)) {
+      const thisDepth = getMixedSkillDepth(skill);
+      if (currentDepth + thisDepth > maxDepth || !isValidNestedMixedSkill(skill)) {
+        return skill.baseSkills.flatMap(s => flattenIfTooDeepOrInvalid(s, currentDepth));
+      } else {
+        return [skill];
+      }
+    }
+    return [skill];
+  }
+
+  const depthA = getMixedSkillDepth(skillA);
+  const depthB = getMixedSkillDepth(skillB);
+  const newDepth = Math.max(depthA, depthB) + 1;
+  if (newDepth > maxDepth) {
+    alert("これ以上複雑な混合スキルは作成できません（階層制限あり）");
+    return null;
+  }
+
+  let baseSkills = [
+    ...flattenIfTooDeepOrInvalid(skillA),
+    ...flattenIfTooDeepOrInvalid(skillB)
+  ];
+
+  // ✅ 欠落フラグ補完（保存復元時などの不整合対策）
+  for (const skill of baseSkills) {
+    if (skill.baseSkills && Array.isArray(skill.baseSkills)) {
+      skill.isMixed = true;
+    }
+    if (!skill.specialEffects && skill.specialEffectType != null) {
+      skill.specialEffects = [{ type: skill.specialEffectType, value: skill.specialEffectValue }];
+    }
+  }
+
+  // ✅ 無効混合スキル除去（特殊効果なし）
+  baseSkills = baseSkills.filter(s => {
+    return !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0));
+  });
+
+  if (baseSkills.length === 0) {
+    baseSkills.push(skillA);
+  }
+
+  // ✅ 並べ替え（混合→通常）
+  baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
+
+  // ✅ 有効な混合スキルの内包チェック
+  const includedMixed = baseSkills.filter(s =>
+    s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
+  );
+  if (includedMixed.length > 0) {
+    alert("✨ 混合スキル内に有効な混合スキルが含まれました！");
+    alert("🌀 内包された混合スキルの特殊効果も継承されました！");
+  }
+
+  // --- レベル・名前・発動率・効果 ---
+  const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
+  const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
+  const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
+  const nameLength = Math.floor(Math.random() * 3) + 2;
+  const kanaPart = Array.from({ length: nameLength }, () =>
+    kanaChars[Math.floor(Math.random() * kanaChars.length)]
+  ).join("");
+  const activationProb = Math.random() * (0.8 - 0.1) + 0.1;
+
+  const effectType = Math.ceil(Math.random() * 7);
+  const effectValueTable = {
+    1: { min: 10, max: 30, rareScale: 2 },
+    2: { min: 10, max: 100, rareScale: 4 },
+    3: { min: 50, max: 90, rareScale: 2 },
+    4: { min: 2.0, max: 5.0, rareScale: 3 },
+    5: { min: 2.0, max: 5.0, rareScale: 3 },
+    6: { min: 2.0, max: 5.0, rareScale: 3 },
+    7: { min: 2.0, max: 5.0, rareScale: 3 }
+  };
+  const config = effectValueTable[effectType];
+  let effectValue;
+  if (effectType <= 3) {
+    effectValue = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
+  } else {
+    const t = Math.pow(Math.random(), config.rareScale);
+    effectValue = Math.round((config.min + (config.max - config.min) * t) * 10) / 10;
+  }
+
+  const { fullName, rarityClass, starRating } = generateSkillName(
+    activationProb, effectValue, config, kanaPart
+  );
+
+  // ✅ 最終チェック：baseSkills に無効混合スキルが含まれていれば除外
+  const beforeCount = baseSkills.length;
+  baseSkills = baseSkills.filter(s => !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0)));
+  const afterCount = baseSkills.length;
+  if (afterCount < beforeCount) {
+    alert(`⚠️ 最終チェックで特殊効果のない混合スキルが除外されました（${beforeCount - afterCount}件）`);
+  }
+
+  // ✅ 再ソート（念のため）
+  baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
   return {
     name: fullName,
@@ -746,11 +830,31 @@ function createMixedSkill(skillA, skillB) {
     activationProb,
     specialEffectType: effectType,
     specialEffectValue: effectValue,
-    rarityClass: `skill-rank-${rarity}`,
+    specialEffects: [{
+      type: effectType,
+      value: effectValue
+    }],
+    rarityClass,
     starRating
   };
 }
 
+
+/********************************
+function shouldInclude(skill) {
+  const depth = getMixedSkillDepth(skill);
+  const baseRate = 0.95; // 通常スキルはほぼ採用される
+  const mixedRate = 0.5 ** depth; // 深さに応じて急激に低下
+
+  return skill.isMixed
+    ? Math.random() < mixedRate
+    : Math.random() < baseRate;
+}
+********************************/
+
+function shouldInclude(skill) {
+  return true; // すべてのスキル（混合スキル含む）を必ず採用
+}
 
 /********************************
  * スキル取得時の混合スキル生成処理
@@ -802,18 +906,17 @@ function onSkillAcquired(newSkill) {
 function useMixedSkill(mixedSkill, user, target, log) {
   if (!mixedSkill || !user || !target || !log) return;
 
-  // 1回制限チェック
   if (mixedSkill.usedInBattle) {
     log.push(`※ ${mixedSkill.name} はこの戦闘で既に使用されています`);
     return;
   }
+
   mixedSkill.usedInBattle = true;
   if (mixedSkill.buttonElement) {
     mixedSkill.buttonElement.disabled = true;
     mixedSkill.buttonElement.classList.add("used");
   }
 
-  // 成功判定
   const prob = mixedSkill.activationProb || 0;
   if (Math.random() >= prob) {
     log.push(`※ ${mixedSkill.name} は発動に失敗した！`);
@@ -822,25 +925,7 @@ function useMixedSkill(mixedSkill, user, target, log) {
 
   log.push(`★ ${mixedSkill.name} を発動！（成功率 ${Math.floor(prob * 100)}%）`);
 
-  // ベーススキル再帰発動
-  function applySkillRecursive(s) {
-    if (target.hp <= 0) return;
-    if (s.isMixed && Array.isArray(s.baseSkills)) {
-      for (const base of s.baseSkills) {
-        applySkillRecursive(base);
-      }
-    } else {
-      getSkillEffect(s, user, target, log);
-    }
-  }
-
-  if (Array.isArray(mixedSkill.baseSkills)) {
-    for (const baseSkill of mixedSkill.baseSkills) {
-      applySkillRecursive(baseSkill);
-    }
-  }
-
-  // 特殊効果マップ（typeごとの処理）
+  // --- 特殊効果処理マップ ---
   const specialEffectHandlers = {
     1: (value) => {
       if (target.hp > 0) {
@@ -849,51 +934,70 @@ function useMixedSkill(mixedSkill, user, target, log) {
         log.push(`▶ 特殊効果: 敵に追加ダメージ ${dmg}（残りHPの${value}%）を与えた`);
       }
     },
-    2: (value) => {
-      mixedSkill.reviveUsed = false;
-      log.push(`▶ 特殊効果: 戦闘不能時に HP${value}% で復活する効果を付与（発動後、戦闘中1回）`);
+    2: (value, skill) => {
+      skill.reviveUsed = false;
+      log.push(`▶ 特殊効果: 戦闘不能時に HP${value}% で復活する効果を付与（戦闘中1回）`);
     },
     3: (value) => {
-      log.push(`▶ 特殊効果: 毒/火傷ダメージを受ける度に ${value}% 即時回復する効果を付与（発動後、戦闘中有効）`);
+      log.push(`▶ 特殊効果: 継続ダメージを受けた際に ${value}% 即時回復`);
     },
     4: (value) => {
-      log.push(`▶ 特殊効果（発動時は無効）: 攻撃力 ${value}倍バフは所持時に自動適用済み`);
+      log.push(`▶ 特殊効果（発動時は無効）: 攻撃力 ${value}倍バフ（所持時に適用）`);
     },
     5: (value) => {
-      log.push(`▶ 特殊効果（発動時は無効）: 防御力 ${value}倍バフは所持時に自動適用済み`);
+      log.push(`▶ 特殊効果（発動時は無効）: 防御力 ${value}倍バフ（所持時に適用）`);
     },
     6: (value) => {
-      log.push(`▶ 特殊効果（発動時は無効）: 素早さ ${value}倍バフは所持時に自動適用済み`);
+      log.push(`▶ 特殊効果（発動時は無効）: 素早さ ${value}倍バフ（所持時に適用）`);
     },
     7: (value) => {
-      log.push(`▶ 特殊効果（発動時は無効）: 最大HP ${value}倍バフは所持時に自動適用済み`);
+      log.push(`▶ 特殊効果（発動時は無効）: 最大HP ${value}倍バフ（所持時に適用）`);
     }
   };
 
-  // 特殊効果適用（初期化）
-  if (!mixedSkill.specialEffects && mixedSkill.specialEffectType != null) {
-    mixedSkill.specialEffects = [{
-      type: mixedSkill.specialEffectType,
-      value: mixedSkill.specialEffectValue
-    }];
-  }
-
-  // 特殊効果処理
-  if (Array.isArray(mixedSkill.specialEffects)) {
-    for (const effect of mixedSkill.specialEffects) {
-      const handler = specialEffectHandlers[effect.type];
-      if (typeof handler === "function") {
-        handler(effect.value);
-      }
+  // --- 特殊効果を初期化（必要に応じて） ---
+  function ensureSpecialEffects(skill) {
+    if (!skill.specialEffects && skill.specialEffectType != null) {
+      skill.specialEffects = [{
+        type: skill.specialEffectType,
+        value: skill.specialEffectValue
+      }];
     }
   }
 
-  // 特殊効果フラグ更新（2,3 は効果持続型）
-  mixedSkill.specialEffectActive = mixedSkill.specialEffects?.some(e =>
-    [2, 3].includes(e.type)
-  );
-}
+  // --- 特殊効果とスキル効果を再帰的に適用 ---
+  function applySkillRecursive(skill) {
+    if (!skill || target.hp <= 0) return;
 
+    ensureSpecialEffects(skill);
+
+    // 特殊効果発動
+    if (Array.isArray(skill.specialEffects)) {
+      for (const effect of skill.specialEffects) {
+        const handler = specialEffectHandlers[effect.type];
+        if (typeof handler === "function") {
+          handler(effect.value, skill);
+        }
+      }
+    }
+
+    // 持続効果の有効フラグ
+    skill.specialEffectActive = skill.specialEffects?.some(e =>
+      [2, 3].includes(e.type)
+    );
+
+    // スキル効果発動
+    if (skill.isMixed && Array.isArray(skill.baseSkills)) {
+      for (const base of skill.baseSkills) {
+        applySkillRecursive(base);  // 再帰呼び出し
+      }
+    } else {
+      getSkillEffect(skill, user, target, log);
+    }
+  }
+
+  applySkillRecursive(mixedSkill);
+}
 
 
 
@@ -905,49 +1009,71 @@ function showSpecialEffectDetail(mixedSkill, event) {
   popup.id = "effect-popup";
   popup.className = "effect-popup";
 
-  // --- 効果説明の構築 ---
   let detailText = "";
 
-  if (mixedSkill.isProtected) {
-    detailText += `🔒 【保護中のスキル】\n`;
-  }
+  function buildSkillDetail(skill, depth = 0) {
+    const indent = "　".repeat(depth); // 全角スペース
 
-  const type = mixedSkill.specialEffectType;
-  const value = mixedSkill.specialEffectValue;
-  const star = mixedSkill.starRating || "";
-  const name = mixedSkill.name || "？？？";
-  const rarity = mixedSkill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "";
+    // 🔍 デバッグ出力：スキル構造確認
+    console.log(`\n[DEBUG] Depth ${depth}`);
+    console.log("Skill Name:", skill.name);
+    console.log("isMixed:", skill.isMixed);
+    console.log("specialEffects:", skill.specialEffects);
+    console.log("baseSkills:", skill.baseSkills);
 
-  detailText += `【${star} / RANK: ${rarity}】\n${name}\n\n`;
+    if (depth === 0 && skill.isProtected) {
+      detailText += `🔒 【保護中のスキル】\n`;
+    }
 
-  switch (type) {
-    case 1: detailText += `特殊効果: 敵の残りHPの${value}%分の追加ダメージ（敵が生存している場合のみ）`; break;
-    case 2: detailText += `特殊効果: 使用者戦闘不能時に一度だけHP${value}%で復活（発動後、戦闘中1回有効）`; break;
-    case 3: detailText += `特殊効果: 毒/火傷ダメージ直後に${value}%即時回復（発動後、戦闘中有効）`; break;
-    case 4: detailText += `特殊効果: 戦闘中、攻撃力が${value}倍になる（スキル所持時）`; break;
-    case 5: detailText += `特殊効果: 戦闘中、防御力が${value}倍になる（スキル所持時）`; break;
-    case 6: detailText += `特殊効果: 戦闘中、素早さが${value}倍になる（スキル所持時）`; break;
-    case 7: detailText += `特殊効果: 戦闘中、最大HPが${value}倍になる（スキル所持時）`; break;
-    default: detailText += `特殊効果: なし`; break;
-  }
+    const name = skill.name || "(不明)";
+    const level = skill.level ?? "?";
 
-  if (Array.isArray(mixedSkill.baseSkills) && mixedSkill.baseSkills.length > 0) {
-    detailText += `\n\n◆ 構成スキル:\n`;
-    for (const base of mixedSkill.baseSkills) {
-      const baseName = base.name || "(不明なスキル)";
-      const baseLv = base.level !== undefined ? `Lv${base.level}` : "";
-      detailText += `・${baseName} ${baseLv}\n`;
+    // 最上位のみRANK表示
+    if (depth === 0) {
+      const star = skill.starRating || "";
+      const rank = skill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "-";
+      const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
+      detailText += `【${star} / RANK: ${rank}】\n`;
+      detailText += `${name}（Lv${level}｜発動率: ${prob}%）\n`;
+    } else {
+      detailText += `${indent}${name}（Lv${level}）\n`;
+    }
+
+    // 特殊効果（混合スキルのみ）
+    if (skill.isMixed && Array.isArray(skill.specialEffects)) {
+      for (const eff of skill.specialEffects) {
+        switch (eff.type) {
+          case 1: detailText += `${indent}▶ 特殊効果: 敵の残りHPの${eff.value}%分の追加ダメージ\n`; break;
+          case 2: detailText += `${indent}▶ 特殊効果: 戦闘不能時にHP${eff.value}%で自動復活\n`; break;
+          case 3: detailText += `${indent}▶ 特殊効果: 継続ダメージ時に${eff.value}%即時回復\n`; break;
+          case 4: detailText += `${indent}▶ 特殊効果: 攻撃力 ${eff.value}倍（所持時バフ）\n`; break;
+          case 5: detailText += `${indent}▶ 特殊効果: 防御力 ${eff.value}倍（所持時バフ）\n`; break;
+          case 6: detailText += `${indent}▶ 特殊効果: 素早さ ${eff.value}倍（所持時バフ）\n`; break;
+          case 7: detailText += `${indent}▶ 特殊効果: 最大HP ${eff.value}倍（所持時バフ）\n`; break;
+          default: detailText += `${indent}▶ 特殊効果: 不明な効果 type=${eff.type}\n`;
+        }
+      }
+    }
+
+    // 構成スキル
+    if (Array.isArray(skill.baseSkills) && skill.baseSkills.length > 0) {
+      detailText += `${indent}▼ 構成スキル:\n`;
+      for (const base of skill.baseSkills) {
+        buildSkillDetail(base, depth + 1);
+      }
     }
   }
 
+  buildSkillDetail(mixedSkill);
+
   popup.textContent = detailText;
 
-  // --- スタイル設定（透明背景＋ぼかし含む） ---
+  // --- スタイル設定 ---
   popup.style.position = "absolute";
   popup.style.left = `10px`;
   popup.style.top = `${(event?.pageY || 0) + 10}px`;
   popup.style.padding = "12px 16px";
-  popup.style.background = "rgba(0, 0, 0, 0.6)"; // ← 透過黒
+  popup.style.background = "rgba(0, 0, 0, 0.6)";
   popup.style.color = "#fff";
   popup.style.border = "1px solid rgba(255, 255, 255, 0.2)";
   popup.style.borderRadius = "8px";
@@ -963,27 +1089,21 @@ function showSpecialEffectDetail(mixedSkill, event) {
   popup.style.maxWidth = "600px";
   popup.style.width = "fit-content";
 
-  // 保護スキルなら強調
   if (mixedSkill.isProtected) {
     popup.style.border = "2px solid gold";
     popup.style.boxShadow = "0 0 12px gold";
   }
 
-  // ✅ クリックで即削除
   popup.onclick = () => popup.remove();
-
   document.body.appendChild(popup);
-
-  requestAnimationFrame(() => {
-    popup.style.opacity = "1";
-  });
+  requestAnimationFrame(() => popup.style.opacity = "1");
 
   setTimeout(() => {
     if (popup.parentNode) {
       popup.style.opacity = "0";
       setTimeout(() => popup.remove(), 300);
     }
-  }, 3000);
+  }, 4000);
 }
 
 // 戦闘開始時に混合スキル使用状態をリセットする関数（各戦闘の最初に呼び出す）
@@ -2857,61 +2977,74 @@ if (user === player && skill.level < 9999) {
     user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
     return log;
 };
-
 function checkReviveOnDeath(character, log) {
-  if (character.hp > 0) return false;
-  if (!character.mixedSkills) return false;
+  if (character.hp > 0 || !character.mixedSkills) return false;
 
-  let bestSkill = null;
-  let bestValue = 0;
+  // 使用可能な復活効果をすべて抽出
+  const availableRevives = [];
 
   for (const mSkill of character.mixedSkills) {
-    const reviveEffect = mSkill.specialEffects?.find(e => e.type === 2);
-    if (mSkill.usedInBattle && reviveEffect && reviveEffect.used === false) {
-      if (reviveEffect.value > bestValue) {
-        bestValue = reviveEffect.value;
-        bestSkill = mSkill;
+    const effects = mSkill.specialEffects || [];
+
+    for (const eff of effects) {
+      if (eff.type === 2 && !eff.used && mSkill.usedInBattle) {
+        availableRevives.push({ skill: mSkill, effect: eff });
       }
     }
   }
 
-  if (bestSkill && bestValue > 0) {
-    const reviveEffect = bestSkill.specialEffects.find(e => e.type === 2);
-    const reviveHP = Math.floor(character.maxHp * (reviveEffect.value / 100));
-    character.hp = Math.max(reviveHP, 1);
-    reviveEffect.used = true;
+  // 使用可能なものがない場合
+  if (availableRevives.length === 0) return false;
 
-    const stillActive = bestSkill.specialEffects.some(e => e.type !== 2 && (e.type === 3));
-    bestSkill.specialEffectActive = stillActive;
+  // 効果値が最も高いものを使用
+  const best = availableRevives.reduce((a, b) =>
+    a.effect.value > b.effect.value ? a : b
+  );
 
-    if (log && typeof log.push === "function") {
-      log.push(`※ ${displayName(bestSkill.name)}の特殊効果により${displayName(character.name)}がHP${reviveEffect.value}%で復活！`);
-    }
+  const { skill: bestSkill, effect: reviveEffect } = best;
+  const reviveHP = Math.floor(character.maxHp * (reviveEffect.value / 100));
+  character.hp = Math.max(reviveHP, 1);
+  reviveEffect.used = true;
 
-    return true;
+  // 継続効果フラグ更新（type 3）
+  bestSkill.specialEffectActive = bestSkill.specialEffects?.some(
+    e => e.type === 3 && !e.used
+  );
+
+  // 残りの未使用復活数を数える
+  const remaining = availableRevives.filter(r => r !== best).length;
+
+  if (log && typeof log.push === "function") {
+    log.push(`※ ${displayName(bestSkill.name)}の効果で${displayName(character.name)}が復活！（HP${reviveEffect.value}%、残り${remaining}）`);
   }
 
-  return false;
+  return true;
 }
+
 
 function handlePoisonBurnDamage(character, damage, log) {
   if (damage <= 0 || !character.mixedSkills) return;
 
   let totalHealPercent = 0;
 
+  // 使用中のスキルの即時回復効果（type 3）を集計
   for (const mSkill of character.mixedSkills) {
-    const healEffect = mSkill.specialEffects?.find(e => e.type === 3);
-    if (mSkill.usedInBattle && healEffect) {
-      totalHealPercent += healEffect.value;
+    if (!mSkill.usedInBattle || !Array.isArray(mSkill.specialEffects)) continue;
+
+    for (const effect of mSkill.specialEffects) {
+      if (effect.type === 3 && !effect.used) {
+        totalHealPercent += effect.value;
+      }
     }
   }
 
+  // 合計回復率から回復量を算出
   if (totalHealPercent > 0) {
     const healAmount = Math.floor(damage * (totalHealPercent / 100));
     if (healAmount > 0) {
       character.hp = Math.min(character.maxHp, character.hp + healAmount);
       if (log && typeof log.push === "function") {
-        log.push(`※ 継続ダメージ${damage}に対し、混合スキル特殊効果で${healAmount}HP即時回復（${totalHealPercent}%分）`);
+        log.push(`※ 継続ダメージ ${damage} に対し、混合スキルの効果で ${healAmount} HP 即時回復（合計 ${totalHealPercent}%）`);
       }
     }
   }
