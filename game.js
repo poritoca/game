@@ -13,6 +13,8 @@ const levelTurnBonusSettings = [
   { level: 0,    bonus: 0 },
 ];
 
+
+
 window.showAllGlobalVariables = function () {
   document.getElementById("debugPopup")?.remove(); // 前回のを削除
 
@@ -135,6 +137,31 @@ window.updateScoreOverlay = function () {
   } else {
     overlay.style.setProperty('display', 'none', 'important');
   }
+};
+
+window.showCenteredPopup = function(message, duration = 1200) {
+  const popup = document.getElementById("eventPopup");
+  const title = document.getElementById("eventPopupTitle");
+  const optionsEl = document.getElementById("eventPopupOptions");
+
+  if (!popup || !title || !optionsEl) return;
+
+  title.innerHTML = message;
+  optionsEl.innerHTML = "";
+
+  popup.style.display = "block";
+  popup.style.visibility = "hidden";
+
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const popupHeight = popup.offsetHeight;
+  popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";  // ← ← ← 修正ポイント
+  popup.style.visibility = "visible";
+
+  setTimeout(() => {
+    popup.style.display = "none";
+  }, duration);
 };
 
 window.updateSkillOverlay = function () {
@@ -607,6 +634,10 @@ function displayBattleLogWithoutAsync(log) {
   showNextLine();
 }
 
+
+
+
+
 function updateSkillDeleteButton() {
     skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
     if (window.skillDeleteUsesLeft > 0) {
@@ -683,31 +714,115 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
     return list[i] || "未知の力";
   });
 
-  const activationIndex = Math.min(39, Math.floor((activationProb - 0.1) / 0.7 * 40));
-  const valueIndex = Math.min(39, Math.floor((effectValue - config.min) / (config.max - config.min) * 40));
+  // ✅ 0〜1に正規化（activationProb: 0.1〜0.8 → 0〜1）
+  const activationPercent = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7));
+  const effectPercent = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min)));
+
+  // ✅ 接頭語のインデックス
+  const activationIndex = Math.floor(activationPercent * 39.999);
+  const valueIndex = Math.floor(effectPercent * 39.999);
   const prefix1 = activationPrefixes[activationIndex];
   const prefix2 = effectValuePrefixes[valueIndex];
+
   const fullName = `${prefix1}×${prefix2}${kanaPart}`;
-  const rarityScore = activationIndex * 40 + valueIndex;
 
-  let rarity = "d";
-  if (rarityScore > 1550) rarity = "s";
-  else if (rarityScore > 1400) rarity = "a";
-  else if (rarityScore > 1000) rarity = "b";
-  else if (rarityScore > 500) rarity = "c";
+  // ✅ 段階評価：上位1割で星5、下位ほど星1
+  function percentileToStars(p) {
+    if (p >= 0.90) return 5;
+    if (p >= 0.75) return 4;
+    if (p >= 0.50) return 3;
+    if (p >= 0.25) return 2;
+    return 1;
+  }
 
-  let starCount = 1;
-  if (rarityScore > 1550) starCount = 5;
-  else if (rarityScore > 1400) starCount = 4;
-  else if (rarityScore > 1000) starCount = 3;
-  else if (rarityScore > 500) starCount = 2;
+  const starFromActivation = percentileToStars(activationPercent);
+  const starFromEffect = percentileToStars(effectPercent);
+
+  // ✅ 厳しめ：両方が高くないと星5にならない（minを採用）
+  const starCount = Math.min(starFromActivation, starFromEffect);
+
+  const rarityClass = {
+    5: "skill-rank-s",
+    4: "skill-rank-a",
+    3: "skill-rank-b",
+    2: "skill-rank-c",
+    1: "skill-rank-d"
+  }[starCount];
 
   return {
     fullName,
-    rarityClass: `skill-rank-${rarity}`,
+    rarityClass,
     starRating: "★".repeat(starCount) + "☆".repeat(5 - starCount)
   };
 }
+
+window.showMixedSkillSummaryPopup = function(skill) {
+  // 星の数が4未満ならスキップ
+  const starCount = typeof skill.starRating === 'string' ? (skill.starRating.match(/★/g) || []).length : 0;
+  if (starCount < 4) return;
+
+  // フラグを立てる
+  window.withmix = true;
+
+  let html = "";
+
+  function buildSkillDetail(skill, depth = 0) {
+    const indent = "&nbsp;&nbsp;&nbsp;&nbsp;".repeat(depth); // インデント（スペース）
+
+    if (depth === 0 && skill.isProtected) {
+      html += `<div style="color: gold;">🔒【保護中のスキル】</div>`;
+    }
+
+    const name = skill.name || "(不明)";
+    const level = skill.level ?? "?";
+
+    if (depth === 0) {
+      const star = skill.starRating || "";
+      const rank = skill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "-";
+      const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
+      html += `<div style="font-size: 13px; font-weight: bold; color: #ffddaa;">【${star} / RANK: ${rank}】</div>`;
+      html += `<div style="color: #ffffff;">${name}（Lv${level}｜発動率: ${prob}%）</div>`;
+    } else {
+      html += `<div style="color: #cccccc;">${indent}${name}（Lv${level}）</div>`;
+    }
+
+    if (skill.isMixed && Array.isArray(skill.specialEffects)) {
+      for (const eff of skill.specialEffects) {
+        const prefix = `${indent}▶ 特殊効果: `;
+        let effectText = "";
+        switch (eff.type) {
+          case 1: effectText = `敵の残りHPの<span style="color:#ff9999;">${eff.value}%</span>分の追加ダメージ`; break;
+          case 2: effectText = `戦闘不能時にHP<span style="color:#99ccff;">${eff.value}%</span>で自動復活`; break;
+          case 3: effectText = `継続ダメージ時に<span style="color:#aaffaa;">${eff.value}%</span>即時回復`; break;
+          case 4: effectText = `攻撃力 <span style="color:#ffaa88;">${eff.value}倍</span>（所持時バフ）`; break;
+          case 5: effectText = `防御力 <span style="color:#88ddff;">${eff.value}倍</span>（所持時バフ）`; break;
+          case 6: effectText = `素早さ <span style="color:#ffee88;">${eff.value}倍</span>（所持時バフ）`; break;
+          case 7: effectText = `最大HP <span style="color:#d4ff88;">${eff.value}倍</span>（所持時バフ）`; break;
+          default: effectText = `不明な効果 type=${eff.type}`; break;
+        }
+        html += `<div style="color: #dddddd;">${prefix}${effectText}</div>`;
+      }
+    }
+
+    if (Array.isArray(skill.baseSkills) && skill.baseSkills.length > 0) {
+      html += `<div style="color: #999999;">${indent}▼ 構成スキル:</div>`;
+      for (const base of skill.baseSkills) {
+        buildSkillDetail(base, depth + 1);
+      }
+    }
+  }
+
+  buildSkillDetail(skill);
+
+  showCenteredPopup(
+    `<div style="font-size: 12px; line-height: 1.6; font-family: 'Segoe UI', sans-serif;">
+      ${html}
+    </div>`,
+    6000
+  );
+};
+
+
 
 // 混合スキル生成本体
 function createMixedSkill(skillA, skillB) {
@@ -747,7 +862,7 @@ function createMixedSkill(skillA, skillB) {
     ...flattenIfTooDeepOrInvalid(skillB)
   ];
 
-  // ✅ 欠落フラグ補完（保存復元時などの不整合対策）
+  // 欠落情報補完（保存復元時の対策）
   for (const skill of baseSkills) {
     if (skill.baseSkills && Array.isArray(skill.baseSkills)) {
       skill.isMixed = true;
@@ -757,7 +872,7 @@ function createMixedSkill(skillA, skillB) {
     }
   }
 
-  // ✅ 無効混合スキル除去（特殊効果なし）
+  // 無効混合スキルを除外（特殊効果なし）
   baseSkills = baseSkills.filter(s => {
     return !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0));
   });
@@ -766,26 +881,31 @@ function createMixedSkill(skillA, skillB) {
     baseSkills.push(skillA);
   }
 
-  // ✅ 並べ替え（混合→通常）
+  // 並べ替え（混合スキルを先に）
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
-  // ✅ 有効な混合スキルの内包チェック
+  // 有効な混合スキルの内包があれば通知＆フラグセット
   const includedMixed = baseSkills.filter(s =>
     s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
   );
   if (includedMixed.length > 0) {
-    alert("✨ 混合スキル内に有効な混合スキルが含まれました！");
-    alert("🌀 内包された混合スキルの特殊効果も継承されました！");
+    showCenteredPopup(`🌀 混合スキルの特殊効果が継承されました！<br>
+<span style="font-size: 10px; color: #ffcc99;">
+※特殊効果の書かれていない混合スキルは特殊効果無効です
+</span>`);
+    window.withmix = true;
   }
 
-  // --- レベル・名前・発動率・効果 ---
+  // --- スキル生成（名前・レベル・発動率・特殊効果） ---
   const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
   const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
+
   const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
   const nameLength = Math.floor(Math.random() * 3) + 2;
   const kanaPart = Array.from({ length: nameLength }, () =>
     kanaChars[Math.floor(Math.random() * kanaChars.length)]
   ).join("");
+
   const activationProb = Math.random() * (0.8 - 0.1) + 0.1;
 
   const effectType = Math.ceil(Math.random() * 7);
@@ -799,6 +919,7 @@ function createMixedSkill(skillA, skillB) {
     7: { min: 2.0, max: 5.0, rareScale: 3 }
   };
   const config = effectValueTable[effectType];
+
   let effectValue;
   if (effectType <= 3) {
     effectValue = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
@@ -811,7 +932,7 @@ function createMixedSkill(skillA, skillB) {
     activationProb, effectValue, config, kanaPart
   );
 
-  // ✅ 最終チェック：baseSkills に無効混合スキルが含まれていれば除外
+  // 最終チェックで無効混合スキルを除外
   const beforeCount = baseSkills.length;
   baseSkills = baseSkills.filter(s => !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0)));
   const afterCount = baseSkills.length;
@@ -819,10 +940,10 @@ function createMixedSkill(skillA, skillB) {
     alert(`⚠️ 最終チェックで特殊効果のない混合スキルが除外されました（${beforeCount - afterCount}件）`);
   }
 
-  // ✅ 再ソート（念のため）
+  // 念のため再ソート
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
-  return {
+  const newMixed = {
     name: fullName,
     isMixed: true,
     baseSkills,
@@ -837,24 +958,31 @@ function createMixedSkill(skillA, skillB) {
     rarityClass,
     starRating
   };
+
+  // ✅ 混合スキルの詳細ポップアップを中央表示
+  if (typeof showMixedSkillSummaryPopup === 'function') {
+    showMixedSkillSummaryPopup(newMixed);
+  }
+
+  return newMixed;
 }
 
 
-/********************************
+///********************************
 function shouldInclude(skill) {
   const depth = getMixedSkillDepth(skill);
   const baseRate = 0.95; // 通常スキルはほぼ採用される
-  const mixedRate = 0.5 ** depth; // 深さに応じて急激に低下
+  const mixedRate = 0.05 ** depth; // 深さに応じて急激に低下
 
   return skill.isMixed
     ? Math.random() < mixedRate
     : Math.random() < baseRate;
 }
-********************************/
+//********************************/
 
-function shouldInclude(skill) {
-  return true; // すべてのスキル（混合スキル含む）を必ず採用
-}
+//function shouldInclude(skill) {
+//  return true; // すべてのスキル（混合スキル含む）を必ず採用
+//}
 
 /********************************
  * スキル取得時の混合スキル生成処理
@@ -1015,11 +1143,11 @@ function showSpecialEffectDetail(mixedSkill, event) {
     const indent = "　".repeat(depth); // 全角スペース
 
     // 🔍 デバッグ出力：スキル構造確認
-    console.log(`\n[DEBUG] Depth ${depth}`);
-    console.log("Skill Name:", skill.name);
-    console.log("isMixed:", skill.isMixed);
-    console.log("specialEffects:", skill.specialEffects);
-    console.log("baseSkills:", skill.baseSkills);
+   // console.log(`\n[DEBUG] Depth ${depth}`);
+    //console.log("Skill Name:", skill.name);
+    //console.log("isMixed:", skill.isMixed);
+    //console.log("specialEffects:", skill.specialEffects);
+    //console.log("baseSkills:", skill.baseSkills);
 
     if (depth === 0 && skill.isProtected) {
       detailText += `🔒 【保護中のスキル】\n`;
@@ -1085,8 +1213,8 @@ function showSpecialEffectDetail(mixedSkill, event) {
   popup.style.zIndex = "9999";
   popup.style.opacity = "0";
   popup.style.transition = "opacity 0.3s ease";
-  popup.style.minWidth = "320px";
-  popup.style.maxWidth = "600px";
+  popup.style.minWidth = "420px";
+  popup.style.maxWidth = "800px";
   popup.style.width = "fit-content";
 
   if (mixedSkill.isProtected) {
@@ -1273,35 +1401,73 @@ function setupToggleButtons() {
 function cleanUpAllMixedSkills() {
   if (!player || !Array.isArray(player.mixedSkills) || player.mixedSkills.length === 0) return;
 
-  // 保護されていない混合スキルのみ削除対象
+  // -----------------------------
+  // 🌀 withmix猶予ロジック：最大2回まで待つ
+  // -----------------------------
+  if (typeof window.withmix !== 'undefined' && window.withmix === true) {
+    if (typeof window.withmixCount === 'undefined') {
+      window.withmixCount = 0;
+    }
+
+    window.withmixCount++;
+    const remaining = 3 - window.withmixCount;
+
+    if (remaining > 0) {
+      showCenteredPopup(`🌀 混合スキル（特殊効果内包）はまだ削除されません<br>
+<span style="font-size: 10px; color: #ffcc99;">※獲得後の猶予期間のため、あと ${remaining} 回で自動削除されます</span>`);
+      return; // ❌ ここで削除をスキップ
+    } else {
+      // 3回目：削除して状態リセット
+      window.withmix = false;
+      window.withmixCount = 0;
+    }
+  }
+
+  // -----------------------------
+  // 🔻 削除処理本体
+  // -----------------------------
+
   const toRemove = player.mixedSkills.filter(skill => !skill.isProtected);
 
-  // 保護されていない混合スキルだけを mixedSkills から除去
+  if (toRemove.length === 0) {
+    showCenteredPopup(`🧪 削除対象の混合スキルはありません（すべて保護中）`);
+    return;
+  }
+
+  const removedNames = toRemove.map(s => s.name);
+
+  // 保護されたスキルだけ残す
   player.mixedSkills = player.mixedSkills.filter(skill => skill.isProtected);
 
-  // skills 配列から、削除対象の混合スキルを除外
+  // skills 配列から除去
   player.skills = player.skills.filter(skill => {
-    if (!skill.isMixed) return true; // 通常スキルは維持
-    return !toRemove.some(s => s.name === skill.name);
+    if (!skill.isMixed) return true;
+    return !removedNames.includes(skill.name);
   });
 
-  // skillMemory からも削除（名前一致）
+  // skillMemory からも削除
   if (player.skillMemory) {
-    for (const s of toRemove) {
-      if (s.name && player.skillMemory[s.name]) {
-        delete player.skillMemory[s.name];
+    for (const name of removedNames) {
+      if (player.skillMemory[name]) {
+        delete player.skillMemory[name];
       }
     }
   }
 
   // UI 再描画
   if (typeof syncSkillsUI === "function") {
-    syncSkillsUI(); // drawSkillList なども含めて再描画される
+    syncSkillsUI();
   } else {
     if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
     if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
     if (typeof drawSkillList === "function") drawSkillList();
   }
+
+  // 結果ポップアップ
+  const preview = removedNames.slice(0, 3).join("／");
+  const more = removedNames.length > 3 ? ` 他${removedNames.length - 3}件` : "";
+  showCenteredPopup(`🧹 混合スキル ${removedNames.length} 件を削除しました<br>
+<span style="font-size: 10px; color: #ffcc99;">（${preview}${more}）</span>`);
 }
 
 function createMixedSkillProtectionUI(containerId = "protect-skill-ui") {
@@ -3084,9 +3250,9 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
     7: 'maxHp'
   };
 
-  player.tempEffects = {}; // 毎戦リセット
+  player.tempEffects = {}; // リセット
 
-  for (const skill of player.mixedSkills || []) {
+  function applyBuffsRecursively(skill) {
     const type = skill.specialEffectType;
     const value = skill.specialEffectValue;
 
@@ -3098,7 +3264,6 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
       const prevMultiplier = player.tempEffects[stat + 'Mod'] || 1;
       const before = (base + growth) * prevMultiplier;
 
-      // バフ乗算（重ねがけ）
       const newMultiplier = prevMultiplier * value;
       player.tempEffects[stat + 'Mod'] = newMultiplier;
 
@@ -3106,16 +3271,25 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
 
       if (log && Array.isArray(log)) {
         log.push(`◎ ${skill.name} により ${stat} が ${value} 倍に増加`);
-				
-				
-			log.push(`${stat.toUpperCase()}：${Math.floor(before)} → ${Math.floor(after)}`);
+        log.push(`${stat.toUpperCase()}：${Math.floor(before)} → ${Math.floor(after)}`);
       }
 
       if (stat === 'maxHp') {
         player.maxHp = Math.floor(after);
-				player.hp = player.maxHp;
+        player.hp = player.maxHp;
       }
     }
+
+    // 再帰的に内包スキルにも適用
+    if (Array.isArray(skill.baseSkills)) {
+      for (const child of skill.baseSkills) {
+        applyBuffsRecursively(child);
+      }
+    }
+  }
+
+  for (const skill of player.mixedSkills || []) {
+    applyBuffsRecursively(skill);
   }
 };
 
@@ -3834,8 +4008,8 @@ syncSkillsUI();
 	  const coinGain = Math.floor(Math.random() * 200); // 最大500
 	  window.faceCoins = (window.faceCoins || 0) + coinGain;
 	
-	  log.push(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
-	  alert(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
+
+	  showCenteredPopup(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
 	
 	  const coinElem = document.getElementById('faceCoinCount');
 	  if (coinElem) coinElem.innerText = window.faceCoins;
