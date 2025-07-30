@@ -184,6 +184,27 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <p>
         戦闘はターン制で進行し、プレイヤーと敵が交互にスキルを使用し合います。相手のHPを0にすると勝利です。所持スキルの中から自動的に複数のスキルが選出され同時に発動します（必ず固有スキルが最低1つと、攻撃スキルが最低1つ含まれます）。
     </p>
+		
+
+		<h3>🎯 連勝数によるボーナス仕様</h3>
+		<p>あなたの戦績が良いほど、スキルや報酬に有利な影響を与えます！</p>
+		
+		<h4>🔹 混合スキルの性能上昇</h4>
+		<ul>
+		  <li>混合スキルの <strong>発動率</strong> や <strong>特殊効果の効果値</strong> に、連勝数に応じたボーナス補正が加わります。</li>
+		  <li>補正値は最大で <strong>+5%</strong> 程度。</li>
+		  <li>強いプレイヤーほどレアスキルを得やすくなります。</li>
+		</ul>
+		
+		<h4>💎 フェイスガチャのレア排出率UP</h4>
+		<ul>
+		  <li>FaceCoinガチャのレアランク（S〜B）の出現率が、連勝数に応じて上昇します。</li>
+		  <li>例：Dランクの割合が減少し、S〜Aランクの出現率がわずかに上昇。</li>
+		</ul>
+		
+		<p style="color:#888; font-size: 90%;">
+		※補正は控えめに設計されており、ゲームバランスを壊さず自然に反映されます。
+		</p>
 
     <h3>ゲーム終了とスコア</h3>
     <p>
@@ -389,7 +410,13 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <!-- コインとガチャ -->
     <div id="faceCoinInfo" style="margin-bottom: 10px;">
       コイン: <span id="faceCoinCount">0</span> 枚 
-      <button id="faceGachaBtn" disabled>ガチャ</button>
+		<button id="faceGachaBtn" disabled>ガチャ</button>
+		
+		<br>
+		
+		<div class="subnote">※現在の連勝数が多いほど高レア排出率UP</div>
+			
+			
     </div>
 
     <!-- 所持フェイスアイテム一覧 -->

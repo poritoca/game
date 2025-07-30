@@ -714,9 +714,13 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
     return list[i] || "未知の力";
   });
 
-  // ✅ 0〜1に正規化（activationProb: 0.1〜0.8 → 0〜1）
-  const activationPercent = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7));
-  const effectPercent = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min)));
+
+	// ✅ 連勝ボーナス（最大 +0.1）を加算して正規化
+	const streak = typeof currentStreak === 'number' ? currentStreak : 0;
+	const bonusFromStreak = Math.min(streak, 100) / 1000;  // 連勝100で +0.1
+	
+	const activationPercent = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7 + bonusFromStreak));
+	const effectPercent = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min) + bonusFromStreak));
 
   // ✅ 接頭語のインデックス
   const activationIndex = Math.floor(activationPercent * 39.999);
@@ -1317,22 +1321,47 @@ function performFaceGacha() {
   faceCoins -= FACE_GACHA_COST;
   updateFaceCoinDisplay();
 
-  // ランク抽選
+  // --- 動的に補正された確率でランク抽選 ---
+  const baseProbs = {
+    S: 0.001,
+    A: 0.004,
+    B: 0.045,
+    C: 0.05,
+    D: 0.90
+  };
+
+  const streak = window.currentStreak || 0;
+  const bonusFactor = Math.min(1 + streak * 0.05, 2.0); // 最大2倍まで補正
+
+  let adjustedProbs = {
+    S: baseProbs.S * bonusFactor,
+    A: baseProbs.A * bonusFactor,
+    B: baseProbs.B * (1 + (bonusFactor - 1) * 0.5),
+    C: baseProbs.C * (1 - (bonusFactor - 1) * 0.3),
+    D: baseProbs.D * (1 - (bonusFactor - 1) * 0.7)
+  };
+
+  // 再正規化
+  const total = Object.values(adjustedProbs).reduce((a, b) => a + b, 0);
+  for (const key in adjustedProbs) {
+    adjustedProbs[key] /= total;
+  }
+
+  // 抽選処理
   let rand = Math.random();
   let cumProb = 0;
   let selectedRarity = 'D';
   for (const r of ['S', 'A', 'B', 'C', 'D']) {
-    cumProb += FACE_RARITY_PROBS[r];
+    cumProb += adjustedProbs[r];
     if (rand < cumProb) {
       selectedRarity = r;
       break;
     }
   }
 
-  // ガチャアニメーション（所持上限ではない場合のみ）
+  // ガチャ演出
   showGachaAnimation(selectedRarity);
 
-  // 演出後に抽選・UI更新処理
   setTimeout(() => {
     const result = drawRandomFace(selectedRarity);
     if (!result) {
@@ -1342,7 +1371,6 @@ function performFaceGacha() {
 
     const { path, name } = result;
     faceItemsOwned.push(path);
-//    alert(`${selectedRarity}ランクのフェイスアイテム「${name}」を獲得！`);
     updateFaceUI();
   }, 1400);
 }
@@ -2475,15 +2503,6 @@ const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
 // ランクごとの出現確率 (合計1.00になるよう調整)
-//const FACE_RARITY_PROBS = { S: 0.01, A: 0.04, B: 0.15, C: 0.30, D: 0.50 };
-
-const FACE_RARITY_PROBS = {
-  S: 0.001,  // 0.1%
-  A: 0.004,  // 0.4%
-  B: 0.045,  // 4.5%
-  C: 0.05,   // 5%
-  D: 0.90    // 90%
-};
 
 window.faceCoins = 1000;
 window.faceItemsOwned = [];       // 例: ['face/S/face1.png', ...]
