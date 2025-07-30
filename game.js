@@ -714,23 +714,29 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
     return list[i] || "未知の力";
   });
 
+  // ✅ 最大連勝数による補正（最大 +10%）
+  const streakBoost = Math.min(1.0, (window.maxStreak || 0) / 100) * 0.1;
 
-	// ✅ 連勝ボーナス（最大 +0.1）を加算して正規化
-	const streak = typeof currentStreak === 'number' ? currentStreak : 0;
-	const bonusFromStreak = Math.min(streak, 100) / 1000;  // 連勝100で +0.1
-	
-	const activationPercent = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7 + bonusFromStreak));
-	const effectPercent = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min) + bonusFromStreak));
+  // ✅ 発動率 0.1〜0.8 → 正規化：0〜1
+  const normalizedActivation = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7));
+  const activationPercent = Math.max(0, Math.min(1, normalizedActivation + streakBoost));
 
-  // ✅ 接頭語のインデックス
-  const activationIndex = Math.floor(activationPercent * 39.999);
-  const valueIndex = Math.floor(effectPercent * 39.999);
-  const prefix1 = activationPrefixes[activationIndex];
-  const prefix2 = effectValuePrefixes[valueIndex];
+  // ✅ 効果値 min〜max → 正規化：0〜1
+  const normalizedEffect = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min)));
+  const effectPercent = Math.max(0, Math.min(1, normalizedEffect + streakBoost));
 
+  // ✅ 接頭語インデックス（見た目のランダム性のため逆分布に加工）
+  const reversedActivation = 1 - normalizedActivation;
+  const reversedEffect = 1 - normalizedEffect;
+
+  const activationPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedActivation, 2.5) + streakBoost) * 39.999);
+  const effectPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedEffect, 2.5) + streakBoost) * 39.999);
+
+  const prefix1 = activationPrefixes[activationPrefixIndex];
+  const prefix2 = effectValuePrefixes[effectPrefixIndex];
   const fullName = `${prefix1}×${prefix2}${kanaPart}`;
 
-  // ✅ 段階評価：上位1割で星5、下位ほど星1
+  // ✅ 星の評価（両方の正規化された元の値が高いときのみ★5）
   function percentileToStars(p) {
     if (p >= 0.90) return 5;
     if (p >= 0.75) return 4;
@@ -741,9 +747,7 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
 
   const starFromActivation = percentileToStars(activationPercent);
   const starFromEffect = percentileToStars(effectPercent);
-
-  // ✅ 厳しめ：両方が高くないと星5にならない（minを採用）
-  const starCount = Math.min(starFromActivation, starFromEffect);
+  const starCount = Math.min(starFromActivation, starFromEffect); // 厳しめ評価
 
   const rarityClass = {
     5: "skill-rank-s",
@@ -828,9 +832,9 @@ window.showMixedSkillSummaryPopup = function(skill) {
 
 
 
-// 混合スキル生成本体
 function createMixedSkill(skillA, skillB) {
   const maxDepth = 5;
+  const includeMixedSkillChance = 0.3; // ← 内包確率を調整（0.3 = 30% の確率で有効な混合スキルを内包）
 
   function getMixedSkillDepth(skill) {
     if (!skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
@@ -844,7 +848,14 @@ function createMixedSkill(skillA, skillB) {
   function flattenIfTooDeepOrInvalid(skill, currentDepth = 1) {
     if (skill.isMixed && Array.isArray(skill.baseSkills)) {
       const thisDepth = getMixedSkillDepth(skill);
-      if (currentDepth + thisDepth > maxDepth || !isValidNestedMixedSkill(skill)) {
+      const isTooDeep = currentDepth + thisDepth > maxDepth;
+      const isInvalid = !isValidNestedMixedSkill(skill);
+      const shouldFlatten = isTooDeep || isInvalid;
+
+      // 新規：混合スキルを内包しない確率分岐
+      const shouldInclude = Math.random() < includeMixedSkillChance;
+
+      if (shouldFlatten || !shouldInclude) {
         return skill.baseSkills.flatMap(s => flattenIfTooDeepOrInvalid(s, currentDepth));
       } else {
         return [skill];
@@ -877,18 +888,16 @@ function createMixedSkill(skillA, skillB) {
   }
 
   // 無効混合スキルを除外（特殊効果なし）
-  baseSkills = baseSkills.filter(s => {
-    return !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0));
-  });
+  baseSkills = baseSkills.filter(s =>
+    !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
+  );
 
-  if (baseSkills.length === 0) {
-    baseSkills.push(skillA);
-  }
+  if (baseSkills.length === 0) baseSkills.push(skillA);
 
   // 並べ替え（混合スキルを先に）
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
-  // 有効な混合スキルの内包があれば通知＆フラグセット
+  // 有効な混合スキルの内包があれば通知
   const includedMixed = baseSkills.filter(s =>
     s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
   );
@@ -900,10 +909,9 @@ function createMixedSkill(skillA, skillB) {
     window.withmix = true;
   }
 
-  // --- スキル生成（名前・レベル・発動率・特殊効果） ---
+  // スキル生成
   const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
   const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
-
   const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
   const nameLength = Math.floor(Math.random() * 3) + 2;
   const kanaPart = Array.from({ length: nameLength }, () =>
@@ -911,8 +919,8 @@ function createMixedSkill(skillA, skillB) {
   ).join("");
 
   const activationProb = Math.random() * (0.8 - 0.1) + 0.1;
-
   const effectType = Math.ceil(Math.random() * 7);
+
   const effectValueTable = {
     1: { min: 10, max: 30, rareScale: 2 },
     2: { min: 10, max: 100, rareScale: 4 },
@@ -936,7 +944,7 @@ function createMixedSkill(skillA, skillB) {
     activationProb, effectValue, config, kanaPart
   );
 
-  // 最終チェックで無効混合スキルを除外
+  // 最終チェック
   const beforeCount = baseSkills.length;
   baseSkills = baseSkills.filter(s => !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0)));
   const afterCount = baseSkills.length;
@@ -944,7 +952,6 @@ function createMixedSkill(skillA, skillB) {
     alert(`⚠️ 最終チェックで特殊効果のない混合スキルが除外されました（${beforeCount - afterCount}件）`);
   }
 
-  // 念のため再ソート
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
   const newMixed = {
@@ -963,7 +970,6 @@ function createMixedSkill(skillA, skillB) {
     starRating
   };
 
-  // ✅ 混合スキルの詳細ポップアップを中央表示
   if (typeof showMixedSkillSummaryPopup === 'function') {
     showMixedSkillSummaryPopup(newMixed);
   }
