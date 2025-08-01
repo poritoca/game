@@ -832,8 +832,16 @@ window.showMixedSkillSummaryPopup = function(skill) {
 
 
 
+// スキル生成本体
 function createMixedSkill(skillA, skillB) {
   const maxDepth = 5;
+
+  // ✅ 混合スキルの所持上限チェック（最大3）
+  if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 3) {
+    //alert("⚠️ 混合スキルは最大3つまでしか保有できません。不要なスキルを削除してください。");
+    return null;
+  }
+
   const includeMixedSkillChance = 0.3; // ← 内包確率を調整（0.3 = 30% の確率で有効な混合スキルを内包）
 
   function getMixedSkillDepth(skill) {
