@@ -835,36 +835,34 @@ window.showMixedSkillSummaryPopup = function(skill) {
 // スキル生成本体
 function createMixedSkill(skillA, skillB) {
   const maxDepth = 5;
+  const includeMixedSkillChance = 0.3; // ← 混合スキルを内包する確率（変更可）
 
-  // ✅ 混合スキルの所持上限チェック（最大3）
+  // ✅ 所持上限（最大3スキルまで）
   if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 3) {
-    //alert("⚠️ 混合スキルは最大3つまでしか保有できません。不要なスキルを削除してください。");
     return null;
   }
 
-  const includeMixedSkillChance = 0.3; // ← 内包確率を調整（0.3 = 30% の確率で有効な混合スキルを内包）
-
   function getMixedSkillDepth(skill) {
-    if (!skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
+    if (!skill || !skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
     return 1 + Math.max(...skill.baseSkills.map(getMixedSkillDepth));
   }
 
   function isValidNestedMixedSkill(skill) {
-    return skill.isMixed && Array.isArray(skill.specialEffects) && skill.specialEffects.length > 0;
+    return skill && skill.isMixed && Array.isArray(skill.specialEffects) && skill.specialEffects.length > 0;
   }
 
   function flattenIfTooDeepOrInvalid(skill, currentDepth = 1) {
-    if (skill.isMixed && Array.isArray(skill.baseSkills)) {
+    if (skill && skill.isMixed && Array.isArray(skill.baseSkills)) {
       const thisDepth = getMixedSkillDepth(skill);
       const isTooDeep = currentDepth + thisDepth > maxDepth;
       const isInvalid = !isValidNestedMixedSkill(skill);
       const shouldFlatten = isTooDeep || isInvalid;
-
-      // 新規：混合スキルを内包しない確率分岐
       const shouldInclude = Math.random() < includeMixedSkillChance;
 
       if (shouldFlatten || !shouldInclude) {
-        return skill.baseSkills.flatMap(s => flattenIfTooDeepOrInvalid(s, currentDepth));
+        return skill.baseSkills
+          .filter(s => s && typeof s === 'object') // ✅ null防止
+          .flatMap(s => flattenIfTooDeepOrInvalid(s, currentDepth));
       } else {
         return [skill];
       }
@@ -883,10 +881,11 @@ function createMixedSkill(skillA, skillB) {
   let baseSkills = [
     ...flattenIfTooDeepOrInvalid(skillA),
     ...flattenIfTooDeepOrInvalid(skillB)
-  ];
+  ].filter(s => s && typeof s === 'object'); // ✅ null除去
 
-  // 欠落情報補完（保存復元時の対策）
+  // 欠落情報補完
   for (const skill of baseSkills) {
+    if (!skill || typeof skill !== 'object') continue;
     if (skill.baseSkills && Array.isArray(skill.baseSkills)) {
       skill.isMixed = true;
     }
@@ -895,9 +894,9 @@ function createMixedSkill(skillA, skillB) {
     }
   }
 
-  // 無効混合スキルを除外（特殊効果なし）
+  // 無効混合スキルの除去
   baseSkills = baseSkills.filter(s =>
-    !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
+    s && !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
   );
 
   if (baseSkills.length === 0) baseSkills.push(skillA);
@@ -905,9 +904,9 @@ function createMixedSkill(skillA, skillB) {
   // 並べ替え（混合スキルを先に）
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
-  // 有効な混合スキルの内包があれば通知
+  // 有効な混合スキルの内包チェック
   const includedMixed = baseSkills.filter(s =>
-    s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
+    s && s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
   );
   if (includedMixed.length > 0) {
     showCenteredPopup(`🌀 混合スキルの特殊効果が継承されました！<br>
@@ -952,14 +951,12 @@ function createMixedSkill(skillA, skillB) {
     activationProb, effectValue, config, kanaPart
   );
 
-  // 最終チェック
-  const beforeCount = baseSkills.length;
-  baseSkills = baseSkills.filter(s => !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0)));
-  const afterCount = baseSkills.length;
-  if (afterCount < beforeCount) {
-    alert(`⚠️ 最終チェックで特殊効果のない混合スキルが除外されました（${beforeCount - afterCount}件）`);
-  }
+  // 最終チェックで無効スキル除去＋null除去
+  baseSkills = baseSkills.filter(s =>
+    s && !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
+  );
 
+  // 再ソート
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
   const newMixed = {
@@ -984,8 +981,6 @@ function createMixedSkill(skillA, skillB) {
 
   return newMixed;
 }
-
-
 ///********************************
 function shouldInclude(skill) {
   const depth = getMixedSkillDepth(skill);
@@ -1254,13 +1249,16 @@ function showSpecialEffectDetail(mixedSkill, event) {
 
 // 戦闘開始時に混合スキル使用状態をリセットする関数（各戦闘の最初に呼び出す）
 function resetMixedSkillUsage() {
-  if (!player || !player.mixedSkills) return;
+  if (!player || !Array.isArray(player.mixedSkills)) return;
 
   for (const mSkill of player.mixedSkills) {
+    if (!mSkill || typeof mSkill !== 'object') continue;
+
     mSkill.usedInBattle = false;
     mSkill.used = false;
     mSkill.specialEffectActive = false;
     mSkill.reviveUsed = false;
+
     if (mSkill.buttonElement) {
       mSkill.buttonElement.disabled = false;
       mSkill.buttonElement.classList.remove("used");
@@ -1441,62 +1439,36 @@ function setupToggleButtons() {
 }
 
 function cleanUpAllMixedSkills() {
-  if (!player || !Array.isArray(player.mixedSkills) || player.mixedSkills.length === 0) return;
+  if (!player || !Array.isArray(player.mixedSkills)) return;
 
-  // -----------------------------
-  // 🌀 withmix猶予ロジック：最大2回まで待つ
-  // -----------------------------
-  if (typeof window.withmix !== 'undefined' && window.withmix === true) {
-    if (typeof window.withmixCount === 'undefined') {
-      window.withmixCount = 0;
-    }
+  // ✅ null や undefined を除去してから処理開始
+  player.mixedSkills = player.mixedSkills.filter(skill => skill && typeof skill === 'object');
 
-    window.withmixCount++;
-    const remaining = 3 - window.withmixCount;
-
-    if (remaining > 0) {
-      showCenteredPopup(`🌀 混合スキル（特殊効果内包）はまだ削除されません<br>
-<span style="font-size: 10px; color: #ffcc99;">※獲得後の猶予期間のため、あと ${remaining} 回で自動削除されます</span>`);
-      return; // ❌ ここで削除をスキップ
-    } else {
-      // 3回目：削除して状態リセット
-      window.withmix = false;
-      window.withmixCount = 0;
-    }
-  }
-
-  // -----------------------------
-  // 🔻 削除処理本体
-  // -----------------------------
-
+  // 保護されていない混合スキルのみを削除対象にする
   const toRemove = player.mixedSkills.filter(skill => !skill.isProtected);
 
-  if (toRemove.length === 0) {
-    showCenteredPopup(`🧪 削除対象の混合スキルはありません（すべて保護中）`);
-    return;
-  }
-
-  const removedNames = toRemove.map(s => s.name);
-
-  // 保護されたスキルだけ残す
+  // mixedSkills 配列から削除
   player.mixedSkills = player.mixedSkills.filter(skill => skill.isProtected);
 
-  // skills 配列から除去
+  // player.skills 配列から、削除対象の混合スキルを除去
   player.skills = player.skills.filter(skill => {
-    if (!skill.isMixed) return true;
-    return !removedNames.includes(skill.name);
+    if (!skill || !skill.isMixed) return true;
+    return !toRemove.some(s => s && s.name === skill.name);
   });
 
-  // skillMemory からも削除
+  // skillMemory からも削除（名前一致で）
   if (player.skillMemory) {
-    for (const name of removedNames) {
-      if (player.skillMemory[name]) {
-        delete player.skillMemory[name];
+    for (const s of toRemove) {
+      if (s?.name && player.skillMemory[s.name]) {
+        delete player.skillMemory[s.name];
       }
     }
   }
 
-  // UI 再描画
+  // ✅ 念のため残った mixedSkills も null 除去（保護対象含め）
+  player.mixedSkills = player.mixedSkills.filter(skill => skill && typeof skill === 'object');
+
+  // UI再描画
   if (typeof syncSkillsUI === "function") {
     syncSkillsUI();
   } else {
@@ -1504,12 +1476,6 @@ function cleanUpAllMixedSkills() {
     if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
     if (typeof drawSkillList === "function") drawSkillList();
   }
-
-  // 結果ポップアップ
-  const preview = removedNames.slice(0, 3).join("／");
-  const more = removedNames.length > 3 ? ` 他${removedNames.length - 3}件` : "";
-  showCenteredPopup(`🧹 混合スキル ${removedNames.length} 件を削除しました<br>
-<span style="font-size: 10px; color: #ffcc99;">（${preview}${more}）</span>`);
 }
 
 function createMixedSkillProtectionUI(containerId = "protect-skill-ui") {
@@ -3286,6 +3252,8 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
   player.tempEffects = {}; // リセット
 
   function applyBuffsRecursively(skill) {
+    if (!skill || typeof skill !== 'object') return; // ← null/undefined 対策
+
     const type = skill.specialEffectType;
     const value = skill.specialEffectValue;
 
@@ -3313,7 +3281,6 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
       }
     }
 
-    // 再帰的に内包スキルにも適用
     if (Array.isArray(skill.baseSkills)) {
       for (const child of skill.baseSkills) {
         applyBuffsRecursively(child);
@@ -3325,7 +3292,6 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
     applyBuffsRecursively(skill);
   }
 };
-
 
 // バトル開始処理（1戦ごと）
 window.startBattle = function() {
@@ -3352,15 +3318,19 @@ if (player.baseStats && player.growthBonus) {
 }
 
 
-
 // 戦闘開始時の混合スキル状態リセット
 for (const mSkill of player.mixedSkills || []) {
+  if (!mSkill || typeof mSkill !== 'object') continue;
+
   mSkill.usedInBattle = false;
   mSkill.specialEffectActive = false;
+
   // 各特殊効果の使用フラグをリセット
-  if (mSkill.specialEffects) {
+  if (Array.isArray(mSkill.specialEffects)) {
     mSkill.specialEffects.forEach(effect => {
-      if (effect.type === 2) effect.used = false;
+      if (effect && effect.type === 2) {
+        effect.used = false;
+      }
     });
   }
 }
