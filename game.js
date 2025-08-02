@@ -438,6 +438,10 @@ if (window.specialMode === 'normal') {
 
 const skillDeleteButton = document.getElementById('skillDeleteButton');
 
+function hasSkill(name) {
+  return player.skills.some(s => s.name === name);
+}
+
 function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
   const totalSlots = 3 + sslot;
 
@@ -486,30 +490,37 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
 
   const uniqueLevel = player.skillMemory[uniqueSkillName] || 1;
   newSkills.push({ name: uniqueSkillName, level: uniqueLevel, uses: 0 });
+  usedNames.add(uniqueSkillName);
 
   if (attackSkillName !== uniqueSkillName) {
     const attackLevel = player.skillMemory[attackSkillName] || 1;
     newSkills.push({ name: attackSkillName, level: attackLevel, uses: 0 });
+    usedNames.add(attackSkillName);
   }
 
   for (const [name, level] of entries) {
     if (newSkills.length >= totalSlots) break;
-    if (name === uniqueSkillName || name === attackSkillName) continue;
+    if (usedNames.has(name)) continue;
     newSkills.push({ name, level, uses: 0 });
+    usedNames.add(name);
   }
 
   // 初期化
   player.skills = [];
   if (!player.mixedSkills) player.mixedSkills = [];
 
-  // 固有スキル先に追加
+  // 固有スキル先に追加（重複防止）
   const uniqueSkillObj = { name: uniqueSkillName, level: uniqueLevel, uses: 0, isUnique: true };
-  player.skills.push(uniqueSkillObj);
+  if (!hasSkill(uniqueSkillObj.name)) {
+    player.skills.push(uniqueSkillObj);
+  }
 
   for (const sk of newSkills) {
     if (sk.name === uniqueSkillName) continue;
     const fullSkill = { ...sk, isUnique: false };
-    onSkillAcquired(fullSkill);
+    if (!hasSkill(fullSkill.name)) {
+      onSkillAcquired(fullSkill);
+    }
   }
 
   // 固有スキルからの明示的な混合スキル生成
@@ -517,14 +528,16 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
   if (mixCandidates.length > 0) {
     const partner = mixCandidates[Math.floor(Math.random() * mixCandidates.length)];
     const combinedSkill = createMixedSkill(uniqueSkillObj, partner);
-    player.mixedSkills.push(combinedSkill);
-      player.skills.push(combinedSkill); 
-		 // ← 追加：メモリにも表示されるように
+    if (combinedSkill && !hasSkill(combinedSkill.name)) {
+      player.mixedSkills.push(combinedSkill);
+      player.skills.push(combinedSkill);
+    }
   }
 
   if (typeof drawSkillMemoryList === 'function') drawSkillMemoryList();
   if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
 }
+
 
 
 // グローバル
@@ -1001,7 +1014,7 @@ function shouldInclude(skill) {
  * スキル取得時の混合スキル生成処理
  ********************************/
 
-// スキル取得イベント時に呼ばれる関数（固有スキル取得時に混合スキルを生成）
+
 function onSkillAcquired(newSkill) {
   if (!player.mixedSkills) {
     player.mixedSkills = [];
@@ -1012,14 +1025,18 @@ function onSkillAcquired(newSkill) {
   // 固有スキル処理
   if (newSkill.isUnique) {
     if (Math.random() < 0.05 && canMix) {
-			alert("生成されます")
+      alert("生成されます");
       const partnerSkill = player.skills[Math.floor(Math.random() * player.skills.length)];
       const mixedSkill = createMixedSkill(newSkill, partnerSkill);
 
-      player.skills.push(mixedSkill);
-      player.mixedSkills.push(mixedSkill);
+      if (mixedSkill && !hasSkill(mixedSkill.name)) {
+        player.skills.push(mixedSkill);
+        player.mixedSkills.push(mixedSkill);
+      }
     } else {
-      player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+      if (!hasSkill(newSkill.name)) {
+        player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+      }
     }
 
     return;
@@ -1030,11 +1047,15 @@ function onSkillAcquired(newSkill) {
     const partnerSkill = player.skills[Math.floor(Math.random() * player.skills.length)];
     const mixedSkill = createMixedSkill(newSkill, partnerSkill);
 
-    player.skills.push(mixedSkill);
-    player.mixedSkills.push(mixedSkill);
-    drawCombinedSkillList();
+    if (mixedSkill && !hasSkill(mixedSkill.name)) {
+      player.skills.push(mixedSkill);
+      player.mixedSkills.push(mixedSkill);
+      drawCombinedSkillList();
+    }
   } else {
-    player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+    if (!hasSkill(newSkill.name)) {
+      player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+    }
   }
 }
 
