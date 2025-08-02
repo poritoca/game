@@ -2108,6 +2108,9 @@ if (gachaBtn) {
 
 
 
+// ------------------------
+// 定数：ステンドグラスの形状
+// ------------------------
 const stainedGlassStyles = [
   { clipPath: "polygon(0% 0%, 90% 10%, 80% 100%, 10% 90%)" },
   { clipPath: "polygon(10% 10%, 95% 5%, 85% 95%, 5% 85%)" },
@@ -2116,28 +2119,10 @@ const stainedGlassStyles = [
   { clipPath: "polygon(10% 10%, 100% 30%, 70% 100%, 0% 80%)" }
 ];
 
-if (!window.faceItemGlowInterval) {
-  window.faceItemGlowInterval = setInterval(() => {
-    const bg = document.getElementById('faceItemGlowBg');
-    if (!bg) return;
-    const style = stainedGlassStyles[Math.floor(Math.random() * stainedGlassStyles.length)];
-    bg.style.clipPath = style.clipPath;
-    bg.style.transition = 'clip-path 1.2s ease-in-out';
-    bg.style.background = 'rgba(255,255,255,0.05)';
-    bg.style.filter = 'brightness(1.2) saturate(1.8)';
-    bg.style.mixBlendMode = 'normal';
-  }, 2000);
-}
-
-// --- プレイヤー画像を更新する関数 ---
-function updatePlayerImage() {
-  const canvas = document.getElementById('playerCanvas');
-
-  // ステンドグラス背景（なければ生成）
-  const displayBottom = '100px';
-  const displayRight = '30px';
-
-  // CSSアニメーションを一度だけ追加
+// ------------------------
+// スタイル追加（1度だけ）
+// ------------------------
+function ensureGlowBorderStyle() {
   if (!document.getElementById('glowBorderStyle')) {
     const style = document.createElement('style');
     style.id = 'glowBorderStyle';
@@ -2164,90 +2149,112 @@ function updatePlayerImage() {
     `;
     document.head.appendChild(style);
   }
+}
 
-  // ステンドグラス背景エリアの作成・配置
+// ------------------------
+// 背景エフェクトの生成
+// ------------------------
+function ensureFaceItemGlowBackground(canvas) {
+  const displayBottom = '100px';
+  const displayRight = '30px';
+
   let bg = document.getElementById('faceItemGlowBg');
   if (!bg) {
     bg = document.createElement('div');
     bg.id = 'faceItemGlowBg';
-    bg.style.position = 'absolute';
-    bg.style.bottom = displayBottom;
-    bg.style.right = displayRight;
-    bg.style.width = '120px';
-    bg.style.height = '120px';
-    bg.style.pointerEvents = 'none';
-    bg.style.zIndex = '0';
-    bg.style.overflow = 'hidden';
-    bg.style.background = 'rgba(255,255,255,0.05)';
-    bg.style.filter = 'brightness(1.2) saturate(1.8)';
-    bg.style.mixBlendMode = 'normal';
-    bg.style.border = '2px solid white';
-    bg.style.borderRadius = '8px';
-    bg.style.animation = 'glowBorder 5s ease-in-out infinite'; // ★光るアニメーション
-		bg.style.zIndex = '9998'; // ← playerCanvas より上、画像より下
-
-    if (canvas && canvas.parentNode) {
-      canvas.parentNode.insertBefore(bg, canvas.nextSibling);
-    }
+    Object.assign(bg.style, {
+      position: 'absolute',
+      bottom: displayBottom,
+      right: displayRight,
+      width: '120px',
+      height: '120px',
+      pointerEvents: 'none',
+      zIndex: '9998',
+      overflow: 'hidden',
+      background: 'rgba(255,255,255,0.05)',
+      filter: 'brightness(1.2) saturate(1.8)',
+      mixBlendMode: 'normal',
+      border: '2px solid white',
+      borderRadius: '8px',
+      animation: 'glowBorder 5s ease-in-out infinite'
+    });
+    if (canvas?.parentNode) canvas.parentNode.insertBefore(bg, canvas.nextSibling);
   }
+  return bg;
+}
 
-  // プレイヤー画像の表示（faceItemEquippedがあるとき）
+// ------------------------
+// レアリティによる画像エフェクト
+// ------------------------
+function applyFaceItemEffects(imgElement, rarity) {
+  imgElement.className = '';
+  imgElement.style.filter = 'none';
+  switch (rarity) {
+    case 'S': imgElement.classList.add('rarity-s'); break;
+    case 'A': imgElement.style.filter = 'drop-shadow(0 0 10px #FFD700)'; break;
+    case 'B': imgElement.style.filter = 'drop-shadow(0 0 8px #3399ff)'; break;
+    case 'C': imgElement.style.filter = 'drop-shadow(0 0 6px #33cc33)'; break;
+    case 'D': imgElement.style.filter = 'drop-shadow(0 0 4px #999999)'; break;
+  }
+  Object.assign(imgElement.style, {
+    border: '1px solid transparent',
+    borderImage: 'linear-gradient(45deg, #d4af37, #b8860b, #f9d71c) 1',
+    boxShadow: '0 0 16px rgba(255, 215, 0, 0.5), 0 0 8px rgba(255, 215, 0, 0.3) inset'
+  });
+}
+
+// ------------------------
+// 背景アニメーション開始
+// ------------------------
+function startFaceItemGlowAnimation() {
+  if (!window.faceItemGlowInterval) {
+    window.faceItemGlowInterval = setInterval(() => {
+      const bg = document.getElementById('faceItemGlowBg');
+      if (!bg) return;
+      const style = stainedGlassStyles[Math.floor(Math.random() * stainedGlassStyles.length)];
+      bg.style.clipPath = style.clipPath;
+      bg.style.transition = 'clip-path 1.2s ease-in-out';
+    }, 2000);
+  }
+}
+
+// ------------------------
+// 画像更新関数（差し替え）
+// ------------------------
+function updatePlayerImage() {
+  const canvas = document.getElementById('playerCanvas');
+  ensureGlowBorderStyle();
+  const bg = ensureFaceItemGlowBackground(canvas);
+  startFaceItemGlowAnimation();
+
   if (faceItemEquipped) {
-		canvas.style.display = 'none'; 
+    canvas.style.display = 'none';
     let img = document.getElementById('faceItemDisplayImg');
     if (!img) {
       img = document.createElement('img');
       img.id = 'faceItemDisplayImg';
-
-      img.style.position = 'absolute';
-      img.style.top = '50%';
-      img.style.left = '50%';
-      img.style.transform = 'translate(-50%, -50%)';
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.style.objectFit = 'contain';
-      img.style.objectPosition = 'center';
-      img.style.pointerEvents = 'none';
-      img.style.zIndex = '10';
-
-      // 額縁風スタイル
-      img.style.border = '1px solid transparent';
-      img.style.borderImage = 'linear-gradient(45deg, #d4af37, #b8860b, #f9d71c) 1';
-      img.style.boxShadow = '0 0 16px rgba(255, 215, 0, 0.5), 0 0 8px rgba(255, 215, 0, 0.3) inset';
-      img.style.background = 'transparent';
-      img.style.borderRadius = '2px';
-			img.style.zIndex = '9999';
-		
-
+      Object.assign(img.style, {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        objectPosition: 'center',
+        pointerEvents: 'none',
+        background: 'transparent',
+        borderRadius: '2px',
+        zIndex: '9999'
+      });
       bg.appendChild(img);
-    }else{
-			canvas.style.display = 'block';
+    } else {
+      canvas.style.display = 'block';
     }
 
     img.src = faceItemEquipped;
-
     const rarity = faceItemEquipped.match(/[SABCD]/)?.[0];
-    img.className = '';
-    img.style.filter = 'none';
-
-    switch (rarity) {
-      case 'S':
-        img.classList.add('rarity-s');
-        break;
-      case 'A':
-        img.style.filter = 'drop-shadow(0 0 10px #FFD700)';
-        break;
-      case 'B':
-        img.style.filter = 'drop-shadow(0 0 8px #3399ff)';
-        break;
-      case 'C':
-        img.style.filter = 'drop-shadow(0 0 6px #33cc33)';
-        break;
-      case 'D':
-        img.style.filter = 'drop-shadow(0 0 4px #999999)';
-        break;
-    }
-
+    applyFaceItemEffects(img, rarity);
   } else {
     if (canvas) canvas.style.display = 'block';
     document.getElementById('faceItemDisplayImg')?.remove();
@@ -2255,6 +2262,9 @@ function updatePlayerImage() {
   }
 }
 
+// ------------------------
+// スクロール時の非表示・復帰
+// ------------------------
 let scrollTimeout;
 window.addEventListener('scroll', () => {
   document.getElementById('faceOverlay')?.classList.add('hidden');
@@ -2265,29 +2275,6 @@ window.addEventListener('scroll', () => {
     }
   }, 300);
 });
-
-// アニメーション開始
-if (!window.faceItemGlowInterval) {
-  window.faceItemGlowInterval = setInterval(() => {
-    const bg = document.getElementById('faceItemGlowBg');
-    if (!bg) return;
-    const randomIndex = Math.floor(Math.random() * stainedGlassStyles.length);
-    const style = stainedGlassStyles[randomIndex];
-    bg.style.clipPath = style.clipPath;
-    bg.style.transition = 'clip-path 1.2s ease-in-out';
-  }, 2000);
-
-  let scrollTimeout;
-  window.addEventListener('scroll', () => {
-    document.getElementById('faceOverlay')?.classList.add('hidden');
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-      if (faceItemEquipped) {
-        document.getElementById('faceOverlay')?.classList.remove('hidden');
-      }
-    }, 300);
-  });
-}
 
 function maybeGainItemMemory() {
   if (window.specialMode !== 'brutal') return;
