@@ -393,7 +393,7 @@ const itemNouns = [
   { word: '珠玉', breakChance: 0, dropRateMultiplier: 0.05 },
   { word: '護符', breakChance: 0.03, dropRateMultiplier: 0.68 },
   { word: '錫杖', breakChance: 0.03, dropRateMultiplier: 0.6 },
-  { word: '光球', breakChance: 0.0000001, dropRateMultiplier: 0.16 }
+  { word: '光球', breakChance: 0, dropRateMultiplier: 0.16 }
 ];
 
 const itemAdjectives = [
