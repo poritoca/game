@@ -1057,6 +1057,11 @@ function onSkillAcquired(newSkill) {
       player.skills.push(newSkill); // 混合スキル生成失敗時のみ
     }
   }
+	
+	
+	updateSkillOverlay;
+
+	
 }
 
 // ※既存のスキル取得処理の最後で onSkillAcquired(newSkill) が呼ばれるように組み込んでください。
