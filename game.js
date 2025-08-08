@@ -3520,31 +3520,34 @@ enemy.skills.forEach(skill => {
 // 名前修正
 enemy.name = hasSpecialSkill ? `${specialSkillName}${originalKanaName}` : originalKanaName;
 
-// ステータス生成処理
+// ===== 敵ステータス生成 → 倍率適用 → ログ出力（完全版） =====
+
+// --- 1) ステータス生成処理 ---
 let atk, def, spd, hpMax;
 
 if (window.specialMode === 'brutal') {
-    // 鬼畜モード：プレイヤーのステータスを基準に0.8〜1.4倍で作成
-    const statMultiplierMin = 0.8;
-    const statMultiplierMax = 1.4;
+  // 鬼畜モード：プレイヤー基準のランダム帯（強化版 1.2〜1.8倍）
+  const statMultiplierMin = 1.2;
+  const statMultiplierMax = 1.8;
+  const randInRange = () => (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin));
 
-    atk = Math.floor(player.attack * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    def = Math.floor(player.defense * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    spd = Math.floor(player.speed * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
-    hpMax = Math.floor(player.maxHp * (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin)));
+  atk   = Math.floor(player.attack  * randInRange());
+  def   = Math.floor(player.defense * randInRange());
+  spd   = Math.floor(player.speed   * randInRange());
+  hpMax = Math.floor(player.maxHp   * randInRange());
 } else {
-    // 通常モード：makeCharacter() で生成された baseStats を使用
-    atk = enemy.baseStats.attack;
-    def = enemy.baseStats.defense;
-    spd = enemy.baseStats.speed;
-    hpMax = enemy.baseStats.maxHp;
+  // 通常モード：makeCharacter() の baseStats を使用
+  atk   = enemy.baseStats.attack;
+  def   = enemy.baseStats.defense;
+  spd   = enemy.baseStats.speed;
+  hpMax = enemy.baseStats.maxHp;
 }
 
-// ステータスに反映
+// baseStats と現在値を同期
 enemy.baseStats.attack = atk;
 enemy.baseStats.defense = def;
-enemy.baseStats.speed = spd;
-enemy.baseStats.maxHp = hpMax;
+enemy.baseStats.speed   = spd;
+enemy.baseStats.maxHp   = hpMax;
 
 enemy.attack = atk;
 enemy.defense = def;
@@ -3552,41 +3555,37 @@ enemy.speed = spd;
 enemy.maxHp = hpMax;
 enemy.hp = hpMax;
 
-// モードごとの連勝補正
-if (window.specialMode === 'brutal') {
-    const brutalBonus = 1 + (currentStreak + 1) * 0.005;
-    const multiplier = enemy.rarity * brutalBonus;
+// --- 2) 連勝補正・モード補正（通常と同じ指数に統一） ---
+const streakIndex   = currentStreak + 1;
+const growthFactor  = Math.pow(1.05, streakIndex);  // 指数補正
+const rarityFactor  = enemy.rarity;                 // レアリティ倍率
+const modeFactor    = growthFactor;                 // 鬼畜も通常と同じ指数
 
-    enemy.attack  = Math.floor(enemy.attack  * multiplier);
-    enemy.defense = Math.floor(enemy.defense * multiplier);
-    enemy.speed   = Math.floor(enemy.speed   * multiplier);
-    enemy.maxHp   = Math.floor(enemy.maxHp   * multiplier);
-    enemy.hp = enemy.maxHp;
-} else {
-    const factor = Math.pow(1.05, currentStreak + 1);  // ←修正
-    const multiplier = enemy.rarity * factor;
+// 総合倍率 = レアリティ × 成長倍率
+const enemyMultiplier = rarityFactor * modeFactor;
 
-    enemy.attack  = Math.floor(enemy.attack  * multiplier);
-    enemy.defense = Math.floor(enemy.defense * multiplier);
-    enemy.speed   = Math.floor(enemy.speed   * multiplier);
-    enemy.maxHp   = Math.floor(enemy.maxHp   * multiplier);
-    enemy.hp = enemy.maxHp;
+// --- 3) 敵の最終値に倍率適用 ---
+['attack','defense','speed','maxHp'].forEach(stat => {
+  enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
+});
+enemy.hp = enemy.maxHp;
 
-}
+// --- 4) ログ出力（内訳を詳細に表示） ---
+log.push(
+  `${window.specialMode === 'brutal' ? '[鬼畜モード挑戦中] ' : ''}` +
+  `敵のステータス倍率: ${enemyMultiplier.toFixed(3)}倍\n` +
+  `  ├ 基礎ステータス: ${atk}/${def}/${spd}/${hpMax}\n` +
+  `  ├ レアリティ倍率: ${rarityFactor.toFixed(3)}\n` +
+  `  └ 成長倍率(指数): 1.05^${streakIndex} = ${growthFactor.toFixed(3)}`
+);
+				 
+// --- 5) 後処理 ---
+player.effects = [];
+enemy.effects = [];
+updateStats();
 
-  // 前回の効果をクリア
-  player.effects = [];
-  enemy.effects = [];
-  updateStats();
+applyPassiveSeals(player, enemy, log);
 
-  applyPassiveSeals(player, enemy, log);
-
-const factor = Math.pow(1.05, currentStreak);
-if (window.specialMode === 'brutal') {
-    log.push(`[鬼畜モード挑戦中]`);
-} else {
-    log.push(`敵のステータス倍率: ${(enemy.rarity * factor).toFixed(2)}倍（基礎倍率 ${enemy.rarity.toFixed(2)} × 1.05^${currentStreak}）`);
-}
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
