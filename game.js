@@ -727,29 +727,29 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
     return list[i] || "未知の力";
   });
 
-  // ✅ 最大連勝数による補正（最大 +10%）
+  // 既存の streakBoost は「名前の語選びの見た目」にのみ適用する
   const streakBoost = Math.min(1.0, (window.maxStreak || 0) / 100) * 0.1;
 
-  // ✅ 発動率 0.1〜0.8 → 正規化：0〜1
-  const normalizedActivation = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7));
-  const activationPercent = Math.max(0, Math.min(1, normalizedActivation + streakBoost));
+  // --- 星判定に使う“素の”正規化値（※streakBoostは足さない） ---
+  const rawActivationPct = Math.max(0, Math.min(1, (activationProb - 0.1) / 0.7));
+  const rawEffectPct = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min)));
 
-  // ✅ 効果値 min〜max → 正規化：0〜1
-  const normalizedEffect = Math.max(0, Math.min(1, (effectValue - config.min) / (config.max - config.min)));
-  const effectPercent = Math.max(0, Math.min(1, normalizedEffect + streakBoost));
+  // --- 見た目用（接頭辞インデックス）のみ微ブーストを許容 ---
+  const visActivation = Math.max(0, Math.min(1, rawActivationPct + streakBoost));
+  const visEffect     = Math.max(0, Math.min(1, rawEffectPct + streakBoost));
 
-  // ✅ 接頭語インデックス（見た目のランダム性のため逆分布に加工）
-  const reversedActivation = 1 - normalizedActivation;
-  const reversedEffect = 1 - normalizedEffect;
+  // 接頭辞選択は従来通りの“先頭寄り”ロジック（見た目の分布だけ変える）
+  const reversedActivation = 1 - visActivation;
+  const reversedEffect = 1 - visEffect;
 
-  const activationPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedActivation, 2.5) + streakBoost) * 39.999);
-  const effectPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedEffect, 2.5) + streakBoost) * 39.999);
+  const activationPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedActivation, 2.5)) * 39.999);
+  const effectPrefixIndex = Math.floor(Math.min(1, Math.pow(reversedEffect, 2.5)) * 39.999);
 
   const prefix1 = activationPrefixes[activationPrefixIndex];
   const prefix2 = effectValuePrefixes[effectPrefixIndex];
   const fullName = `${prefix1}×${prefix2}${kanaPart}`;
 
-  // ✅ 星の評価（両方の正規化された元の値が高いときのみ★5）
+  // ★しきい値を素の分布で評価（0.90/0.75/0.50/0.25）
   function percentileToStars(p) {
     if (p >= 0.90) return 5;
     if (p >= 0.75) return 4;
@@ -757,10 +757,9 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
     if (p >= 0.25) return 2;
     return 1;
   }
-
-  const starFromActivation = percentileToStars(activationPercent);
-  const starFromEffect = percentileToStars(effectPercent);
-  const starCount = Math.min(starFromActivation, starFromEffect); // 厳しめ評価
+  const starFromActivation = percentileToStars(rawActivationPct);
+  const starFromEffect     = percentileToStars(rawEffectPct);
+  const starCount = Math.min(starFromActivation, starFromEffect); // 厳しめ評価（従来踏襲）
 
   const rarityClass = {
     5: "skill-rank-s",
@@ -843,27 +842,71 @@ window.showMixedSkillSummaryPopup = function(skill) {
   );
 };
 
+// ==== 連勝バイアス用ユーティリティ（追加） ====
+
+// どの“連勝”を効かせるか：現在・セッション最大・保存最大の最大値を採用
+function getEffectiveStreak() {
+  const a = window.currentStreak || 0;
+  const b = window.sessionMaxStreak || 0;
+  const c = parseInt(localStorage.getItem('maxStreak') || '0', 10);
+  return Math.max(a, b, c);
+}
+
+// 0〜1の連勝スコアに正規化（capで頭打ち）
+function getStreakScore(capWins = 100) {
+  const s = getEffectiveStreak() / capWins;
+  return Math.max(0, Math.min(1, s));
+}
+
+// 0〜1一様乱数を“上に”寄せる（連勝が増えるほど上振れ）＋ラッキー枠で超上振れ
+function biased01ByStreak(s, opts = {}) {
+  const {
+    expMin = 0.2,      // 連勝MAX時の指数（小さいほど上側に寄る）
+    luckyBase = 0.02,  // 連勝0でも超上振れする確率
+    luckyGain = 0.015, // 連勝で増える超上振れ確率
+    luckyFloor = 0.92  // 超上振れ時の下限（0.92〜1.00で再抽選）
+  } = opts;
+
+  // ラッキー枠：常に >0%
+  const luckyP = Math.max(0, Math.min(1, luckyBase + luckyGain * s));
+  if (Math.random() < luckyP) {
+    return luckyFloor + (1 - luckyFloor) * Math.random();
+  }
+
+  // ベース分布：expは 1→一様、0.2→強く上寄り
+  const exp = 1 - (1 - expMin) * s;
+  const u = Math.random();               // U(0,1)
+  return Math.pow(u, exp);               // exp<1 で上に寄る
+}
+
+// 区間[min,max]に線形マッピング（整数化オプション）
+function biasedInRange(min, max, s, asInteger = false, opts = {}) {
+  const x = biased01ByStreak(s, opts);   // 0..1（上寄り）
+  const v = min + (max - min) * x;
+  return asInteger ? Math.floor(v) : v;
+}
 
 
 // スキル生成本体
+// ==== 低レア基調＋連勝でじわ上げ＋薄い神引き ====
+// 既存の createMixedSkill と置き換えてください
 function createMixedSkill(skillA, skillB) {
   const maxDepth = 5;
-  const includeMixedSkillChance = 0.3; // ← 混合スキルを内包する確率（変更可）
+  const includeMixedSkillChance = 0.3; // 混合スキルを内包する確率
 
-  // ✅ 所持上限（最大3スキルまで）
+  // 所持上限（既存踏襲）
   if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 3) {
     return null;
   }
 
+  // --- 互換ユーティリティ（ローカル定義） ---
   function getMixedSkillDepth(skill) {
     if (!skill || !skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
     return 1 + Math.max(...skill.baseSkills.map(getMixedSkillDepth));
   }
-
   function isValidNestedMixedSkill(skill) {
     return skill && skill.isMixed && Array.isArray(skill.specialEffects) && skill.specialEffects.length > 0;
   }
-
   function flattenIfTooDeepOrInvalid(skill, currentDepth = 1) {
     if (skill && skill.isMixed && Array.isArray(skill.baseSkills)) {
       const thisDepth = getMixedSkillDepth(skill);
@@ -871,10 +914,9 @@ function createMixedSkill(skillA, skillB) {
       const isInvalid = !isValidNestedMixedSkill(skill);
       const shouldFlatten = isTooDeep || isInvalid;
       const shouldInclude = Math.random() < includeMixedSkillChance;
-
       if (shouldFlatten || !shouldInclude) {
         return skill.baseSkills
-          .filter(s => s && typeof s === 'object') // ✅ null防止
+          .filter(s => s && typeof s === 'object')
           .flatMap(s => flattenIfTooDeepOrInvalid(s, currentDepth));
       } else {
         return [skill];
@@ -883,6 +925,41 @@ function createMixedSkill(skillA, skillB) {
     return [skill];
   }
 
+  // --- 連勝バイアス（低レア基調版） ---
+  function getEffectiveStreak() {
+    const a = window.currentStreak || 0;
+    const b = window.sessionMaxStreak || 0;
+    const c = parseInt(localStorage.getItem('maxStreak') || '0', 10);
+    return Math.max(a, b, c);
+  }
+  function getStreakScore(capWins = 100) {
+    const s = getEffectiveStreak() / capWins;
+    return Math.max(0, Math.min(1, s));
+  }
+  // 「低めに偏る」分布：u^expLow（expLow>1で0側に寄る）＋薄い神引き
+  function lowSkew01ByStreak(s, opts = {}) {
+    const {
+      expLow0 = 2.8,   // s=0 での指数（強く低めに寄る）
+      expLow1 = 1.2,   // s=1 での指数（ほぼ一様に近づく）
+      luckyBase = 0.004, // 連勝0でも神引きする確率
+      luckyGain = 0.012, // 連勝で神引き率が伸びる
+      luckyFloor = 0.85  // 神引き時の下限（0.85〜1.0）
+    } = opts;
+    const luckyP = Math.max(0, Math.min(1, luckyBase + luckyGain * s));
+    if (Math.random() < luckyP) {
+      return luckyFloor + (1 - luckyFloor) * Math.random(); // 0.85〜1の上振れ
+    }
+    const expLow = expLow0 - (expLow0 - expLow1) * s; // s=0→2.8 / s=1→1.2
+    const u = Math.random();
+    return Math.pow(u, expLow); // 0側（低値）に寄る
+  }
+  function lowSkewInRange(min, max, s, asInteger = false, opts = {}) {
+    const x = lowSkew01ByStreak(s, opts); // 0..1（低値寄り＋レアな上振れ）
+    const v = min + (max - min) * x;
+    return asInteger ? Math.floor(v) : v;
+  }
+
+  // --- 深さ制約 ---
   const depthA = getMixedSkillDepth(skillA);
   const depthB = getMixedSkillDepth(skillB);
   const newDepth = Math.max(depthA, depthB) + 1;
@@ -891,56 +968,42 @@ function createMixedSkill(skillA, skillB) {
     return null;
   }
 
+  // --- ベーススキル構築（安全化） ---
   let baseSkills = [
     ...flattenIfTooDeepOrInvalid(skillA),
     ...flattenIfTooDeepOrInvalid(skillB)
-  ].filter(s => s && typeof s === 'object'); // ✅ null除去
+  ].filter(s => s && typeof s === 'object');
 
-  // 欠落情報補完
   for (const skill of baseSkills) {
     if (!skill || typeof skill !== 'object') continue;
-    if (skill.baseSkills && Array.isArray(skill.baseSkills)) {
-      skill.isMixed = true;
-    }
+    if (skill.baseSkills && Array.isArray(skill.baseSkills)) skill.isMixed = true;
     if (!skill.specialEffects && skill.specialEffectType != null) {
       skill.specialEffects = [{ type: skill.specialEffectType, value: skill.specialEffectValue }];
     }
   }
-
-  // 無効混合スキルの除去
-  baseSkills = baseSkills.filter(s =>
-    s && !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
-  );
-
+  baseSkills = baseSkills.filter(s => !(s && s.isMixed && (!s.specialEffects || s.specialEffects.length === 0)));
   if (baseSkills.length === 0) baseSkills.push(skillA);
-
-  // 並べ替え（混合スキルを先に）
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
-  // 有効な混合スキルの内包チェック
-  const includedMixed = baseSkills.filter(s =>
-    s && s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0
-  );
+  const includedMixed = baseSkills.filter(s => s && s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0);
   if (includedMixed.length > 0) {
     showCenteredPopup(`🌀 混合スキルの特殊効果が継承されました！<br>
-<span style="font-size: 10px; color: #ffcc99;">
-※特殊効果の書かれていない混合スキルは特殊効果無効です
-</span>`);
+<span style="font-size: 10px; color: #ffcc99;">※特殊効果の書かれていない混合スキルは特殊効果無効です</span>`);
     window.withmix = true;
   }
 
-  // スキル生成
+  // --- レベル・名前準備 ---
   const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);
   const averageLevel = Math.max(1, Math.round(totalLevel / baseSkills.length));
+
   const kanaChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン";
   const nameLength = Math.floor(Math.random() * 3) + 2;
   const kanaPart = Array.from({ length: nameLength }, () =>
     kanaChars[Math.floor(Math.random() * kanaChars.length)]
   ).join("");
 
-  const activationProb = Math.random() * (0.8 - 0.1) + 0.1;
+  // --- 効果タイプ抽選（既存互換） ---
   const effectType = Math.ceil(Math.random() * 7);
-
   const effectValueTable = {
     1: { min: 10, max: 30, rareScale: 2 },
     2: { min: 10, max: 100, rareScale: 4 },
@@ -952,24 +1015,48 @@ function createMixedSkill(skillA, skillB) {
   };
   const config = effectValueTable[effectType];
 
+  // === ココが新しい“逆分布” ===
+  const s = getStreakScore(100); // 100連勝で頭打ち
+
+  // 発動率：原作の0.1〜0.8を意識しつつ、デフォは低値寄り
+  // 上限は連勝で少し伸びる（0.65→0.80）、下限は0.05まで許容
+  const probMin = 0.05;
+  const probMaxBase = 0.65;
+  const probMax = probMaxBase + 0.15 * s; // s=0:0.65 / s=1:0.80
+  const activationProb = Math.min(0.90,
+    lowSkewInRange(probMin, probMax, s, false, {
+      expLow0: 2.8, expLow1: 1.3, // 低値寄りの強さ
+      luckyBase: 0.004, luckyGain: 0.012, luckyFloor: 0.85
+    })
+  );
+
+  // 効果値：タイプごとのレンジ内で“低め”基調、神引きで上に跳ねる
   let effectValue;
   if (effectType <= 3) {
-    effectValue = Math.floor(Math.random() * (config.max - config.min + 1)) + config.min;
+    // 1:残HP%ダメ／2:復活HP%／3:DoT時の即時回復%（整数）
+    const v = lowSkewInRange(config.min, config.max, s, true, {
+      expLow0: 2.6, expLow1: 1.3,
+      luckyBase: 0.003, luckyGain: 0.010, luckyFloor: 0.85
+    });
+    effectValue = Math.max(config.min, Math.min(config.max, v));
   } else {
-    const t = Math.pow(Math.random(), config.rareScale);
-    effectValue = Math.round((config.min + (config.max - config.min) * t) * 10) / 10;
+    // 4〜7: ATK/DEF/SPD/HP 倍率（小数1桁）
+    const v = lowSkewInRange(config.min, config.max, s, false, {
+      expLow0: 2.6, expLow1: 1.3,
+      luckyBase: 0.003, luckyGain: 0.010, luckyFloor: 0.85
+    });
+    effectValue = Math.round(Math.max(config.min, Math.min(config.max, v)) * 10) / 10;
   }
 
+  // --- 名前＆★ランク（既存の generateSkillName を使用） ---
   const { fullName, rarityClass, starRating } = generateSkillName(
     activationProb, effectValue, config, kanaPart
   );
 
-  // 最終チェックで無効スキル除去＋null除去
+  // --- 最終オブジェクト ---
   baseSkills = baseSkills.filter(s =>
     s && !(s.isMixed && (!s.specialEffects || s.specialEffects.length === 0))
   );
-
-  // 再ソート
   baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
   const newMixed = {
@@ -980,10 +1067,7 @@ function createMixedSkill(skillA, skillB) {
     activationProb,
     specialEffectType: effectType,
     specialEffectValue: effectValue,
-    specialEffects: [{
-      type: effectType,
-      value: effectValue
-    }],
+    specialEffects: [{ type: effectType, value: effectValue }],
     rarityClass,
     starRating
   };
@@ -991,9 +1075,9 @@ function createMixedSkill(skillA, skillB) {
   if (typeof showMixedSkillSummaryPopup === 'function') {
     showMixedSkillSummaryPopup(newMixed);
   }
-
   return newMixed;
 }
+
 ///********************************
 function shouldInclude(skill) {
   const depth = getMixedSkillDepth(skill);
