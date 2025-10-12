@@ -377,7 +377,7 @@ canvas#enemyImg {
 
   background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
   color: #fff;
-  padding: 20px;
+  padding: 10px;
 
   border: 1px solid #555;
   border-radius: 12px;
@@ -520,27 +520,14 @@ button:active {
 #hpChart {
   width: 90%;
   max-width: 600px;
-  height: 60px;
+  height: 64px;
+  margin: 0 auto;
+  display: block;
   box-sizing: border-box;
-
-  background: 
-    linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(200, 200, 200, 0.2) 50%, rgba(150, 150, 150, 0.3) 100%),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
-    repeating-linear-gradient(
-      45deg,
-      rgba(255,255,255,0.02) 0px,
-      rgba(0,0,0,0.02) 1px,
-      rgba(255,255,255,0.02) 2px,
-      rgba(0,0,0,0.02) 3px
-    );
-  background-size: 300% 300%, cover, cover;
-  background-blend-mode: lighten;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-
-  margin: 0 auto; /* ← 中央寄せ */
-  display: block; /* ← インライン要素の場合は中央寄せが効かないので念のため */
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 
 /* メタル光沢アニメーション */
@@ -1443,7 +1430,7 @@ summary {
 
 /* レアリティ光エフェクト（すでに良いが、彩度調整） */
 .rarity-S {
-  box-shadow: 0 0 10px 4px rgba(255, 215, 0, 0.9);
+  box-shadow: 0 0 10px 40x rgba(255, 215, 0, 0.9);
 }
 .rarity-A {
   box-shadow: 0 0 8px 3px rgba(255, 100, 100, 0.8);
@@ -1452,10 +1439,10 @@ summary {
   box-shadow: 0 0 7px 3px rgba(100, 160, 255, 0.8);
 }
 .rarity-C {
-  box-shadow: 0 0 6px 2px rgba(0, 255, 100, 0.7);
+  box-shadow: 0 0 6px 120px rgba(0, 255, 100, 0.7);
 }
 .rarity-D {
-  box-shadow: 0 0 4px 2px rgba(180, 180, 180, 0.6);
+  box-shadow: 0 0 4px 120px rgba(180, 180, 180, 0.6);
 }
 
 /* 操作メニュー（装備/削除） */
@@ -1621,19 +1608,19 @@ summary {
 
 @keyframes rainbowGlow {
   0% {
-    filter: drop-shadow(0 0 8px red);
+    filter: drop-shadow(0 0 88px red);
   }
   25% {
-    filter: drop-shadow(0 0 8px orange);
+    filter: drop-shadow(0 0 88px orange);
   }
   50% {
-    filter: drop-shadow(0 0 8px yellow);
+    filter: drop-shadow(0 0 88px yellow);
   }
   75% {
-    filter: drop-shadow(0 0 8px green);
+    filter: drop-shadow(0 0 88px green);
   }
   100% {
-    filter: drop-shadow(0 0 8px blue);
+    filter: drop-shadow(0 0 88px blue);
   }
 }
 
@@ -1898,4 +1885,194 @@ summary {
   margin-top: -6px;
   margin-bottom: 8px;
   margin-left: 4px;
+}
+
+/* ================================
+   Glass Monochrome Theme Overrides
+   ================================ */
+:root {
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-brd: rgba(255,255,255,0.22);
+  --ink: #ffffff;
+  --panel-bg: rgba(0,0,0,0.55);
+  --panel-brd: rgba(255,255,255,0.22);
+}
+html, body { background: #000 !important; color: var(--ink) !important; }
+body::before{
+  content:""; position:fixed; inset:0;
+  background:
+    radial-gradient(1200px 1200px at 10% 15%, rgba(255,0,0,0.35), transparent 60%),
+    radial-gradient(1200px 1200px at 85% 20%, rgba(255,255,0,0.30), transparent 60%),
+    radial-gradient(1200px 1200px at 30% 80%, rgba(0,255,255,0.30), transparent 60%),
+    radial-gradient(1200px 1200px at 80% 75%, rgba(180,0,255,0.30), transparent 60%);
+  filter: blur(90px); opacity: .22; pointer-events:none; z-index:-1;
+}
+#titleScreen, #gameScreen, #eventPopup, #customAlertContainer, .status-area,
+#playerStats, #enemyStats, #battleLog, .quick-guide-wrapper, .battle-status-display,
+#faceMemoryUI, #skillMemoryList, #uniqueSkillList, #ownedFaceList {
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  background: var(--panel-bg) !important; border: 1px solid var(--panel-brd) !important;
+  color: var(--ink) !important; filter: grayscale(100%); box-shadow: 0 0 12px rgba(255,255,255,0.10);
+}
+input[type="text"], textarea, input[type="number"], select, button, .quick-guide-toggle {
+  background: rgba(255,255,255,0.08) !important; color: var(--ink) !important; border: 1px solid var(--glass-brd) !important;
+}
+button:hover, .quick-guide-toggle:hover { background: rgba(255,255,255,0.16) !important; }
+button:active, .quick-guide-toggle:active { background: rgba(255,255,255,0.24) !important; }
+#scoreOverlay, #skillOverlay, #itemOverlay, #remainingBattlesDisplay, #customAlert, #eventPopup {
+  background: rgba(0,0,0,0.55) !important; border: 1px solid var(--glass-brd) !important; color: var(--ink) !important;
+}
+#titleScreen img, canvas, #playerCanvas, #enemyCanvas, #playerImg, #enemyImg { filter: grayscale(100%); }
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  #titleScreen, #gameScreen, #eventPopup, #battleLog, .status-area, #playerStats, #enemyStats { background: rgba(30,30,30,0.9) !important; }
+}
+#localProgressSaveBtn, #loadLocalProgressBtn {
+  padding: 8px 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: all .3s ease;
+}
+#localProgressSaveBtn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* ===== undo grayscale for charts and canvases ===== */
+#hpChart,
+canvas#playerImg,
+canvas#enemyImg,
+canvas {
+  filter: none !important;
+}
+
+/* 主要パネルも色を戻す
+
+
+#eventPopup,
+#customAlertContainer,
+
+#enemyStats,
+
+#playerStats,
+,
+#ownedFaceList
+*/
+#gameScreen,
+#titleScreen,
+#titleImage,
+.status-area,
+.battle-status-display,
+
+#faceMemoryUI,
+#skillMemoryList,
+#battleLog,
+.quick-guide-wrapper,
+#uniqueSkillList {
+  filter: none !important;
+}
+
+
+/* === Skill Memory: 常時表示・細幅・1行 === */
+/* スクロールを無くし、縦幅は項目数ぶんだけ伸ばし、横幅は少し細くする */
+#skillMemoryContainer{
+  max-height:none !important;
+  overflow:visible !important;
+  padding:0 !important;
+}
+/* 親が無い場合でもUL自体で幅を制御 */
+#skillMemoryList{
+  display:block !important;
+  list-style:none;
+  margin:0;
+  padding:0;
+  max-width:clamp(180px, 28vw, 320px);
+}
+#skillMemoryList li{
+  display:flex !important;
+  align-items:center;
+  gap:8px;
+  height:28px;
+  line-height:28px;
+  margin:2px 0;
+  padding:0 8px;
+  border:0;
+  border-bottom:1px solid #444;
+  background:transparent !important;  /* カード感を無くす */
+  box-shadow:none !important;         /* 影も消す */
+  cursor:move;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#skillMemoryList li span{
+  font-weight:600;
+  text-shadow:none;
+}
+/* ドラッグ操作中のみスクロール抑止 */
+#skillMemoryList.dragging{ touch-action:none; cursor:grabbing; }
+
+
+/* === Skill Memory: 強制常時表示・幅80vw・1行 === */
+#skillMemoryList{
+  display:block !important;
+  max-height:none !important;
+  overflow:visible !important;
+  width:80vw !important;          /* 画面幅の5分の4 */
+  max-width:80vw !important;
+  padding:0 0 !important;
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+#skillMemoryList li{
+  display:flex !important;
+  align-items:center;
+  height:28px !important;
+  line-height:28px !important;
+  margin:2px 0 !important;
+  padding:0 8px !important;
+  border:0 !important;
+  border-bottom:1px solid #444 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+#skillMemoryList.dragging{ touch-action:none; cursor:grabbing; }
+
+
+/* ===== Skill Memory: 白黒・名前のみ表示（タップ選択 1/2/3） ===== */
+#skillMemoryList {
+  background: transparent !important;
+  border: 1px solid #777 !important;
+  box-shadow: none !important;
+}
+
+#skillMemoryList li {
+  background: transparent !important;
+  border: none !important;
+  color: #fff !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  padding: 4px 8px !important;
+  transform: none !important;
+}
+
+#skillMemoryList li:hover {
+  background: transparent !important;
+  transform: none !important;
+}
+
+#skillMemoryList li.selected {
+  font-weight: 700 !important;
+  border-left: 4px solid #fff !important;
+}
+
+#skillMemoryList li span,
+#skillMemoryList li * {
+  color: inherit !important;
+  background: transparent !important;
+  text-shadow: none !important;
 }

@@ -104,9 +104,9 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		
 <h1 id="animatedTitle">◯戦後に<span id="deathChar">死</span>ぬ戦士</h1>
 
-    <div style="text-align: center; margin-bottom: 20px;">
-<img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
-    </div>
+<div id="titleImage" style="text-align: center; margin-bottom: 20px;">
+  <img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
+</div>
 <!-- 更新情報オーバーレイ -->
 <div id="updateNotice" style="
   position: fixed;
@@ -149,13 +149,14 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </select>
 <div id="battleEffectOverlay"></div>
 
-  <small>（ゲーム終了までの戦闘数を選択してください）</small>
+  <small>（ゲーム終了までの戦闘数を選択）</small>
 	
     <button id="startNewGameBtn">はじめから</button>
   <!--   <button id="loadGameBtn">つづきから</button> -->
 		
 
 <button id="loadLocalBtn" onclick="loadFromLocalStorage()">ローカルからロード</button>
+<button id="loadLocalProgressBtn" onclick="loadProgressFromLocalStorageCompat()">中断データからロード（戦闘数進捗含む）</button>
 
   <!--    <div id="loadSection">
       <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br />
@@ -510,21 +511,21 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		
 <!-- 混合スキル -->
 <h4>混合スキル</h4>
-<div class="subnote">※選択で1つまで保護 / 解除可能</div>
+<div class="subnote">※選択で保護 / 解除可能</div>
 <div id="combinedSkillContainer">
   <ul id="combinedSkillList"></ul>
 </div>
 
 <!-- 所持アイテム -->
 <h4>所持アイテム</h4>
-<div class="subnote">※選択で1つまで保護 / 解除可能</div>
+<div class="subnote">※選択で3つまで保護 / 解除可能</div>
 <div id="itemMemoryContainer">
   <ul id="itemMemoryList"></ul>
 </div>
 
 <!-- スキルメモリー -->
 <h4>スキルメモリー</h4>
-<div class="subnote">※左上ほど高選出率</div>
+<div class="subnote">※3つ選択して最上部へ移動可能。スキル再構成時、上ほど高選出率</div>
 <div id="skillMemoryContainer" style="display: block;">
   <ul id="skillMemoryList"></ul>
 </div>
@@ -533,7 +534,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			
 
 			
-      <button id="skillDeleteButton" style="background-color: blue; color: white; margin-top: 10px;">スキル削除 (残り3回)</button>
+
       <label>同時発動スキル数（通常モードのみ）:
         <select id="skillSimulCountSelect">
           <option value="1">1個</option>
@@ -590,8 +591,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <input type="text" id="saveCodeBox" readonly /> -->
 			
 <button id="localSaveBtn" onclick="saveToLocalStorage()">ローカルにセーブ（未保存）</button>
-
-			<button id="returnToTitleBtnInGame" style="
+<button id="localProgressSaveBtn" onclick="localProgressSaveMirror()">※戦闘数進捗を含む中断セーブはこちら</button>
+<button id="returnToTitleBtnInGame" style="
 
   padding: 6px 12px;
   font-size: 13px;

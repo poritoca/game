@@ -421,7 +421,7 @@ const battleBtn = document.getElementById('startBattleBtn');
 
 if (window.specialMode === 'normal') {
   window.specialMode = 'brutal';
-  btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
+  btn.textContent = '鬼畜モード（アイテム入手可能）';
   btn.classList.remove('normal-mode');
   btn.classList.add('brutal-mode');
   battleBtn.classList.remove('normal-mode');
@@ -651,43 +651,11 @@ function displayBattleLogWithoutAsync(log) {
 
 
 
-function updateSkillDeleteButton() {
-    skillDeleteButton.textContent = `スキル削除 (残り${window.skillDeleteUsesLeft}回)`;
-    if (window.skillDeleteUsesLeft > 0) {
-        skillDeleteButton.style.backgroundColor = 'blue';
-        skillDeleteButton.disabled = false;
-    } else {
-        skillDeleteButton.style.backgroundColor = 'gray';
-        skillDeleteButton.disabled = true;
-    }
-}
 
-skillDeleteButton.addEventListener('click', () => {
-    if (window.skillDeleteUsesLeft > 0) {
-        showWhiteSkillSelector(selectedName => {
-            if (!selectedName) {
-        showCustomAlert("キャンセルしました！", 2000);
-        return;  // null のときは何もしない
-    }
 
-            deleteSkillByName(selectedName);
-            updateStats();
-            updatePlayerDisplay(player);
-            updateEnemyDisplay(enemy);
 
-            window.skillDeleteUsesLeft--;
-            updateSkillDeleteButton();
-            showCustomAlert(`${selectedName} を削除しました！`, 3000);
-            // アラートを出した後、念のため container をクリーンアップ
-            const container = document.getElementById('customAlertContainer');
-            if (container.children.length === 0) {
-              container.innerHTML = '';
-            }
-        });
-    }
-});
 
-updateSkillDeleteButton();
+
 
 window.allowGrowthEvent = true;
 window.allowSkillDeleteEvent = true;
@@ -895,7 +863,7 @@ function createMixedSkill(skillA, skillB) {
   const includeMixedSkillChance = 0.3; // 混合スキルを内包する確率
 
   // 所持上限（既存踏襲）
-  if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 3) {
+  if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 1) {
     return null;
   }
 
@@ -1889,6 +1857,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 新規スタートボタンのイベント登録
 	
 	updateLocalSaveButton();
+	updateLocalSaveButton2();
 
 
 
@@ -1900,7 +1869,7 @@ document.addEventListener("DOMContentLoaded", () => {
       position: fixed;
       top: 10px;
       right: 10px;
-      font-size: 12px;
+      font-size: 10px;
       color: #f0f0f0;
       background: rgba(30, 30, 30, 0.6);
       backdrop-filter: blur(6px);
@@ -2093,15 +2062,22 @@ function onItemClick(item, index, event) {
 
   const protectBtn = document.createElement("button");
   protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
-  protectBtn.onclick = () => {
-    if (!item.protected && player.itemMemory.some(it => it.protected)) {
-      showCustomAlert("保護は1つまでです", 2000);
-      return;
-    }
-    item.protected = !item.protected;
-    clearEventPopup();
-    drawItemMemoryList();
-  };
+	protectBtn.onclick = () => {
+	  // 現在の保護中アイテム数を数える
+	  const protectedCount = player.itemMemory.filter(it => it.protected).length;
+	
+	  // まだ保護されていないアイテムを新たに保護しようとしていて、
+	  // すでに3つ保護済みなら拒否する
+	  if (!item.protected && protectedCount >= 3) {
+	    showCustomAlert("保護は3つまでです", 2000);
+	    return;
+	  }
+	
+	  // トグルして再描画
+	  item.protected = !item.protected;
+	  clearEventPopup();
+	  drawItemMemoryList();
+	};
   container.appendChild(protectBtn);
 
   const deleteBtn = document.createElement("button");
@@ -2389,7 +2365,7 @@ window.addEventListener('scroll', () => {
 function maybeGainItemMemory() {
   if (window.specialMode !== 'brutal') return;
   if (!player || !player.skills || player.skills.length === 0) return;
-  if (player.itemMemory.length >= 3) return;
+  if (player.itemMemory.length >= 10) return;
 
   const allSkills = skillPool.filter(s => s.category !== 'passive');
   const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
@@ -4126,7 +4102,7 @@ if (window.growthMultiplier !== 1) {
   window.growthMultiplier = 1;
 
   window.skillDeleteUsesLeft = 3;
-updateSkillDeleteButton();  // ボタン表示もリセット
+
   streakBonus = 1;
 	
 	cleanUpAllMixedSkills();
@@ -4541,7 +4517,7 @@ window.updateSpecialModeButton = function () {
   const battleBtn = document.getElementById('startBattleBtn');
 
   if (window.specialMode === 'brutal') {
-    btn.textContent = '鬼畜モード（アイテム入手可能性あり）';
+    btn.textContent = '鬼畜モード（アイテム入手可能）';
     btn.classList.remove('normal-mode');
     btn.classList.add('brutal-mode');
     battleBtn.classList.remove('normal-mode');
@@ -4966,94 +4942,101 @@ function drawSkillMemoryList() {
   const list = document.getElementById("skillMemoryList");
   if (!list || !player || !player.skillMemory) return;
 
-  // 1. 一旦非表示にして再描画（ちらつき防止＆DOM安定化）
+  // 再描画（ちらつき防止）
   list.style.display = "none";
   list.innerHTML = "";
 
-  const categoryColors = {
-    multi: "#ff4d4d", poison: "#9933cc", burn: "#ff6600", lifesteal: "#66ccff",
-    skillSeal: "#9999ff", barrier: "#66ff66", regen: "#66ff99", reflect: "#ffff66",
-    evasion: "#ff99cc", buff: "#ffd700", debuff: "#cc66ff", heal: "#00ffcc",
-    damage: "#ff3333", stun: "#ff99cc", buffExtension: "#00ccff",
-    debuffExtension: "#cc66ff", berserk: "#ff3333", passive: "gold", others: "#cccccc"
-  };
-
   const ownedSkillNames = player.skills.map(sk => sk.name);
-  const memoryEntries = Object.entries(player.skillMemory);
+  const memoryEntries = Object.entries(player.skillMemory); // ← ここは“格納順”をそのまま使う
 
-  const isOwned = name => ownedSkillNames.includes(name);
-  const sortedEntries = memoryEntries.sort((a, b) => {
-    const aOwned = isOwned(a[0]) ? 0 : 1;
-    const bOwned = isOwned(b[0]) ? 0 : 1;
-    return aOwned - bOwned;
-  });
-
-  for (const [name, level] of sortedEntries) {
+  // 黒白テキストのみのシンプルなリスト、ドラッグ不可
+  for (const [name, level] of memoryEntries) {
     const li = document.createElement("li");
-    const skillDef = skillPool.find(s => s.name === name);
-    const category = skillDef?.category || "others";
-    const desc = skillDef?.description || "";
-    const isPassive = category === "passive";
-
-    // 色の決定
-    let color = "white";
-    if (window.initialAndSlotSkills?.includes(name)) {
-      color = "deepskyblue";
-    } else if (isPassive) {
-      color = "gold";
-    } else {
-      color = categoryColors[category] || "white";
-    }
-
-    li.innerHTML = `<span style="color:${color}" title="${desc}">${name} Lv${level}</span>`;
+    li.textContent = name; // ★ 色もLv表示もなし（白黒・名前のみ）
     li.setAttribute("data-name", name);
     li.setAttribute("data-level", level);
-    li.setAttribute("draggable", "true");
+    li.setAttribute("draggable", "false");
 
-    // クラス付与
-    if (isPassive && ownedSkillNames.includes(name)) {
-      li.classList.add("passive-skill");
-    } else if (window.lastChosenSkillNames?.includes(name)) {
-      li.classList.add("chosen-skill");
-    } else if (ownedSkillNames.includes(name)) {
-      li.classList.add("owned-skill");
+    // 既存のドラッグ関連イベントは一切付けない
+    // タップで選択（最大3つ）
+    li.onclick = () => handleSkillSelect(name);
+
+    // 所持中の視覚ヒント（白黒のまま、太字程度）
+    if (ownedSkillNames.includes(name)) {
+      li.style.fontWeight = "bold";
     }
-
-    // --- Drag & Drop 設定 ---
-    li.ondragstart = e => {
-      e.dataTransfer.setData("text/plain", name);
-    };
-    li.ondragover = e => {
-      e.preventDefault();
-      li.style.border = "2px dashed #888";
-    };
-    li.ondragleave = () => {
-      li.style.border = "";
-    };
-    li.ondrop = e => {
-      e.preventDefault();
-      const draggedName = e.dataTransfer.getData("text/plain");
-      const items = Array.from(list.children);
-      const draggedIndex = items.findIndex(i => i.getAttribute("data-name") === draggedName);
-      const targetIndex = items.indexOf(li);
-
-      if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
-        const dragged = items[draggedIndex];
-        list.removeChild(dragged);
-        list.insertBefore(dragged, list.children[targetIndex]);
-        updateSkillMemoryOrder();
-      }
-      li.style.border = "";
-    };
 
     list.appendChild(li);
   }
 
-  // --- DOM安定後に表示再開（ちらつき防止＆再描画のタイミング調整） ---
+  // 選択中の番号バッジを再描画
+  updateSkillSelectionBadges();
+
   requestAnimationFrame(() => {
     list.style.display = "";
   });
 }
+
+// === スキルメモリー：タップ選択で上位移動（1→2→3） ===
+window.skillSelectQueue = window.skillSelectQueue || [];
+
+function handleSkillSelect(name) {
+  // 既に選択済みならトグルで解除
+  const idx = window.skillSelectQueue.indexOf(name);
+  if (idx !== -1) {
+    window.skillSelectQueue.splice(idx, 1);
+  } else {
+    if (window.skillSelectQueue.length >= 3) {
+      if (typeof showCustomAlert === "function") showCustomAlert("選べるのは3つまで", 1200);
+      return;
+    }
+    window.skillSelectQueue.push(name);
+  }
+  updateSkillSelectionBadges();
+
+  if (window.skillSelectQueue.length === 3) {
+    reorderSkillMemoryBySelection();
+  }
+}
+
+function updateSkillSelectionBadges() {
+  const lis = document.querySelectorAll("#skillMemoryList li");
+  lis.forEach(li => {
+    const name = li.getAttribute("data-name");
+    const order = window.skillSelectQueue.indexOf(name);
+    if (order >= 0) {
+      li.classList.add("selected");
+      // 表示は「1. スキル名」のように番号＋ドット
+      li.textContent = (order + 1) + ". " + name;
+    } else {
+      li.classList.remove("selected");
+      li.textContent = name;
+    }
+  });
+}
+
+function reorderSkillMemoryBySelection() {
+  const names = window.skillSelectQueue.slice(0, 3);
+  const entries = Object.entries(player.skillMemory);
+
+  // 選択された3つを先頭、それ以外を後ろへ（元の相対順は維持）
+  const rest = entries.filter(([n]) => !names.includes(n));
+  const newMemory = {};
+  names.forEach(n => { newMemory[n] = player.skillMemory[n]; });
+  rest.forEach(([n, l]) => { newMemory[n] = l; });
+
+  player.skillMemory = newMemory;
+
+  // クリアして再描画
+  window.skillSelectQueue.length = 0;
+  drawSkillMemoryList();
+
+  if (typeof showCustomAlert === "function") {
+    showCustomAlert("選んだ3つを上へ移動しました", 1400);
+  }
+}
+
+
 
 function updateSkillMemoryOrder() {
   const lis = document.querySelectorAll("#skillMemoryList li");
@@ -5098,7 +5081,7 @@ window.drawHPGraph = function () {
   const stepX = canvas.width / Math.max(1, (maxTurns - 1));
 
   // グリッド線
-  ctx.strokeStyle = 'white';
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;
   for (let i = 0; i < maxTurns; i++) {
     const x = stepX * i;
@@ -5108,37 +5091,37 @@ window.drawHPGraph = function () {
     ctx.stroke();
   }
 
-  // === プレイヤーの塗り（青） ===
-  const gradBlue = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradBlue.addColorStop(0, 'rgba(0, 0, 255, 0.4)');
-  gradBlue.addColorStop(1, 'rgba(0, 0, 255, 0)');
-  ctx.beginPath();
-  hpHistory.forEach(([p], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - p);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
-  ctx.lineTo(0, canvas.height);
-  ctx.closePath();
-  ctx.fillStyle = gradBlue;
-  ctx.fill();
-
-  // === 敵の塗り（赤） ===
-  const gradRed = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradRed.addColorStop(0, 'rgba(255, 0, 0, 0.4)');
-  gradRed.addColorStop(1, 'rgba(255, 0, 0, 0)');
-  ctx.beginPath();
-  hpHistory.forEach(([, e], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - e);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
-  ctx.lineTo(0, canvas.height);
-  ctx.closePath();
-  ctx.fillStyle = gradRed;
-  ctx.fill();
+	// === プレイヤーの塗り（青） ===
+	const gradBlue = ctx.createLinearGradient(0, 0, 0, canvas.height);
+	gradBlue.addColorStop(0, 'rgba(80, 160, 255, 0.35)');
+	gradBlue.addColorStop(1, 'rgba(80, 160, 255, 0.05)');
+	ctx.beginPath();
+	hpHistory.forEach(([p], i) => {
+	  const x = stepX * i;
+	  const y = canvas.height * (1 - p);
+	  if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+	});
+	ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+	ctx.lineTo(0, canvas.height);
+	ctx.closePath();
+	ctx.fillStyle = gradBlue;
+	ctx.fill();
+	
+	// === 敵の塗り（赤） ===
+	const gradRed = ctx.createLinearGradient(0, 0, 0, canvas.height);
+	gradRed.addColorStop(0, 'rgba(255, 120, 120, 0.35)');
+	gradRed.addColorStop(1, 'rgba(255, 120, 120, 0.05)');
+	ctx.beginPath();
+	hpHistory.forEach(([, e], i) => {
+	  const x = stepX * i;
+	  const y = canvas.height * (1 - e);
+	  if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+	});
+	ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+	ctx.lineTo(0, canvas.height);
+	ctx.closePath();
+	ctx.fillStyle = gradRed;
+	ctx.fill();
 
   // === アニメーションする光沢 ===
   window.hpShineOffset ??= -100;
@@ -5147,41 +5130,28 @@ window.drawHPGraph = function () {
 
   const shineGrad = ctx.createLinearGradient(window.hpShineOffset, 0, window.hpShineOffset + 100, 0);
   shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
-  shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+  shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.06)');
   shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = shineGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // === グロー付き折れ線（プレイヤー） ===
-  ctx.shadowColor = 'rgba(0, 0, 255, 0.6)';
-  ctx.shadowBlur = 10;
-  ctx.strokeStyle = 'blue';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  hpHistory.forEach(([p], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - p);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-
-  // === グロー付き折れ線（敵） ===
-  ctx.shadowColor = 'rgba(255, 0, 0, 0.6)';
-  ctx.shadowBlur = 10;
-  ctx.strokeStyle = 'red';
-  ctx.beginPath();
-  hpHistory.forEach(([, e], i) => {
-    const x = stepX * i;
-    const y = canvas.height * (1 - e);
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
+	// === グロー付き折れ線（プレイヤー） ===
+	ctx.shadowColor = 'rgba(100, 180, 255, 0.6)';
+	ctx.shadowBlur = 4;
+	ctx.strokeStyle = 'rgba(100, 180, 255, 1)';
+	ctx.lineWidth = 2;
+	
+	// === グロー付き折れ線（敵） ===
+	ctx.shadowColor = 'rgba(255, 120, 120, 0.6)';
+	ctx.shadowBlur = 4;
+	ctx.strokeStyle = 'rgba(255, 120, 120, 1)';
+	ctx.lineWidth = 2;
 
   // グロー効果を解除
   ctx.shadowBlur = 0;
 
   // ラベル
-  ctx.fillStyle = 'black';
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = '12px sans-serif';
   ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
   ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
@@ -5447,6 +5417,7 @@ let faceTimeout;
 window.addEventListener('scroll', () => {
 	
 		updateLocalSaveButton();
+		updateLocalSaveButton2();
 		
   const battleEl = document.getElementById('remainingBattlesDisplay');
   const scoreEl = document.getElementById('scoreOverlay');
@@ -5558,15 +5529,32 @@ function updateLocalSaveButton() {
   if (!btn) return;
 
   if (isLocalSaveDirty) {
-    btn.textContent = 'ローカルにセーブ（未保存）';
+    btn.textContent = 'ローカルにセーブ:ステータス除く';
     btn.classList.remove('saved');
     btn.classList.add('unsaved');
   } else {
-    btn.textContent = 'ローカルにセーブ（保存済）';
+    btn.textContent = 'ローカルにセーブ:ステータス除く（保存済）';
     btn.classList.remove('unsaved');
     btn.classList.add('saved');
   }
 }
+
+function updateLocalSaveButton2() {
+  const btn = document.getElementById('localProgressSaveMirror');
+  if (!btn) return;
+
+  if (isLocalSaveDirty) {
+    btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（未保存）';
+    btn.classList.remove('saved');
+    btn.classList.add('unsaved');
+  } else {
+    btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（保存済）';
+    btn.classList.remove('unsaved');
+    btn.classList.add('saved');
+  }
+}
+
+
 
 
 window.saveToLocalStorage = async function () {
@@ -5617,15 +5605,10 @@ window.saveToLocalStorage = async function () {
 	
 	markLocalSaveClean();  // ← 状態を更新
 	
-	alert(
-	  'ローカルにセーブしました。\n\n' +
-	  '※このセーブデータはブラウザ内に保存されています。\n' +
-	  '「履歴の削除」や「サイトデータの消去」で消える可能性があります。'
-		//\n\n' +
-	//  '大切なデータはテキスト形式でも保存しておくことをおすすめします。'
-	);
+	
 	markAsSaved();
 	updateLocalSaveButton();
+	updateLocalSaveButton2();
 //	location.reload();
 };
 
@@ -5736,7 +5719,7 @@ window.importSaveCode = async function (code = null) {
       : [];
 
     window.maxScores = parsed.maxScores || {};
-    player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    //player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
     player.itemMemory = parsed.itemMemory || [];
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
@@ -5835,5 +5818,507 @@ window.loadFromLocalStorage = async function () {
     alert("ローカル保存データの読み込みに失敗しました。");
     console.error(e);
   }
+	
+	player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+	
 };
 
+
+window.loadProgressFromLocalStorage = async function () {
+  const primary = localStorage.getItem('rpgLocalProgressSave');
+  const fallback = localStorage.getItem('rpgLocalSave');
+  if (!primary && !fallback) { alert('進捗を含む保存データが見つかりません。'); return; }
+
+  async function tryImport(code){
+    if (!code) throw new Error('no code');
+    if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+    await importSaveCode(code);
+  }
+
+// 既存
+// try {
+//   await tryImport(primary);
+// } catch(e1){
+//   console.warn('progress import failed, trying fallback:', e1);
+//   try {
+//     await tryImport(fallback);
+//   } catch(e2){ ... }
+// }
+
+// 変更後（フラグを立て分ける）
+let used = null;
+try {
+  if (primary) {
+    window.__loadingFromProgress = true;   // ★進捗ルート
+    await tryImport(primary);
+    used = 'progress';
+  }
+} catch (e1) {
+  console.warn('progress import failed, trying fallback:', e1);
+}
+if (!used) {
+  window.__loadingFromProgress = false;    // ★通常ルート
+  await tryImport(fallback);
+  used = 'fallback';
+}
+// フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
+setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
+
+  try {
+    const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+    if (metaStr) {
+      const m = JSON.parse(metaStr);
+      if (m.targetBattles != null)   window.targetBattles = m.targetBattles;
+      if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+      if (m.currentStreak != null)    window.currentStreak = m.currentStreak;
+    }
+  } catch(_) {}
+
+  const title = document.getElementById('titleScreen');
+  const game  = document.getElementById('gameScreen');
+  if (title && game) { title.classList.add('hidden'); game.classList.remove('hidden'); }
+  if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+  if (typeof updateStats === 'function') updateStats();
+};
+
+// ================ Debug Dump ================
+window.dumpDebugSave = function(){
+  try{
+    const c1 = localStorage.getItem('rpgLocalSave');
+    const c2 = localStorage.getItem('rpgLocalProgressSave');
+    const meta = localStorage.getItem('rpgLocalProgressMeta');
+    const probe = {
+      now: new Date().toISOString(),
+      targetBattles: window.targetBattles ?? null,
+      remainingBattles: window.remainingBattles ?? null,
+      battleCount: window.battleCount ?? null,
+      currentStreak: window.currentStreak ?? null,
+      hasPlayer: !!window.player,
+      playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+      typeof_player: typeof window.player,
+      typeof_importSaveCode: typeof window.importSaveCode,
+      typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+    };
+    const out = {
+      rpgLocalSave: c1 ? (c1.slice(0,80)+'... len='+c1.length) : null,
+      rpgLocalProgressSave: c2 ? (c2.slice(0,80)+'... len='+c2.length) : null,
+      rpgLocalProgressMeta: meta,
+      runtime: probe
+    };
+    const pretty = JSON.stringify(out, null, 2);
+    let overlay = document.getElementById('debugDumpOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'debugDumpOverlay';
+      overlay.style.position='fixed'; overlay.style.inset='0'; overlay.style.background='rgba(0,0,0,.7)';
+      overlay.style.zIndex='9999'; overlay.style.display='flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center';
+      const box = document.createElement('div');
+      box.style.width='min(900px, 90vw)'; box.style.height='min(70vh, 600px)';
+      box.style.background='rgba(0,0,0,0.6)'; box.style.border='1px solid rgba(255,255,255,.25)';
+      box.style.backdropFilter='blur(10px)'; box.style.padding='16px'; box.style.borderRadius='8px';
+      const ta = document.createElement('textarea');
+      ta.id='debugDumpText'; ta.style.width='100%'; ta.style.height='calc(100% - 48px)'; ta.style.color='#fff'; ta.style.background='rgba(255,255,255,.06)';
+      ta.style.border='1px solid rgba(255,255,255,.25)'; ta.style.padding='8px';
+      const btn = document.createElement('button');
+      btn.textContent='閉じる'; btn.onclick=()=>overlay.remove();
+      btn.style.marginTop='8px';
+      btn.style.padding='8px 16px';
+      box.appendChild(ta); box.appendChild(btn);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+    }
+    const ta = document.getElementById('debugDumpText');
+    if (ta) { ta.value = pretty; ta.focus(); ta.select(); }
+  }catch(e){
+    alert('デバッグ出力に失敗しました：'+e.message);
+    console.error(e);
+  }
+};
+
+
+// ======================================================
+// 進捗セーブ／ロード（既存ローカルセーブ完全互換＋メタ保存）
+// ======================================================
+(function () {
+  // 活性制御：バトル1回以上 & 残り戦闘数>0
+  function refreshProgressSaveAvailability() {
+    const btn = document.getElementById('localProgressSaveBtn');
+    if (!btn) return;
+    const battles = (window.battleCount || 0);
+    const remain  = (window.remainingBattles ?? 0);
+    btn.disabled = !((battles > 0) && (remain > 0));
+  }
+  document.addEventListener('DOMContentLoaded', refreshProgressSaveAvailability);
+  window.addEventListener('focus', refreshProgressSaveAvailability);
+  setInterval(refreshProgressSaveAvailability, 1200);
+
+  // 明示的な成功アラートを出すヘルパ
+  function notify(msg){ try{ alert(msg); }catch(_){} }
+
+  // 進捗セーブ
+  window.saveProgressToLocalStorage = async function () {
+    const battles = (window.battleCount || 0);
+    const remain  = (window.remainingBattles ?? 0);
+    if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+    if (remain <= 0)  { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+
+    try {
+      if (typeof saveToLocalStorage === 'function') {
+        await saveToLocalStorage(); // 既存の正規セーブ
+      }
+      const baseCode = localStorage.getItem('rpgLocalSave');
+      if (!baseCode) { notify('セーブコードの取得に失敗しました。'); return; }
+
+      // 形式は一切変更せず、そのまま複製
+      localStorage.setItem('rpgLocalProgressSave', baseCode);
+
+      // 進捗メタ（JSON）
+      const meta = {
+        remainingBattles: window.remainingBattles ?? null,
+        targetBattles: window.targetBattles ?? null,
+        battleCount: window.battleCount ?? null,
+        currentStreak: window.currentStreak ?? 0,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+
+      const btn = document.getElementById('localProgressSaveBtn');
+      if (btn) { btn.classList.add('saved'); btn.classList.remove('unsaved'); }
+
+      // 明示的に成功メッセージ（既存が沈黙でも確実に出す）
+      notify('ローカルに進捗（含む）を保存しました。');
+    } catch (e) {
+      console.error(e);
+      notify('セーブに失敗しました。');
+    }
+  };
+
+  // 進捗ロード（フォールバックあり）
+  window.loadProgressFromLocalStorage = async function () {
+    const primary = localStorage.getItem('rpgLocalProgressSave');
+    const fallback = localStorage.getItem('rpgLocalSave');
+    if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+
+    async function tryImport(code){
+      if (!code) throw new Error('no code');
+      if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+      await importSaveCode(code);
+    }
+
+// 既存
+// try {
+//   await tryImport(primary);
+// } catch(e1){
+//   console.warn('progress import failed, trying fallback:', e1);
+//   try {
+//     await tryImport(fallback);
+//   } catch(e2){ ... }
+// }
+
+// 変更後（フラグを立て分ける）
+let used = null;
+try {
+  if (primary) {
+    window.__loadingFromProgress = true;   // ★進捗ルート
+    await tryImport(primary);
+    used = 'progress';
+  }
+} catch (e1) {
+  console.warn('progress import failed, trying fallback:', e1);
+}
+if (!used) {
+  window.__loadingFromProgress = false;    // ★通常ルート
+  await tryImport(fallback);
+  used = 'fallback';
+}
+// フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
+setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
+  };
+
+  // デバッグ出力
+  if (typeof window.dumpDebugSave !== 'function') {
+    window.dumpDebugSave = function(){
+      try{
+        const c1 = localStorage.getItem('rpgLocalSave');
+        const c2 = localStorage.getItem('rpgLocalProgressSave');
+        const meta = localStorage.getItem('rpgLocalProgressMeta');
+        const probe = {
+          now: new Date().toISOString(),
+          targetBattles: window.targetBattles ?? null,
+          remainingBattles: window.remainingBattles ?? null,
+          battleCount: window.battleCount ?? null,
+          currentStreak: window.currentStreak ?? null,
+          hasPlayer: !!window.player,
+          playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+          typeof_player: typeof window.player,
+          typeof_importSaveCode: typeof window.importSaveCode,
+          typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+        };
+        const out = {
+          rpgLocalSave: c1 ? (c1.slice(0,80)+'... len='+c1.length) : null,
+          rpgLocalProgressSave: c2 ? (c2.slice(0,80)+'... len='+c2.length) : null,
+          rpgLocalProgressMeta: meta,
+          runtime: probe
+        };
+        const pretty = JSON.stringify(out, null, 2);
+        let overlay = document.getElementById('debugDumpOverlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'debugDumpOverlay';
+          overlay.style.position='fixed'; overlay.style.inset='0'; overlay.style.background='rgba(0,0,0,.7)';
+          overlay.style.zIndex='9999'; overlay.style.display='flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center';
+          const box = document.createElement('div');
+          box.style.width='min(900px, 90vw)'; box.style.height='min(70vh, 600px)';
+          box.style.background='rgba(0,0,0,0.6)'; box.style.border='1px solid rgba(255,255,255,.25)';
+          box.style.backdropFilter='blur(10px)'; box.style.padding='16px'; box.style.borderRadius='8px';
+          const ta = document.createElement('textarea');
+          ta.id='debugDumpText'; ta.style.width='100%'; ta.style.height='calc(100% - 48px)'; ta.style.color='#fff'; ta.style.background='rgba(255,255,255,.06)';
+          ta.style.border='1px solid rgba(255,255,255,.25)'; ta.style.padding='8px';
+          const btn = document.createElement('button');
+          btn.textContent='閉じる'; btn.onclick=()=>overlay.remove();
+          btn.style.marginTop='8px';
+          btn.style.padding='8px 16px';
+          box.appendChild(ta); box.appendChild(btn);
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+        }
+        const ta = document.getElementById('debugDumpText');
+        if (ta) { ta.value = pretty; ta.focus(); ta.select(); }
+      }catch(e){
+        alert('デバッグ出力に失敗しました：'+e.message);
+        console.error(e);
+      }
+    };
+  }
+})();
+
+
+// ======================================================
+// Progress save/load (compat mirror, no format change)
+// ======================================================
+(function(){
+  function notify(msg){ try{ alert(msg); }catch(_){} }
+  function refreshProgressSaveAvailability(){
+    const btn = document.getElementById('localProgressSaveBtn');
+    if (!btn) return;
+    const battles = (window.battleCount || 0);
+    const remain  = (window.remainingBattles ?? 0);
+    btn.disabled = !((battles > 0) && (remain > 0));
+  }
+  document.addEventListener('DOMContentLoaded', refreshProgressSaveAvailability);
+  window.addEventListener('focus', refreshProgressSaveAvailability);
+  setInterval(refreshProgressSaveAvailability, 1200);
+
+  window.localProgressSaveMirror = async function(){
+    const battles = (window.battleCount || 0);
+    const remain  = (window.remainingBattles ?? 0);
+    if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+    if (remain <= 0)  { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+    try {
+      if (typeof saveToLocalStorage === 'function') { await saveToLocalStorage(); }
+      const baseCode = localStorage.getItem('rpgLocalSave');
+      if (!baseCode) { notify('セーブコードの取得に失敗しました。'); return; }
+      localStorage.setItem('rpgLocalProgressSave', baseCode);
+      const meta = {
+        remainingBattles: window.remainingBattles ?? null,
+        targetBattles: window.targetBattles ?? null,
+        battleCount: window.battleCount ?? null,
+        currentStreak: window.currentStreak ?? 0,
+        timestamp: Date.now()
+
+      };
+      localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+   //   notify('ローカルに進捗（含む）を保存しました。');
+      refreshProgressSaveAvailability();
+    } catch(e){ console.error(e); notify('セーブに失敗しました。'); }
+  };
+
+  window.loadProgressFromLocalStorageCompat = async function(){
+    const primary = localStorage.getItem('rpgLocalProgressSave');
+    const fallback = localStorage.getItem('rpgLocalSave');
+    if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+    async function tryImport(code){
+      if (!code) throw new Error('no code');
+      if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+      await importSaveCode(code);
+    }
+    try {
+      try { await tryImport(primary); } catch(_e){ await tryImport(fallback); }
+      try {
+        const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+        if (metaStr) {
+          const m = JSON.parse(metaStr);
+          if (m.targetBattles != null)   window.targetBattles = m.targetBattles;
+          if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+          if (m.battleCount != null)      window.battleCount = m.battleCount;
+          if (m.currentStreak != null)    window.currentStreak = m.currentStreak;
+        }
+      } catch(_){}
+      const title = document.getElementById('titleScreen');
+      const game  = document.getElementById('gameScreen');
+      if (title && game) { title.classList.add('hidden'); game.classList.remove('hidden'); }
+      if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+      if (typeof updateStats === 'function') updateStats();
+      notify('ローカルからロード（進捗含む）を実行しました。');
+    } catch(e){ console.error(e); notify('ローカル保存（進捗含む）の読み込みに失敗しました。'); }
+  };
+})();
+
+
+// ======================================================
+// HARD SHIM: force progress save/load to be base-format
+// and neuter any progress_v2 writers. (idempotent)
+// ======================================================
+(function(){
+  if (window.__progressCompatShimInstalled) return;
+  window.__progressCompatShimInstalled = true;
+
+  function notify(msg){ try { alert(msg); } catch(_) {} }
+  function snapshotMeta(){
+    try{
+      const meta = {
+        remainingBattles: window.remainingBattles ?? null,
+        targetBattles: window.targetBattles ?? null,
+        battleCount: window.battleCount ?? null,
+        currentStreak: window.currentStreak ?? 0,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+    }catch(e){ console.warn('meta save failed', e); }
+  }
+
+  async function mirrorSaveCore(){
+    const battles = (window.battleCount || 0);
+    const remain  = (window.remainingBattles ?? 0);
+    if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+    if (remain <= 0)  { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+
+    if (typeof window.saveToLocalStorage === 'function') {
+      try { await window.saveToLocalStorage(); } catch(e){ console.warn('base save failed', e); }
+    }
+    let base = localStorage.getItem('rpgLocalSave');
+    if (!base) { notify('セーブコードの取得に失敗しました。'); return; }
+    localStorage.setItem('rpgLocalProgressSave', base);
+    snapshotMeta();
+  }
+
+  window.localProgressSaveMirror = mirrorSaveCore;
+
+  window.loadProgressFromLocalStorageCompat = async function(){
+    const primary = localStorage.getItem('rpgLocalProgressSave');
+    const fallback = localStorage.getItem('rpgLocalSave');
+    if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+    async function tryImport(code){
+      if (!code) throw new Error('no code');
+      if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+      await importSaveCode(code);
+    }
+    try {
+      try { await tryImport(primary); } catch(_){ await tryImport(fallback); }
+      try {
+        const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+        if (metaStr) {
+          const m = JSON.parse(metaStr);
+          if (m.targetBattles != null)   window.targetBattles = m.targetBattles;
+          if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+          if (m.battleCount != null)      window.battleCount = m.battleCount;
+          if (m.currentStreak != null)    window.currentStreak = m.currentStreak;
+        }
+      } catch(_){}
+      const title = document.getElementById('titleScreen');
+      const game  = document.getElementById('gameScreen');
+      if (title && game) { title.classList.add('hidden'); game.classList.remove('hidden'); }
+      if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+      if (typeof updateStats === 'function') updateStats();
+      notify('ローカルからロード（進捗含む）を実行しました。');
+    } catch(e){
+      console.error(e);
+      notify('ローカル保存（進捗含む）の読み込みに失敗しました。');
+    }
+  };
+
+  // Intercept localStorage writes to override progress_v2
+  const __origSetItem = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = function(key, val){
+    try {
+      if (key === 'rpgLocalProgressSave' && typeof val === 'string' && val.indexOf('"version":"progress_v2"') !== -1) {
+        const base = localStorage.getItem('rpgLocalSave');
+        if (base) { val = base; }
+      }
+      const res = __origSetItem(key, val);
+      if (key === 'rpgLocalSave') {
+        snapshotMeta();
+      }
+      return res;
+    } catch(e) {
+      return __origSetItem(key, val);
+    }
+  };
+
+  // After all scripts load, override legacy functions and attach fallback click handler
+  window.addEventListener('load', function(){
+    window.saveProgressToLocalStorage = mirrorSaveCore;
+    window.loadProgressFromLocalStorage = window.loadProgressFromLocalStorageCompat;
+    document.body.addEventListener('click', function(ev){
+      const t = ev.target; if (!t) return;
+      const txt = (t.textContent || '').trim();
+      if (txt.includes('ローカルセーブ') && txt.includes('進捗')) {
+        setTimeout(function(){ mirrorSaveCore(); }, 30);
+      }
+    }, true);
+  });
+
+  if (typeof window.dumpDebugSave !== 'function') {
+    window.dumpDebugSave = function(){
+      try{
+        const c1 = localStorage.getItem('rpgLocalSave');
+        const c2 = localStorage.getItem('rpgLocalProgressSave');
+        const meta = localStorage.getItem('rpgLocalProgressMeta');
+        const probe = {
+          now: new Date().toISOString(),
+          targetBattles: window.targetBattles ?? null,
+          remainingBattles: window.remainingBattles ?? null,
+          battleCount: window.battleCount ?? null,
+          currentStreak: window.currentStreak ?? null,
+          hasPlayer: !!window.player,
+          playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+          typeof_player: typeof window.player,
+          typeof_importSaveCode: typeof window.importSaveCode,
+          typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+        };
+        const out = {
+          rpgLocalSave: c1 ? (c1.slice(0,80)+'... len='+c1.length) : null,
+          rpgLocalProgressSave: c2 ? (c2.slice(0,80)+'... len='+c2.length) : null,
+          rpgLocalProgressMeta: meta,
+          runtime: probe
+        };
+        const pretty = JSON.stringify(out, null, 2);
+        let overlay = document.getElementById('debugDumpOverlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'debugDumpOverlay';
+          overlay.style.position='fixed'; overlay.style.inset='0'; overlay.style.background='rgba(0,0,0,.7)';
+          overlay.style.zIndex='9999'; overlay.style.display='flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center';
+          const box = document.createElement('div');
+          box.style.width='min(900px, 90vw)'; box.style.height='min(70vh, 600px)';
+          box.style.background='rgba(0,0,0,0.6)'; box.style.border='1px solid rgba(255,255,255,.25)';
+          box.style.backdropFilter='blur(10px)'; box.style.padding='16px'; box.style.borderRadius='8px';
+          const ta = document.createElement('textarea');
+          ta.id='debugDumpText'; ta.style.width='100%'; ta.style.height='calc(100% - 48px)'; ta.style.color='#fff'; ta.style.background='rgba(255,255,255,.06)';
+          ta.style.border='1px solid rgba(255,255,255,.25)'; ta.style.padding='8px';
+          const btn = document.createElement('button');
+          btn.textContent='閉じる'; btn.onclick=()=>overlay.remove();
+          btn.style.marginTop='8px'; btn.style.padding='8px 16px';
+          box.appendChild(ta); box.appendChild(btn);
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+        }
+        const ta = document.getElementById('debugDumpText');
+        if (ta) { ta.value = pretty; ta.focus(); ta.select(); }
+      }catch(e){
+        alert('デバッグ出力に失敗しました：'+e.message);
+        console.error(e);
+      }
+    };
+  }
+})();
