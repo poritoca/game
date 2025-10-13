@@ -135,7 +135,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 		
 		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
-<input type="text" id="inputStr" placeholder="名前を入力" />
+<input type="text" id="inputStr" placeholder="はじめから時のみ名前を入力:" />
 
 		<!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
 <select id="battleCountSelect" class="rainbow-select">
@@ -378,7 +378,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <!-- バトルエリア -->
 <div id="battleArea" class="hidden">
 <details open>
-  <summary><strong>自分のキャラクター情報</strong></summary>
+  <summary><strong>自分のキャラクター情報（スクロール可能）</strong></summary>
 	
 <!-- フェイスメモリーUIコンテナ（全幅表示・透過背景） -->
 <div id="faceMemoryUI" style="
@@ -468,7 +468,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 	
 
   <details open>
-    <summary><strong>敵のキャラクター情報</strong></summary>
+    <summary><strong>敵のキャラクター情報（スクロール可能）</strong></summary>
     <div class="status-area compact">
       <div class="char-info">
 
@@ -487,13 +487,16 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         </div>
       </div>
 
-			      <canvas id="hpChart" width="600" height="100"></canvas>
+
 						
 			
       <!-- モード切替 -->
       <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
       <!-- バトル操作 -->
-      <button id="startBattleBtn" class="normal-mode">バトル！（長押可）</button>
+			<button id="startBattleOnceBtn" class="normal-mode">バトル！（単発:高成長高ドロップ）</button>
+      <button id="startBattleBtn" class="normal-mode">バトル！（連続:高速,低成長低ドロップ）</button>
+						      <canvas id="hpChart" width="600" height="100"></canvas>
+
 
 
 <!-- ゲーム終了時の結果表示ボックス（画面中央に表示） -->
@@ -541,7 +544,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
           <option value="2" selected>2個</option>
           <option value="3">3個</option>
           <option value="4">4個</option>
-          <option value="5">5個</option>
+
         </select>
       </label>
 			

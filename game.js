@@ -2367,6 +2367,27 @@ function maybeGainItemMemory() {
   if (!player || !player.skills || player.skills.length === 0) return;
   if (player.itemMemory.length >= 10) return;
 
+
+// === Pre-drop probability gate (configurable, preserves default behavior) ===
+// You can tune these at runtime:
+//   window.baseDropRate = 1.0;              // base probability (default 1.0 -> same as before)
+//   window.brutalDropRateMult = 1.0;       // multiplier when specialMode==='brutal'
+//   window.manualDropRateMult = 1.0;       // multiplier for manual battles (!isAutoBattle)
+(function(){
+  const base = (typeof window.baseDropRate === 'number') ? window.baseDropRate : 1.0;
+  let preDropRate = base;
+  if (window.specialMode === 'brutal') {
+    const m = (typeof window.brutalDropRateMult === 'number') ? window.brutalDropRateMult : 1.0;
+    preDropRate *= m;
+  }
+  if (typeof isAutoBattle !== 'undefined' && !isAutoBattle) {
+    const m = (typeof window.manualDropRateMult === 'number') ? window.manualDropRateMult : 1.0;
+    preDropRate *= m;
+  }
+  preDropRate = Math.max(0, Math.min(1, preDropRate));
+  if (Math.random() >= preDropRate) { return; }
+})();
+
   const allSkills = skillPool.filter(s => s.category !== 'passive');
   const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
   const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
@@ -2772,7 +2793,7 @@ window.startNewGame = function() {
 	  window.isFirstBattle = false;
 		const battleBtn = document.getElementById("startBattleBtn");
 		if (battleBtn && battleBtn.classList.contains("hidden")) {
-		  battleBtn.classList.remove("hidden");
+		  if (typeof window.ensureBattleButtons==="function") window.ensureBattleButtons();
 		}
 
     // テキストボックスから名前を取得（空ならデフォルト名を使用）
@@ -2825,6 +2846,7 @@ window.player = {};            // 新しいプレイヤーオブジェクトを�
         // ★ 戦闘回数選択の読み取りと初期化処理を追加
         const battleBtn = document.getElementById('startBattleBtn');
         if (battleBtn) battleBtn.disabled = false;  // 次の戦闘ボタンを有効化
+        (function(){var onceBtn=document.getElementById('startBattleOnceBtn'); if(onceBtn) onceBtn.disabled=false;})();
         const selectEl = document.getElementById('battleCountSelect');
         if (selectEl) {
             const selectedVal = selectEl.value;
@@ -3933,11 +3955,18 @@ const rawFinalRate = baseRate * streakFactor;
 const minGuaranteedRate = 0.005;
 const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
+// --- Manual boost: Normal mode only (isAutoBattle === false) ---
+let adjustedFinalRate = finalRate;
+if (!isAutoBattle && window.specialMode === 'normal') {
+  adjustedFinalRate = Math.min(1, finalRate * 8);
+}
+
+
 
 if (!window.isFirstBattle &&
 playerWon &&
 window.allowGrowthEvent &&
-Math.random() < finalRate) {
+Math.random() < adjustedFinalRate) {
 
   isWaitingGrowth = true;
 
@@ -3974,6 +4003,8 @@ Math.random() < finalRate) {
 
         maybeGainItemMemory();
 
+        // --- Manual bonus in brutal mode: extra drops ---
+        if (!isAutoBattle) { maybeGainItemMemory(); if (Math.random() < 0.5) maybeGainItemMemory(); }
     } else {
         currentStreak += 1;
     }
@@ -4364,8 +4395,7 @@ finalResEl.onclick = () => {
 }
       // 自動戦闘を停止し、戦闘ボタンを無効化
       if (typeof stopAutoBattle === 'function') stopAutoBattle();
-      const battleBtn = document.getElementById('startBattleBtn');
-      if (battleBtn) battleBtn.disabled = true;
+      (function(){var onceBtn=document.getElementById('startBattleOnceBtn'); if(onceBtn) onceBtn.disabled=true;})();
     }
   }
   // ★追加ここまで
@@ -6393,3 +6423,61 @@ document.addEventListener('DOMContentLoaded', function(){ /*_added_ready_refresh
     window.refreshLoadButtonsHighlight();
   }
 });
+
+
+;(function(){
+  function bindOnceButton(){
+    var onceBtn = document.getElementById('startBattleOnceBtn');
+    if (!onceBtn || onceBtn.__wired) return;
+    onceBtn.__wired = true;
+    onceBtn.addEventListener('click', function(){
+      if (window.isAutoBattle) return;         // Auto中は無効
+      if (window.__onceBtnCooldown) return;    // 連打防止
+      window.__onceBtnCooldown = true;
+      try { (window.startBattle || startBattle)(); } finally {
+        setTimeout(function(){ window.__onceBtnCooldown = false; }, 400);
+      }
+    });
+  }
+  document.addEventListener('DOMContentLoaded', bindOnceButton);
+  setTimeout(bindOnceButton, 0);
+  setTimeout(bindOnceButton, 500);
+})();
+
+
+window.ensureBattleButtons = function(){
+  var b1=document.getElementById('startBattleBtn');
+  var b2=document.getElementById('startBattleOnceBtn');
+  [b1,b2].forEach(function(b){
+    if(!b) return;
+    b.classList.remove('hidden');
+    b.style.display='';
+    b.disabled=false;
+  });
+};
+document.addEventListener('DOMContentLoaded', window.ensureBattleButtons);
+
+
+window.syncBattleButtonsMode = function(){
+  var b1=document.getElementById('startBattleBtn');
+  var b2=document.getElementById('startBattleOnceBtn');
+  var brutal = (window.specialMode === 'brutal');
+  [b1,b2].forEach(function(b){
+    if(!b) return;
+    b.classList.remove('normal-mode','brutal-mode');
+    b.classList.add(brutal ? 'brutal-mode' : 'normal-mode');
+  });
+};
+document.addEventListener('DOMContentLoaded', window.syncBattleButtonsMode);
+setTimeout(window.syncBattleButtonsMode, 0);
+
+
+;(function(){
+  function after(fn, tail){ return function(){ try{ return fn.apply(this, arguments); } finally { try{ tail(); }catch(e){} } }; }
+  if (typeof window.toggleSpecialMode === 'function') {
+    window.toggleSpecialMode = after(window.toggleSpecialMode, window.syncBattleButtonsMode);
+  }
+  if (typeof window.updateSpecialModeButton === 'function') {
+    window.updateSpecialModeButton = after(window.updateSpecialModeButton, window.syncBattleButtonsMode);
+  }
+})();

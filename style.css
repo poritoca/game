@@ -2076,3 +2076,117 @@ canvas {
   background: transparent !important;
   text-shadow: none !important;
 }
+
+#startBattleOnceBtn {
+  height: 5em;
+  font-size: 1.2em;
+	font-weight: bold;
+  background: linear-gradient(to bottom, #444, #111);
+  border: 2px solid #666;
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px 24px;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+#startBattleOnceBtn.normal-mode {
+  background: linear-gradient(to bottom, #003366, #001122);
+  border: 3px solid #3399ff;
+  color: #ccf;
+  box-shadow: 0 0 16px rgba(50, 150, 255, 0.6);
+  animation: bluePulse 2s infinite;
+}
+
+#startBattleOnceBtn.brutal-mode {
+  background: linear-gradient(to bottom, #660000, #220000);
+  border: 3px solid #ff4444;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255, 50, 50, 0.6);
+  animation: redPulse 2s infinite;
+}
+
+#startBattleOnceBtn:active {
+  transform: scale(0.95);
+  box-shadow:
+    inset 0 2px 6px rgba(255, 255, 255, 0.2),
+    0 2px 6px rgba(255, 255, 255, 0.5);
+}
+
+#startBattleOnceBtn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, rgba(255,255,255,0.2), rgba(255,255,255,0.6), rgba(255,255,255,0.2));
+  transform: skewX(-20deg);
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.3s;
+	
+	user-select: none;           /* テキスト選択を禁止 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+	-webkit-touch-callout: none;
+	
+  touch-action: manipulation;  /* タップ時の挙動制御（ダブルタップズーム等も防止） */
+  -webkit-touch-callout: none;
+}
+
+#startBattleOnceBtn:active::after {
+  left: 125%;
+  opacity: 1;
+  transition: left 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* === ステータス画面の高さ固定 === */
+.player-status,
+.enemy-status {
+  min-height: 220px;      /* 小さめ固定高さ（必要に応じて微調整） */
+  max-height: 220px;
+  overflow-y: auto;       /* 内容があふれたら内部スクロール */
+  box-sizing: border-box; /* 内側パディングのズレ防止 */
+}
+
+/* モバイル最適化：画面幅が狭いときはやや低くする */
+@media (max-width: 600px) {
+  .player-status,
+  .enemy-status {
+    min-height: 180px;
+    max-height: 180px;
+  }
+}
+
+/* === Fixed status panel height to prevent battle button shifting === */
+.status-area.compact {
+  min-height: 160px;
+  max-height: 160px;     /* 外枠を固定してズレ防止 */
+  overflow: hidden;      /* 中身をスクロールさせる */
+}
+
+.status-area .stats-container {
+  max-height: 100%;      /* 親の固定高内に収める */
+  overflow-y: auto;      /* 内容が増えたら内部スクロール */
+  padding-right: 6px;    /* スクロールバーで文字が隠れないように */
+  box-sizing: border-box;
+}
+
+/* アイコン側が縦に伸びて影響しないように */
+.status-area .char-info {
+  align-self: flex-start;
+}
+
+/* モバイル最適化 */
+@media (max-width: 600px) {
+  .status-area.compact {
+    min-height: 280px;
+    max-height: 280px;
+  }
+}
