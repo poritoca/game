@@ -139,7 +139,7 @@ window.updateScoreOverlay = function () {
   }
 };
 
-window.showCenteredPopup = function(message, duration = 1200) {
+window.showCenteredPopup = function(message, duration = 3000) {
   const popup = document.getElementById("eventPopup");
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
@@ -3455,7 +3455,7 @@ syncSkillsUI();
 
   const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 
-if (isWaitingGrowth) {
+if (isAutoBattle && isWaitingGrowth) {
   isWaitingGrowth = false;
 
   // 連勝率の計算
@@ -6479,5 +6479,87 @@ setTimeout(window.syncBattleButtonsMode, 0);
   }
   if (typeof window.updateSpecialModeButton === 'function') {
     window.updateSpecialModeButton = after(window.updateSpecialModeButton, window.syncBattleButtonsMode);
+  }
+})();
+
+
+// === Selection guard refinements ===
+(function(){
+  function getPopup(){ return document.getElementById('eventPopup'); }
+  function hasOptions(){
+    const p = getPopup();
+    if (!p) return false;
+    const opt = p.querySelector('#eventPopupOptions');
+    if (!opt) return false;
+    // buttons or clickable options count
+    return opt.querySelectorAll('button, .option, .choice, .selectable').length > 0;
+  }
+  function markHasOptions(){
+    const p = getPopup();
+    if (!p) return;
+    if (hasOptions()) p.classList.add('has-options');
+    else p.classList.remove('has-options');
+  }
+  // If previous helpers exist, reuse their names
+  window.__hasGrowthOptions = hasOptions;
+  window.__markGrowthOptions = markHasOptions;
+
+  // Upgrade keep-alive to only enforce when options really exist
+  if (window.selectionKeepAliveUpgraded !== true && typeof window.selectionKeepAlive !== 'undefined'){
+    window.selectionKeepAliveUpgraded = true;
+    // Stop old interval, start upgraded one
+    try { if (window.selectionKeepAlive) clearInterval(window.selectionKeepAlive); } catch(e){}
+    window.selectionKeepAlive = setInterval(function(){
+      const p = getPopup();
+      if (!p) return;
+      markHasOptions();
+      if (!window.isPopupSelecting || !hasOptions()){
+        // auto-release if selection flag stuck but options gone
+        if (window.isPopupSelecting && !hasOptions()) window.isPopupSelecting = false;
+        // don't enforce display; let UI be interactive
+        return;
+      }
+      // Only now enforce visibility
+      if (p.style && p.style.display === 'none') p.style.display = 'block';
+      p.classList.add('selection-lock');
+    }, 250);
+  }
+
+  // Wrap clearEventPopup again to allow closing when options are gone
+  if (!window.__decorate_clearEventPopup3 && typeof window.clearEventPopup === 'function'){
+    window.__decorate_clearEventPopup3 = true;
+    const prev = window.clearEventPopup;
+    window.clearEventPopup = function(force){
+      // If there are no options anymore, allow close even without force
+      if (window.isPopupSelecting && !force && !hasOptions()){
+        force = true;
+      }
+      try {
+        return prev.apply(this, arguments);
+      } finally {
+        // If options are gone or force-close, release guards
+        if (!hasOptions() || force === true){
+          window.isPopupSelecting = false;
+          try { 
+            const p = getPopup(); 
+            if (p){ p.classList.remove('selection-lock'); p.classList.remove('has-options'); }
+          } catch(e){}
+          try { if (window.selectionObserver) { window.selectionObserver.disconnect(); window.selectionObserver = null; } } catch(e){}
+        }
+      }
+    }
+  }
+
+  // Also decorate showEventOptions to flag 'has-options' quickly after render tick
+  if (!window.__decorate_showEventOptions3 && typeof window.showEventOptions === 'function'){
+    window.__decorate_showEventOptions3 = true;
+    const base = window.showEventOptions;
+    window.showEventOptions = function(){
+      const ret = base.apply(this, arguments);
+      window.isPopupSelecting = true;
+      setTimeout(markHasOptions, 0);
+      setTimeout(markHasOptions, 100);   // after DOM fills
+      return ret;
+    }
   }
 })();

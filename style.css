@@ -2192,3 +2192,14 @@ canvas {
     max-height: 280px;
   }
 }
+
+
+/* Selection popup: do not block clicks when no options are present */
+#eventPopup:not(.has-options) {
+  pointer-events: none;
+}
+
+/* Safety: only force-display when actually selecting */
+#eventPopup.selection-lock:not(.has-options) {
+  display: none !important;
+}
