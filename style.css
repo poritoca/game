@@ -1950,17 +1950,19 @@ canvas {
 #playerStats,
 ,
 #ownedFaceList
+#battleLog,
+.quick-guide-wrapper,
+.battle-status-display,
 */
 #gameScreen,
 #titleScreen,
 #titleImage,
 .status-area,
-.battle-status-display,
 
 #faceMemoryUI,
 #skillMemoryList,
-#battleLog,
-.quick-guide-wrapper,
+
+
 #uniqueSkillList {
   filter: none !important;
 }
