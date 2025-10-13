@@ -5602,8 +5602,9 @@ window.saveToLocalStorage = async function () {
   const code = `${b64}.${hash}`;
 
   localStorage.setItem('rpgLocalSave', code);
-	
-	markLocalSaveClean();  // ← 状態を更新
+      try { localStorage.setItem('rpgLocalBaseMeta', JSON.stringify({ timestamp: Date.now() })); } catch(_) {}
+      if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+markLocalSaveClean();  // ← 状態を更新
 	
 	
 	markAsSaved();
@@ -5936,6 +5937,54 @@ window.dumpDebugSave = function(){
 };
 
 
+
+// === タイトルの「ロード」ボタン強調（最新データ側のみ光らせる） ===
+window.refreshLoadButtonsHighlight = function() {
+  try {
+    const baseBtn = document.getElementById('loadLocalBtn');
+    const progBtn = document.getElementById('loadLocalProgressBtn');
+    if (!baseBtn || !progBtn) return;
+
+    const getTs = (k) => {
+      try {
+        const s = localStorage.getItem(k);
+        if (!s) return 0;
+        const m = JSON.parse(s);
+        return Number(m.timestamp) || 0;
+      } catch(_) { return 0; }
+    };
+
+    // 既存のメタ構造：
+    //  - 通常セーブ側:  rpgLocalBaseMeta { timestamp }
+    //  - 進捗セーブ側: rpgLocalProgressMeta { timestamp, battleCount 等 }
+    let tsBase = getTs('rpgLocalBaseMeta');
+    let tsProg = getTs('rpgLocalProgressMeta');
+
+    // メタが無くてもセーブ本体があるかどうかは見る（古い環境との互換）
+    const hasBase = !!localStorage.getItem('rpgLocalSave');
+    const hasProg = !!localStorage.getItem('rpgLocalProgressSave');
+
+    // メタが無い場合は存在だけで「ごく古い値」として扱う（= 1）
+    if (hasBase && tsBase === 0) tsBase = 1;
+    if (hasProg && tsProg === 0) tsProg = 1;
+
+    // 初期化：両方オフ
+    baseBtn.classList.remove('highlight');
+    progBtn.classList.remove('highlight');
+
+    if (!hasBase && !hasProg) return; // 何も無ければ何もしない
+
+    // 新しさで決定（同時刻なら通常セーブを優先）
+    if (tsBase >= tsProg) {
+      if (hasBase) baseBtn.classList.add('highlight');
+    } else {
+      if (hasProg) progBtn.classList.add('highlight');
+    }
+  } catch(e){
+    console.warn('refreshLoadButtonsHighlight failed:', e);
+  }
+};
+
 // ======================================================
 // 進捗セーブ／ロード（既存ローカルセーブ完全互換＋メタ保存）
 // ======================================================
@@ -5982,7 +6031,8 @@ window.dumpDebugSave = function(){
       };
       localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
 
-      const btn = document.getElementById('localProgressSaveBtn');
+      if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+const btn = document.getElementById('localProgressSaveBtn');
       if (btn) { btn.classList.add('saved'); btn.classList.remove('unsaved'); }
 
       // 明示的に成功メッセージ（既存が沈黙でも確実に出す）
@@ -6128,6 +6178,8 @@ setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0)
 
       };
       localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+      if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
    //   notify('ローカルに進捗（含む）を保存しました。');
       refreshProgressSaveAvailability();
     } catch(e){ console.error(e); notify('セーブに失敗しました。'); }
@@ -6184,7 +6236,8 @@ setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0)
         timestamp: Date.now()
       };
       localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
-    }catch(e){ console.warn('meta save failed', e); }
+    if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+}catch(e){ console.warn('meta save failed', e); }
   }
 
   async function mirrorSaveCore(){
@@ -6200,6 +6253,7 @@ setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0)
     if (!base) { notify('セーブコードの取得に失敗しました。'); return; }
     localStorage.setItem('rpgLocalProgressSave', base);
     snapshotMeta();
+    if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
   }
 
   window.localProgressSaveMirror = mirrorSaveCore;
@@ -6248,6 +6302,7 @@ setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0)
       const res = __origSetItem(key, val);
       if (key === 'rpgLocalSave') {
         snapshotMeta();
+    if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
       }
       return res;
     } catch(e) {
@@ -6322,3 +6377,19 @@ setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0)
     };
   }
 })();
+
+
+// 初期同期：タイトル表示時に最新データ側を強調
+document.addEventListener('DOMContentLoaded', function(){ /*_added_ready_refresh_*/
+  if (typeof window.refreshLoadButtonsHighlight === 'function') {
+    window.refreshLoadButtonsHighlight();
+  }
+});
+
+
+// 初期同期：タイトル表示時に最新データ側を強調
+document.addEventListener('DOMContentLoaded', function(){ /*_added_ready_refresh_v2_*/
+  if (typeof window.refreshLoadButtonsHighlight === 'function') {
+    window.refreshLoadButtonsHighlight();
+  }
+});

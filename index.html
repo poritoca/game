@@ -33,7 +33,7 @@
 }
 
 
-#loadLocalBtn.highlight {
+#loadLocalBtn.highlight, #loadLocalProgressBtn.highlight {
   animation: pulse 1.2s infinite;
   background-color: #ffcc00;
   color: #000;
@@ -698,21 +698,23 @@ document.getElementById("updateNotice").addEventListener("click", function() {
       return;
     }
 		
-		  const loadBtn = document.getElementById('loadLocalBtn');
-  if (!loadBtn) {
-
-    return;
-  }
-
-  const localSave = localStorage.getItem('rpgLocalSave');
-  if (localSave) {
-
-    loadBtn.classList.add('highlight');
-  } else {
-
-  }
-
-
+		  // タイトルのロードボタン強調を「最新データ側」に自動で付与
+  const _refreshHL = () => {
+    if (typeof window.refreshLoadButtonsHighlight === 'function') {
+      window.refreshLoadButtonsHighlight();
+    } else {
+      // フォールバック（最低限の存在チェックのみ）
+      const lb = document.getElementById('loadLocalBtn');
+      const pb = document.getElementById('loadLocalProgressBtn');
+      const hasBase = !!localStorage.getItem('rpgLocalSave');
+      const hasProg = !!localStorage.getItem('rpgLocalProgressSave');
+      if (lb && pb) {
+        lb.classList.toggle('highlight', hasBase && !hasProg);
+        pb.classList.toggle('highlight', hasProg && !hasBase);
+      }
+    }
+  };
+  _refreshHL();
     btn.addEventListener('click', () => {
       const now = Date.now();
       if (!firstClickTime || now - firstClickTime > timeLimit) {
