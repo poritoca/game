@@ -2374,6 +2374,8 @@ function maybeGainItemMemory() {
 //   window.brutalDropRateMult = 1.0;       // multiplier when specialMode==='brutal'
 //   window.manualDropRateMult = 1.0;       // multiplier for manual battles (!isAutoBattle)
 (function(){
+	
+	window.manualDropRateMult = 3;
   const base = (typeof window.baseDropRate === 'number') ? window.baseDropRate : 1.0;
   let preDropRate = base;
   if (window.specialMode === 'brutal') {
@@ -6563,3 +6565,20 @@ setTimeout(window.syncBattleButtonsMode, 0);
     }
   }
 })();
+// =====================================================
+
+(function(){
+  function callInit(){ if (typeof window.init === 'function') window.init(); }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', callInit);
+  } else {
+    callInit();
+  }
+  setTimeout(callInit, 0);
+  setTimeout(callInit, 600);
+})();
+// ======================================================
+// 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
+// ======================================================
+;
+

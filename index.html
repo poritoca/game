@@ -684,88 +684,182 @@ document.getElementById("updateNotice").addEventListener("click", function() {
   this.style.display = "none";
 });
 
-(function() {
-  const requiredClicks = 10;
-  const timeLimit = 4000; // ミリ秒以内
+// ======================================================
+// 単発バトル：一時表示トースト（重複完全抑止・位置をさらに下へ）
+// ======================================================
+(function(){
+  if (window.__onceToastInitV2) return;
+  window.__onceToastInitV2 = true;
 
-  let clickCount = 0;
-  let firstClickTime = null;
+  var ONCE_LIMIT = 20;
+  window.singleBattleUsed = (window.singleBattleUsed|0);
 
-  // 初期化処理
-  window.addEventListener('DOMContentLoaded', () => {
-    const btn = document.querySelector('.quick-guide-toggle');
-    const guide = document.getElementById('quickGuideContent');
+  function modeKey(){ return (window.specialMode === 'brutal') ? 'brutal' : 'normal'; }
+  function modeLabel(){ return (window.specialMode === 'brutal') ? '鬼畜' : '通常'; }
+  function getUsed(){ return (window.singleBattleUsed|0); }
+  function setUsed(v){ window.singleBattleUsed = (v|0); }
 
-    if (!btn || !guide) {
-      console.warn('必要な要素が見つかりません');
+  // —— トースト（1個だけ再利用・同時重複なし）——
+  var toastHost = null;
+  var toastEl   = null;
+  var toastTimer = null;
+  var lastToastStamp = 0;
+
+  function ensureToastHost(){
+    if (toastHost) return toastHost;
+    toastHost = document.createElement('div');
+    toastHost.id = 'onceToastHost';
+    toastHost.style.position = 'fixed';
+    // iPhoneノッチを考慮しつつ、さらに下へ：84px（調整可）
+    toastHost.style.top = 'calc(env(safe-area-inset-top, 0px) + 450px)';
+    toastHost.style.right = '12px';
+    toastHost.style.zIndex = '99999';
+    toastHost.style.pointerEvents = 'none';
+    document.body.appendChild(toastHost);
+    return toastHost;
+  }
+
+  // ---- トースト表示（右上少し下・黒い磨りガラス風） ----
+  function showOnceToast(message, ms){
+    ms = ms || 1400;
+
+    var now = Date.now();
+    if (now - lastToastStamp < 80) return;
+    lastToastStamp = now;
+
+    ensureToastHost();
+
+    if (!toastEl){
+      toastEl = document.createElement('div');
+      toastEl.id = 'onceToastBubble';
+      toastEl.style.pointerEvents = 'auto';
+      // 🎨 見た目：黒い磨りガラス風
+      toastEl.style.background = 'rgba(20, 20, 25, 0.55)';
+      toastEl.style.backdropFilter = 'blur(8px) saturate(120%)';
+      toastEl.style.webkitBackdropFilter = 'blur(8px) saturate(120%)';
+      toastEl.style.border = '1px solid rgba(255,255,255,0.1)';
+      toastEl.style.borderRadius = '12px';
+      toastEl.style.padding = '10px 14px';
+      toastEl.style.fontSize = '14px';
+      toastEl.style.lineHeight = '1.3';
+      toastEl.style.color = '#fff';
+      toastEl.style.textShadow = '0 0 2px rgba(0,0,0,0.4)';
+      toastEl.style.boxShadow = '0 6px 18px rgba(0,0,0,.35)';
+      toastEl.style.opacity = '0';
+      toastEl.style.transform = 'translateY(-8px)';
+      toastEl.style.transition = 'opacity 220ms ease, transform 220ms ease';
+      toastHost.appendChild(toastEl);
+    }
+
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+    toastEl.textContent = message;
+
+    // アニメ開始
+    toastEl.style.opacity = '0';
+    toastEl.style.transform = 'translateY(-8px)';
+    requestAnimationFrame(() => {
+      toastEl.style.opacity = '1';
+      toastEl.style.transform = 'translateY(0)';
+    });
+
+    // フェードアウト（DOM保持）
+    toastTimer = setTimeout(() => {
+      toastEl.style.opacity = '0';
+      toastEl.style.transform = 'translateY(-8px)';
+    }, ms);
+  }
+
+  function updateOnceBtnVisibility(){
+  var btn = document.getElementById('startBattleOnceBtn');
+  if (!btn) return;
+  var u = (typeof getUsed === 'function') ? getUsed() : (typeof used === 'function' ? used() : 0);
+  btn.disabled = (u >= ONCE_LIMIT);
+  btn.style.display = '';
+}
+
+
+  // —— 単発クリックのキャプチャ・重複完全抑止 —— 
+  function guardOnceClick(e){
+    var t = e.currentTarget;
+    if (!t || t.id !== 'startBattleOnceBtn') return;
+
+    var used = getUsed();
+    if (used >= ONCE_LIMIT){
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+      updateOnceBtnVisibility();
       return;
     }
-		
-		  // タイトルのロードボタン強調を「最新データ側」に自動で付与
-  const _refreshHL = () => {
-    if (typeof window.refreshLoadButtonsHighlight === 'function') {
-      window.refreshLoadButtonsHighlight();
-    } else {
-      // フォールバック（最低限の存在チェックのみ）
-      const lb = document.getElementById('loadLocalBtn');
-      const pb = document.getElementById('loadLocalProgressBtn');
-      const hasBase = !!localStorage.getItem('rpgLocalSave');
-      const hasProg = !!localStorage.getItem('rpgLocalProgressSave');
-      if (lb && pb) {
-        lb.classList.toggle('highlight', hasBase && !hasProg);
-        pb.classList.toggle('highlight', hasProg && !hasBase);
-      }
+
+    if (e.__onceCountedV2) return;       // 同一クリック重複防止（再入保護）
+    e.__onceCountedV2 = true;
+
+    setUsed(used + 1);
+    var remain = Math.max(0, ONCE_LIMIT - getUsed());
+    showOnceToast(`単発バトル 残り ${remain}/${ONCE_LIMIT}（${modeLabel()}）`, 1200);
+
+    if (getUsed() >= ONCE_LIMIT){
+      setTimeout(updateOnceBtnVisibility, 0);
     }
-  };
-  _refreshHL();
-    btn.addEventListener('click', () => {
-      const now = Date.now();
-      if (!firstClickTime || now - firstClickTime > timeLimit) {
-        clickCount = 1;
-        firstClickTime = now;
-      } else {
-        clickCount++;
-      }
+  }
 
-      // 普通の表示切替（ガイド表示・非表示）
-      guide.classList.toggle('hidden');
+  function bindGuard(){
+    var btn = document.getElementById('startBattleOnceBtn');
+    if (!btn || btn.__onceLimitGuardV2) return;
+    btn.__onceLimitGuardV2 = true;
+    btn.addEventListener('click', guardOnceClick, true); // capture
+  }
 
-      // 10回連続クリックされたときだけデバッグ関数を実行
-      if (clickCount >= requiredClicks) {
-        clickCount = 0;
-        firstClickTime = null;
-        if (typeof window.showAllGlobalVariables === 'function') {
-          window.showAllGlobalVariables();
-        } else {
-          alert("デバッグ関数が存在しません。");
-        }
+  // —— モード切替・新規開始 —— 
+  if (typeof window.startNewGame === 'function'){
+    var _origStartNewGame = window.startNewGame;
+    window.startNewGame = function(){
+      window.singleBattleUsed = 0;
+      setTimeout(function(){
+        updateOnceBtnVisibility();
+        bindGuard();
+
+      }, 0);
+      return _origStartNewGame.apply(this, arguments);
+    };
+  }
+  if (typeof window.toggleSpecialMode === 'function'){
+    var _origToggle = window.toggleSpecialMode;
+    window.toggleSpecialMode = function(){
+      var prev = modeKey();
+      var ret = _origToggle.apply(this, arguments);
+      var now = modeKey();
+      if (now !== prev){
+        setTimeout(function(){
+  updateOnceBtnVisibility();
+  bindGuard && bindGuard();
+  try{
+    var remain = Math.max(0, ONCE_LIMIT - (typeof getUsed==='function'?getUsed():0));
+    showOnceToast(`モード切替：${modeLabel()}（単発 残り ${remain}/${ONCE_LIMIT}）`, 1100);
+  }catch(_e){}
+}, 0);
+
       }
-    });
-  });
+      return ret;
+    };
+  }
+
+  function init(){
+    bindGuard();
+    updateOnceBtnVisibility();
+    ensureToastHost(); // 初回にホストだけ用意（位置ぶれ防止）
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  setTimeout(init, 0);   // 遅延ロード保険（再バインドはフラグで回避）
 })();
 
-
-  window.addEventListener("DOMContentLoaded", () => {
-    const notice = document.getElementById("updateNotice");
-    if (!notice) return;
-
-    // 4秒後にフェードアウト＋縮小
-    setTimeout(() => {
-      notice.style.opacity = "0";
-      notice.style.transform = "translate(-50%, -50%) scale(0.95)";
-      
-      // ぼやけ感を強めるなら追加
-      notice.style.filter = "blur(2px)";
-
-      // 完全に削除
-      setTimeout(() => {
-        if (notice.parentNode) notice.remove();
-      }, 1000); // transition完了後に消す
-    }, 1000);
-  });
-
-
-
 </script>
+</div>
+
 </body>
 </html>
