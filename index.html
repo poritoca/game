@@ -691,7 +691,7 @@ document.getElementById("updateNotice").addEventListener("click", function() {
   if (window.__onceToastInitV2) return;
   window.__onceToastInitV2 = true;
 
-  var ONCE_LIMIT = 20;
+  // removed early increment to avoid NaN
   window.singleBattleUsed = (window.singleBattleUsed|0);
 
   function modeKey(){ return (window.specialMode === 'brutal') ? 'brutal' : 'normal'; }
@@ -773,7 +773,7 @@ document.getElementById("updateNotice").addEventListener("click", function() {
   var btn = document.getElementById('startBattleOnceBtn');
   if (!btn) return;
   var u = (typeof getUsed === 'function') ? getUsed() : (typeof used === 'function' ? used() : 0);
-  btn.disabled = (u >= ONCE_LIMIT);
+  btn.disabled = (u >= window.ONCE_LIMIT);
   btn.style.display = '';
 }
 
@@ -784,7 +784,7 @@ document.getElementById("updateNotice").addEventListener("click", function() {
     if (!t || t.id !== 'startBattleOnceBtn') return;
 
     var used = getUsed();
-    if (used >= ONCE_LIMIT){
+    if (used >= window.ONCE_LIMIT){
       e.stopImmediatePropagation();
       e.preventDefault();
 
@@ -796,10 +796,10 @@ document.getElementById("updateNotice").addEventListener("click", function() {
     e.__onceCountedV2 = true;
 
     setUsed(used + 1);
-    var remain = Math.max(0, ONCE_LIMIT - getUsed());
-    showOnceToast(`単発バトル 残り ${remain}/${ONCE_LIMIT}（${modeLabel()}）`, 1200);
+    var remain = Math.max(0, window.ONCE_LIMIT - getUsed());
+    showOnceToast(`単発バトル 残り ${remain}/${window.ONCE_LIMIT}（${modeLabel()}）`, 1200);
 
-    if (getUsed() >= ONCE_LIMIT){
+    if (getUsed() >= window.ONCE_LIMIT){
       setTimeout(updateOnceBtnVisibility, 0);
     }
   }
@@ -835,8 +835,8 @@ document.getElementById("updateNotice").addEventListener("click", function() {
   updateOnceBtnVisibility();
   bindGuard && bindGuard();
   try{
-    var remain = Math.max(0, ONCE_LIMIT - (typeof getUsed==='function'?getUsed():0));
-    showOnceToast(`モード切替：${modeLabel()}（単発 残り ${remain}/${ONCE_LIMIT}）`, 1100);
+    var remain = Math.max(0, window.ONCE_LIMIT - (typeof getUsed==='function'?getUsed():0));
+    showOnceToast(`モード切替：${modeLabel()}（単発 残り ${remain}/${window.ONCE_LIMIT}）`, 1100);
   }catch(_e){}
 }, 0);
 
@@ -860,6 +860,138 @@ document.getElementById("updateNotice").addEventListener("click", function() {
 
 </script>
 </div>
+
+
+<!-- === Once Limit Reactive Refresh (V3) === -->
+<script>
+(function(){
+  if (window.__onceButtonFixV3) return;
+  window.__onceButtonFixV3 = true;
+
+  function getOnceLimit(){
+    var v = (typeof window.ONCE_LIMIT === 'number') ? window.ONCE_LIMIT : (window.ONCE_LIMIT|0);
+    if (!Number.isFinite(v)) v = 20;
+    return v;
+  }
+  function getUsedSafe(){
+    try { return (typeof getUsed==='function') ? (getUsed()|0) : (window.singleBattleUsed|0); }
+    catch(_){ return (window.singleBattleUsed|0); }
+  }
+
+  // 見た目と操作性を完全に復旧
+  window.updateOnceBtnVisibility = function(){
+    var btn = document.getElementById('startBattleOnceBtn');
+    if (!btn) return;
+    var remain = Math.max(0, getOnceLimit() - getUsedSafe());
+    var enable = (remain > 0);
+    btn.disabled = !enable;
+    btn.classList.toggle('disabled', !enable);
+    // 一部テーマの pointer-events やフィルタが残らないよう保険
+    if (enable) {
+      btn.style.pointerEvents = '';
+      btn.style.filter = '';
+      btn.style.opacity = '';
+    }
+  };
+
+  window.refreshOnceBtn = function(){
+    try { window.updateOnceBtnVisibility(); } catch(_){}
+  };
+
+  // 画面復帰・可視化時に再評価（モバイルSafari等の対策）
+  window.addEventListener('focus', window.refreshOnceBtn);
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) window.refreshOnceBtn();
+  });
+
+  // 軽いポーリングで取りこぼしを救う（800ms）
+  setInterval(function(){ window.refreshOnceBtn(); }, 800);
+
+  // 外部からもイベントで再評価可能
+  window.addEventListener('onceLimitChanged', window.refreshOnceBtn);
+
+  // 初回評価
+  window.refreshOnceBtn();
+})();
+</script>
+
+
+<script>
+// Ensure shared single-battle usage counter and helpers exist & are numeric
+(function(){
+  try{
+    if (!Number.isFinite(window.ONCE_LIMIT)) window.ONCE_LIMIT = 20;
+    if (!Number.isFinite(window.singleBattleUsed)) window.singleBattleUsed = 0;
+    if (typeof window.getUsed !== 'function') {
+      window.getUsed = function(){ return (window.singleBattleUsed|0); };
+    } else {
+      // Wrap to coerce return to integer
+      var __origGetUsed = window.getUsed;
+      window.getUsed = function(){ try{ return (__origGetUsed()|0); }catch(_){ return (window.singleBattleUsed|0); } };
+    }
+    if (typeof window.setUsed !== 'function') {
+      window.setUsed = function(v){ window.singleBattleUsed = (v|0); };
+    }
+  }catch(e){}
+})();
+</script>
+
+
+<!-- === Once Limit Refresh & NaN Guard (V4) === -->
+<script>
+(function(){
+  if (window.__onceButtonFixV4) return;
+  window.__onceButtonFixV4 = true;
+
+  function getOnceLimit(){
+    var v = (typeof window.ONCE_LIMIT === 'number') ? window.ONCE_LIMIT : (window.ONCE_LIMIT|0);
+    if (!Number.isFinite(v)) v = 20;
+    return v|0;
+  }
+  function getUsedSafe(){
+    try { return (typeof getUsed==='function') ? (getUsed()|0) : (window.singleBattleUsed|0); }
+    catch(_){ return (window.singleBattleUsed|0); }
+  }
+
+  // Replace/augment updateOnceBtnVisibility to be NaN-safe
+  var _origUpdateOnce = window.updateOnceBtnVisibility;
+  window.updateOnceBtnVisibility = function(){
+    var btn = document.getElementById('startBattleOnceBtn');
+    if (!btn) return;
+    var remain = Math.max(0, getOnceLimit() - getUsedSafe());
+    var enable = (remain > 0);
+
+    btn.disabled = !enable;
+    btn.classList.toggle('disabled', !enable);
+    if (enable) {
+      // clear any theme side-effects
+      btn.style.pointerEvents = '';
+      btn.style.filter = '';
+      btn.style.opacity = '';
+    }
+    // Call original if it exists (in case it does extra UI work)
+    try{ if (typeof _origUpdateOnce === 'function') _origUpdateOnce(); }catch(_){}
+  };
+
+  // Public hook
+  window.refreshOnceBtn = function(){ try{ window.updateOnceBtnVisibility(); }catch(_){} };
+
+  // When page regains focus/visibility
+  window.addEventListener('focus', window.refreshOnceBtn);
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) window.refreshOnceBtn();
+  });
+
+  // Lightweight polling to avoid missed updates
+  setInterval(function(){ window.refreshOnceBtn(); }, 800);
+
+  // React to custom event
+  window.addEventListener('onceLimitChanged', window.refreshOnceBtn);
+
+  // Initial evaluation
+  window.refreshOnceBtn();
+})();
+</script>
 
 </body>
 </html>

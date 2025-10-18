@@ -863,7 +863,7 @@ function createMixedSkill(skillA, skillB) {
   const includeMixedSkillChance = 0.3; // 混合スキルを内包する確率
 
   // 所持上限（既存踏襲）
-  if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 1) {
+  if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 2) {
     return null;
   }
 
@@ -3875,6 +3875,9 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
   }
 }
 
+
+
+
       } else {
         // 通常攻撃
         // 回避判定
@@ -4021,6 +4024,27 @@ showCustomAlert(victoryMessage, 800);
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
     saveBattleLog(log);
 
+// 戦闘終了処理の末尾など、勝敗が確定した後に追加
+(function(){
+  try {
+    // 1%の確率でONCE_LIMITを10増加
+    if (Math.random() < 0.01) {
+      if (typeof window.ONCE_LIMIT === 'number') {
+        window.ONCE_LIMIT += 5;
+				
+				showConfirmationPopup('ボーナス発動！単発バトル回数が5増加しました → 現在: ' + window.ONCE_LIMIT);
+				
+				
+				
+       // console.log('ボーナス発動！ONCE_LIMITが5増加しました → 現在: ' + window.ONCE_LIMIT);
+        // 画面通知があれば：
+      //  if (window.showToast) window.showToast('ボーナス発動！単発バトル上限が10増えた！');
+      }
+    }
+  } catch(e) {
+    console.error('ONCE_LIMIT増加処理エラー:', e);
+  }
+})();
 
 
 player.skills.forEach(sk => {
@@ -4155,12 +4179,54 @@ if (window.growthMultiplier !== 1) {
 
 rebuildPlayerSkillsFromMemory(player, typeof sslot === 'number' ? sslot : 0);
 
+//stopAutoBattle();
 
 
-showSubtitle(
-  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
-  2500
+// --- 敗北後のランダム成長（連勝数 × 敵倍率の切り上げ）---
+const multiplierInt = Math.max(1, Math.ceil(enemyMultiplier)); // 切り上げ整数（最低1）
+const growthTotal = Math.max(1, currentStreak * multiplierInt); // 連勝数×倍率（最低1）
+
+const stats = ["attack", "defense", "speed", "maxHp"];
+const labels = { attack: "攻撃", defense: "防御", speed: "素早さ", maxHp: "最大HP" };
+const chosen = stats[Math.floor(Math.random() * stats.length)];
+
+// growthBonus 初期化
+if (!player.growthBonus) {
+  player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+}
+
+// 成長反映
+player.growthBonus[chosen] += growthTotal;
+
+// 表示用の“成長説明”を組み立て（サブタイトルに埋め込む）
+const growthMsg =
+  `<br><span style="font-size:12px;color:#a8ffb0">` +
+  `<br>${labels[chosen]} +${growthTotal}` +
+  `<br>(連勝 ${currentStreak} × 敵倍率切り上げ ${multiplierInt})</span>`;
+
+// ステータス再計算（敗北時はHPを満タンにしない仕様は維持）
+if (player.baseStats && player.growthBonus) {
+  player.attack  = player.baseStats.attack  + player.growthBonus.attack;
+  player.defense = player.baseStats.defense + player.growthBonus.defense;
+  player.speed   = player.baseStats.speed   + player.growthBonus.speed;
+  player.maxHp   = player.baseStats.maxHp   + player.growthBonus.maxHp;
+}
+if (typeof updateStats === "function") updateStats();
+
+showConfirmationPopup(
+  `敗北：${displayName(enemy.name)}に敗北<br>` +
+  `最終連勝数：${currentStreak}<br>
+	敵倍率: ${enemyMultiplier.toFixed(3)}
+	
+	${resetMessage}` +
+  `${growthMsg}` + // ← ここで成長説明を表示
+  `<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`
 );
+				
+//showSubtitle(
+//  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
+//  2500
+//);
 updateSkillOverlay();
 syncSkillsUI();
 currentStreak = 0;
