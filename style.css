@@ -1679,6 +1679,7 @@ summary {
 }
 
 #remainingBattlesDisplay {
+  white-space: pre-line;
   animation: fadeInUp 0.6s ease-out;
 }
 
@@ -2202,4 +2203,34 @@ canvas {
 /* Safety: only force-display when actually selecting */
 #eventPopup.selection-lock:not(.has-options) {
   display: none !important;
+}
+
+/* allow long-press text selection */
+}
+#onceCounterOverlay .once-counter-title{
+  font-weight: 700;
+}
+#onceCounterOverlay .once-counter-sep{
+  opacity: .6;
+}
+#onceCounterOverlay .once-counter-mode{
+  margin-left: .4em;
+  opacity: .85;
+  font-size: 12px;
+}
+#onceCounterOverlay.hidden{
+  display: none !important;
+}
+
+
+/* 単発ボタン：使い切ったモードではグレー＆無効 */
+#startBattleOnceBtn:disabled {
+  filter: grayscale(100%);
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+  animation: none;
+  border-color: #555;
+  background: linear-gradient(to bottom, #333, #111);
+  color: #aaa;
 }
