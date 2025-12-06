@@ -2779,7 +2779,21 @@ window.updateStats = function () {
 
   // キャラ画像描画
   drawCharacterImage(displayName(player.name), 'playerCanvas');
-  drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
+
+  const enemyCanvasEl = document.getElementById('enemyCanvas');
+  const enemyImgEl = document.getElementById('enemyImg');
+
+  if (window.isBossBattle && window.bossFacePath && enemyImgEl) {
+    // 強敵：フェイスガチャの画像を表示
+    if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
+    enemyImgEl.src = window.bossFacePath;
+    enemyImgEl.classList.remove('hidden');
+  } else {
+    // 通常：キャンバスに描画
+    if (enemyImgEl) enemyImgEl.classList.add('hidden');
+    if (enemyCanvasEl) enemyCanvasEl.classList.remove('hidden');
+    drawCharacterImage(displayName(enemy.name), 'enemyCanvas');
+  }
 
   const isPlayer = true;
 if (isPlayer) {
@@ -3402,6 +3416,38 @@ window.startBattle = function() {
 window.barrierUsesLeft = 5;
 
 resetMixedSkillUsage();
+
+// --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
+if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
+window.battlesPlayed += 1;
+window.isBossBattle = false;
+window.bossFacePath = null;
+
+if (window.battlesPlayed % 20 === 0) {
+  window.isBossBattle = true;
+  // 連勝数に応じてレアリティを決定（最低条件のみ固定）
+  const streak = typeof window.currentStreak === 'number' ? window.currentStreak : 0;
+  let rarity = 'D';
+  if (streak >= 500) {
+    rarity = 'S';
+  } else if (streak >= 400) {
+    rarity = 'A';
+  } else if (streak >= 300) {
+    rarity = 'B';
+  } else if (streak >= 200) {
+    rarity = 'C';
+  }
+  try {
+    if (typeof drawRandomFace === 'function') {
+      const faceInfo = drawRandomFace(rarity);
+      if (faceInfo && faceInfo.path) {
+        window.bossFacePath = faceInfo.path;
+      }
+    }
+  } catch (e) {
+    console.warn('boss face selection failed', e);
+  }
+}
 
 if (player.baseStats && player.growthBonus) {
   player.attack = player.baseStats.attack + player.growthBonus.attack;
@@ -4465,6 +4511,18 @@ finalResEl.onclick = () => {
       if (typeof stopAutoBattle === 'function') stopAutoBattle();
       (function(){var onceBtn=document.getElementById('startBattleOnceBtn'); if(onceBtn) onceBtn.disabled=true;})();
     }
+  }
+
+  // 20戦ごとにオートバトルを停止
+  try {
+    if (typeof window.battlesPlayed === 'number' &&
+        window.battlesPlayed > 0 &&
+        window.battlesPlayed % 20 === 0 &&
+        typeof stopAutoBattle === 'function') {
+      stopAutoBattle();
+    }
+  } catch (e2) {
+    console.warn('auto battle stop (20-battle chunk) failed', e2);
   }
   // ★追加ここまで
 } catch (e) {

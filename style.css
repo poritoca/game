@@ -2234,3 +2234,9 @@ canvas {
   background: linear-gradient(to bottom, #333, #111);
   color: #aaa;
 }
+
+
+/* 敵フェイス画像はカラーで表示したいので、グレースケールを解除 */
+#enemyImg {
+  filter: none !important;
+}
