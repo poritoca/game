@@ -2446,6 +2446,65 @@ if (shouldPause) {
 
 showCustomAlert(message, 4000, "#ffa", "#000");
 }
+
+// ボス専用：モードに関係なく必ずアイテムを1つ与える（中程度以上のレアリティ）
+function grantBossRewardItem() {
+  try {
+    if (!player || !player.skills || player.skills.length === 0) return;
+    if (!Array.isArray(player.itemMemory)) player.itemMemory = [];
+    if (player.itemMemory.length >= 10) return;
+
+    // 攻撃系スキルから1つ選ぶ（なければ全スキルから）
+    let candidates = Array.isArray(skillPool) ? skillPool.filter(s => s.category !== 'passive') : [];
+    if (candidates.length === 0 && Array.isArray(skillPool)) {
+      candidates = skillPool.slice();
+    }
+    if (candidates.length === 0) return;
+    const skill = candidates[Math.floor(Math.random() * candidates.length)];
+
+    const colorData = itemColors[Math.floor(Math.random() * itemColors.length)];
+    const nounData = itemNouns[Math.floor(Math.random() * itemNouns.length)];
+
+    // 「中程度以上」：ドロップ率の低い（=レア寄り）の形容詞から選ぶ
+    let goodAdjs = itemAdjectives.filter(a => a.dropRate <= 0.008);
+    if (goodAdjs.length === 0) goodAdjs = itemAdjectives.slice();
+    const adjective = goodAdjs[Math.floor(Math.random() * goodAdjs.length)];
+
+    const dropRate = (colorData.dropRateMultiplier || 1) * (adjective.dropRate || 1) * (nounData.dropRateMultiplier || 1);
+    const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
+
+    const newItem = {
+      color: colorData.word,
+      adjective: adjective.word,
+      noun: nounData.word,
+      skillName: skill.name,
+      activationRate: adjective.activationRate,
+      usesPerBattle: colorData.usesPerBattle,
+      breakChance: nounData.breakChance,
+      remainingUses: colorData.usesPerBattle,
+      skillLevel: 1,
+      protected: false,
+      glow: glow.toFixed(2)
+    };
+
+    player.itemMemory.push(newItem);
+    if (typeof drawItemMemoryList === 'function') drawItemMemoryList();
+    if (typeof updateItemOverlay === 'function') updateItemOverlay();
+
+    const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+    const msg = `ボスからの戦利品！<br>${itemName}（${newItem.skillName}）`;
+    if (typeof showCustomAlert === 'function') {
+      showCustomAlert(msg, 4000);
+    }
+    if (Array.isArray(window.log)) {
+      window.log.push(`【ボス報酬】アイテム：${itemName}（${newItem.skillName}）`);
+    }
+  } catch (e) {
+    console.warn('grantBossRewardItem failed', e);
+  }
+}
+
+
 function setupItemFilters() {
   const colorBox = document.getElementById('filterColorOptions');
   const adjBox = document.getElementById('filterAdjectiveOptions');
@@ -3423,7 +3482,7 @@ window.battlesPlayed += 1;
 window.isBossBattle = false;
 window.bossFacePath = null;
 
-if (window.battlesPlayed % 20 === 0) {
+if (window.battlesPlayed % 50 === 0) {
   window.isBossBattle = true;
   // 連勝数に応じてレアリティを決定（最低条件のみ固定）
   const streak = typeof window.currentStreak === 'number' ? window.currentStreak : 0;
@@ -4045,52 +4104,126 @@ Math.random() < adjustedFinalRate) {
 
   player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
 
+
   if (playerWon) {
     if (currentStreak > sessionMaxStreak) {
-    sessionMaxStreak = currentStreak;
-}
-    if (window.specialMode === 'brutal') {
+      sessionMaxStreak = currentStreak;
+    }
+
+    // ★ 20戦ごとのボス勝利時：アイテム or ステータス成長
+    if (window.isBossBattle) {
+      const bossRoll = Math.random(); // 0〜1
+      if (bossRoll < 0.1) {
+        // ---- 10%：ステータス成長ボーナス ----
+        currentStreak += 1;
+
+        const statKeys = ['attack', 'defense', 'speed', 'maxHp'];
+        let numStats = Math.floor(Math.random() * 4) + 1; // 1〜4個
+
+        // 重複なしでランダム選択
+        const pool = statKeys.slice();
+        const chosenStats = [];
+        while (pool.length > 0 && chosenStats.length < numStats) {
+          const idx = Math.floor(Math.random() * pool.length);
+          chosenStats.push(pool.splice(idx, 1)[0]);
+        }
+
+        // baseStats / growthBonus が無い場合のフォールバック
+        if (!player.baseStats) {
+          player.baseStats = {
+            attack: player.attack || 0,
+            defense: player.defense || 0,
+            speed: player.speed || 0,
+            maxHp: player.maxHp || player.hp || 0
+          };
+        }
+        if (!player.growthBonus) {
+          player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+        }
+
+        // 低倍率寄り、たまに超高倍率（10倍は約1/10000）
+        function getBossStatMultiplier() {
+          const pTen = 1 / 10000; // 10倍枠
+          if (Math.random() < pTen) return 10.0;
+          const r = Math.random() ** 4; // 低倍率に偏らせる
+          let m = 1.5 + r * (10 - 1.5);
+          if (m >= 10.0) m = 9.99;
+          return m;
+        }
+
+        const messages = [];
+        chosenStats.forEach(stat => {
+          const mult = getBossStatMultiplier();
+          const base = (player.baseStats[stat] || 0) + (player.growthBonus[stat] || 0);
+          const boosted = Math.floor(base * mult);
+          const diff = boosted - base;
+          if (diff <= 0) return;
+
+          player.growthBonus[stat] = (player.growthBonus[stat] || 0) + diff;
+
+          if (stat === 'maxHp') {
+            player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+            player.hp = player.maxHp;
+          } else {
+            player[stat] = player.baseStats[stat] + player.growthBonus[stat];
+          }
+
+          let jpName = '';
+          if (stat === 'attack') jpName = '攻撃';
+          else if (stat === 'defense') jpName = '防御';
+          else if (stat === 'speed') jpName = '素早さ';
+          else if (stat === 'maxHp') jpName = '最大HP';
+
+          messages.push(`${jpName} が x${mult.toFixed(2)}（+${diff}）`);
+        });
+
+        if (messages.length > 0) {
+          const popupMsg = 'ボスの加護！<br>' + messages.join('<br>');
+          showCustomAlert(popupMsg, 4000);
+          log.push('【ボス報酬】' + messages.join(' / '));
+        }
+      } else {
+        // ---- 90%：ボス専用の確定アイテム報酬（モードに関係なく1個以上） ----
+        currentStreak += 1;
+        if (typeof grantBossRewardItem === 'function') {
+          grantBossRewardItem();
+        }
+        // 鬼畜モード時だけ、従来のドロップ抽選も追加で行う
+        if (window.specialMode === 'brutal') {
+          maybeGainItemMemory();
+          if (!isAutoBattle) {
+            maybeGainItemMemory();
+            if (Math.random() < 0.5) maybeGainItemMemory();
+          }
+        }
+      }
+    } else {
+      // 通常戦闘時の勝利処理（従来どおり）
+      if (window.specialMode === 'brutal') {
         currentStreak += 1;
 
         maybeGainItemMemory();
 
         // --- Manual bonus in brutal mode: extra drops ---
-        if (!isAutoBattle) { maybeGainItemMemory(); if (Math.random() < 0.5) maybeGainItemMemory(); }
-    } else {
+        if (!isAutoBattle) {
+          maybeGainItemMemory();
+          if (Math.random() < 0.5) maybeGainItemMemory();
+        }
+      } else {
         currentStreak += 1;
+      }
     }
 
-  let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-  if (window.growthMultiplier !== 1) {
-    victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
-  }
+    let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
+    if (window.growthMultiplier && window.growthMultiplier !== 1) {
+      victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
+    }
 
-showCustomAlert(victoryMessage, 800);
+    showCustomAlert(victoryMessage, 800);
 
     log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
     saveBattleLog(log);
-
-// 戦闘終了処理の末尾など、勝敗が確定した後に追加
-(function(){
-  try {
-    // 1%の確率でONCE_LIMITを10増加
-    if (Math.random() < 0.01) {
-      if (typeof window.ONCE_LIMIT === 'number') {
-        window.ONCE_LIMIT += 5;
-				
-				showConfirmationPopup('ボーナス発動！単発バトル回数が5増加しました → 現在: ' + window.ONCE_LIMIT);
-				
-				
-				
-       // console.log('ボーナス発動！ONCE_LIMITが5増加しました → 現在: ' + window.ONCE_LIMIT);
-        // 画面通知があれば：
-      //  if (window.showToast) window.showToast('ボーナス発動！単発バトル上限が10増えた！');
-      }
-    }
-  } catch(e) {
-    console.error('ONCE_LIMIT増加処理エラー:', e);
-  }
-})();
+    // 単発バトル回数ボーナス（処理は一旦無効化／後で再調整）
 
 
 player.skills.forEach(sk => {
@@ -4517,7 +4650,7 @@ finalResEl.onclick = () => {
   try {
     if (typeof window.battlesPlayed === 'number' &&
         window.battlesPlayed > 0 &&
-        window.battlesPlayed % 20 === 0 &&
+        window.battlesPlayed % 50 === 0 &&
         typeof stopAutoBattle === 'function') {
       stopAutoBattle();
     }
@@ -6705,4 +6838,3 @@ setTimeout(window.syncBattleButtonsMode, 0);
 // 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
 // ======================================================
 ;
-

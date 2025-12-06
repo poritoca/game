@@ -921,7 +921,7 @@ document.getElementById("updateNotice").addEventListener("click", function() {
 // Ensure shared single-battle usage counter and helpers exist & are numeric
 (function(){
   try{
-    if (!Number.isFinite(window.ONCE_LIMIT)) window.ONCE_LIMIT = 20;
+    if (!Number.isFinite(window.ONCE_LIMIT)) window.ONCE_LIMIT = 10;
     if (!Number.isFinite(window.singleBattleUsed)) window.singleBattleUsed = 0;
     if (typeof window.getUsed !== 'function') {
       window.getUsed = function(){ return (window.singleBattleUsed|0); };
