@@ -30,7 +30,7 @@ if (typeof window !== "undefined") {
     window.BOSS_ENEMY_MAX_MULTIPLIER = 10; // 最高倍率
   }
   if (typeof window.BOSS_ENEMY_POWER_EXP !== "number") {
-    window.BOSS_ENEMY_POWER_EXP = 10; // 分布の偏り（大きいほど低倍率寄り）
+    window.BOSS_ENEMY_POWER_EXP = 8; // 分布の偏り（大きいほど低倍率寄り）
   }
 
   // ボス勝利時のステータス上昇倍率の範囲
