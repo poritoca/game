@@ -173,7 +173,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			
 
 			
-<button class="quick-guide-toggle">【遊び方を表示／非表示】</button>
+<button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
       <div id="quickGuideContent" class="quick-guide-content hidden">
 
     <h3>このゲームの目的</h3>
@@ -185,6 +185,19 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <p>
         戦闘はターン制で進行し、プレイヤーと敵が交互にスキルを使用し合います。相手のHPを0にすると勝利です。所持スキルの中から自動的に複数のスキルが選出され同時に発動します（必ず固有スキルが最低1つと、攻撃スキルが最低1つ含まれます）。
     </p>
+
+    <h3>ボス戦について</h3>
+    <p>
+        一定回数ごとに<strong>ボス戦</strong>が発生します（初期設定では <strong>BOSS_BATTLE_INTERVAL = 50</strong> なので、50戦ごとにボス戦になります）。<br>
+        ボスは通常の敵よりも強く、内部的に「ボス専用の追加倍率」がステータスに掛かります。倍率の範囲は
+        <code>BOSS_ENEMY_MIN_MULTIPLIER</code>〜<code>BOSS_ENEMY_MAX_MULTIPLIER</code> で管理されており、<br>
+        その中でも低い倍率が出やすくなるように <code>BOSS_ENEMY_POWER_EXP</code> で分布が調整されています。
+    </p>
+    <p>
+        ボス戦に勝利すると、通常の勝利報酬に加えて<strong>特別な報酬（ステータスの大幅成長やアイテム）</strong>が発生することがあります。<br>
+        これらの挙動は将来的に調整される可能性がありますが、基本的には「周回を重ねるほど、ボスからの報酬でキャラが大きく成長していく」設計になっています。
+    </p>
+
 		
 
 		<h3>🎯 連勝数によるボーナス仕様</h3>
@@ -494,8 +507,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <!-- モード切替 -->
       <button id="specialModeButton" class="normal-mode" onclick="toggleSpecialMode()">通常モード</button>
       <!-- バトル操作 -->
-			<button id="startBattleOnceBtn" class="normal-mode">バトル！（単発）</button>
-      <button id="startBattleBtn" class="normal-mode">バトル！（連続）</button>
+			<button id="startBattleOnceBtn" class="normal-mode">単発バトル</button>
+      <button id="startBattleBtn" class="normal-mode">高速バトル</button>
 						      <canvas id="hpChart" width="600" height="100"></canvas>
 
 

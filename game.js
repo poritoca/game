@@ -12,6 +12,45 @@ const levelTurnBonusSettings = [
   { level: 500,  bonus: 1 },
   { level: 0,    bonus: 0 },
 ];
+// ==========================
+//  ボス戦・ステータス成長関連の設定
+//  ※ここを書き換えることでバランス調整が可能です
+// ==========================
+if (typeof window !== "undefined") {
+  // 何戦ごとにボス戦にするか
+  if (typeof window.BOSS_BATTLE_INTERVAL !== "number") {
+    window.BOSS_BATTLE_INTERVAL = 50; // デフォルト: 50戦ごと
+  }
+
+  // ボス敵の強さ倍率（敵の基礎倍率にさらに掛け算される）
+  if (typeof window.BOSS_ENEMY_MIN_MULTIPLIER !== "number") {
+    window.BOSS_ENEMY_MIN_MULTIPLIER = 3; // 最低倍率
+  }
+  if (typeof window.BOSS_ENEMY_MAX_MULTIPLIER !== "number") {
+    window.BOSS_ENEMY_MAX_MULTIPLIER = 10; // 最高倍率
+  }
+  if (typeof window.BOSS_ENEMY_POWER_EXP !== "number") {
+    window.BOSS_ENEMY_POWER_EXP = 10; // 分布の偏り（大きいほど低倍率寄り）
+  }
+
+  // ボス勝利時のステータス上昇倍率の範囲
+  if (typeof window.BOSS_STAT_MIN_MULTIPLIER !== "number") {
+    window.BOSS_STAT_MIN_MULTIPLIER = 1.5; // ステータス強化の最低倍率
+  }
+  if (typeof window.BOSS_STAT_MAX_MULTIPLIER !== "number") {
+    window.BOSS_STAT_MAX_MULTIPLIER = 10.0; // ステータス強化の最高倍率
+  }
+  // 最高倍率が出る超レア確率（デフォルト: 約1/10000）
+  if (typeof window.BOSS_STAT_TOP_PROB !== "number") {
+    window.BOSS_STAT_TOP_PROB = 1 / 10000;
+  }
+  // 低倍率寄りにするための指数（大きいほど低倍率寄り）
+  if (typeof window.BOSS_STAT_POWER_EXP !== "number") {
+    window.BOSS_STAT_POWER_EXP = 4;
+  }
+}
+
+
 
 
 
@@ -3482,7 +3521,7 @@ window.battlesPlayed += 1;
 window.isBossBattle = false;
 window.bossFacePath = null;
 
-if (window.battlesPlayed % 50 === 0) {
+if (window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0) {
   window.isBossBattle = true;
   // 連勝数に応じてレアリティを決定（最低条件のみ固定）
   const streak = typeof window.currentStreak === 'number' ? window.currentStreak : 0;
@@ -3751,7 +3790,20 @@ const rarityFactor  = enemy.rarity;                 // レアリティ倍率
 const modeFactor    = growthFactor;                 // 鬼畜も通常と同じ指数
 
 // 総合倍率 = レアリティ × 成長倍率
-const enemyMultiplier = rarityFactor * modeFactor;
+let enemyMultiplier = rarityFactor * modeFactor;
+
+// ボス戦の場合は、ボス専用の追加倍率を掛ける
+if (window.isBossBattle) {
+  const minMul = (typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5;
+  const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
+  const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
+
+  const r = Math.random() ** exp;
+  const bossMul = minMul + r * (maxMul - minMul);
+
+  enemyMultiplier *= bossMul;
+  log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
+}
 
 // --- 3) 敵の最終値に倍率適用 ---
 ['attack','defense','speed','maxHp'].forEach(stat => {
@@ -4143,11 +4195,18 @@ Math.random() < adjustedFinalRate) {
 
         // 低倍率寄り、たまに超高倍率（10倍は約1/10000）
         function getBossStatMultiplier() {
-          const pTen = 1 / 10000; // 10倍枠
-          if (Math.random() < pTen) return 10.0;
-          const r = Math.random() ** 4; // 低倍率に偏らせる
-          let m = 1.5 + r * (10 - 1.5);
-          if (m >= 10.0) m = 9.99;
+          const minM = (typeof window.BOSS_STAT_MIN_MULTIPLIER === 'number') ? window.BOSS_STAT_MIN_MULTIPLIER : 1.5;
+          const maxM = (typeof window.BOSS_STAT_MAX_MULTIPLIER === 'number') ? window.BOSS_STAT_MAX_MULTIPLIER : 10.0;
+          const pTop = (typeof window.BOSS_STAT_TOP_PROB === 'number') ? window.BOSS_STAT_TOP_PROB : (1 / 10000);
+          const exp  = (typeof window.BOSS_STAT_POWER_EXP === 'number') ? window.BOSS_STAT_POWER_EXP : 4;
+
+          // ごく低確率で最高倍率
+          if (Math.random() < pTop) return maxM;
+
+          // それ以外は低倍率寄りの分布
+          const r = Math.random() ** exp;
+          let m = minM + r * (maxM - minM);
+          if (m >= maxM) m = maxM - 0.01;
           return m;
         }
 
@@ -4650,7 +4709,7 @@ finalResEl.onclick = () => {
   try {
     if (typeof window.battlesPlayed === 'number' &&
         window.battlesPlayed > 0 &&
-        window.battlesPlayed % 50 === 0 &&
+        window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
         typeof stopAutoBattle === 'function') {
       stopAutoBattle();
     }
