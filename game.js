@@ -2999,148 +2999,149 @@ window.showBattleMode = function() {
 
 // スキル効果を適用（カテゴリ別に処理）
 
-window.getSkillEffect = function(skill, user, target, log) {
-  if (skill.sealed) {
-    log.push(`${displayName(user.name)}のスキル「${skill.name}」は封印されているため発動できない`);
-    return;
-  }
 
-if (user !== player) {
-  let failChance = 0;
-
-  if (currentStreak <= 10) {
-    failChance = 0.8;
-  } else if (currentStreak <= 30) {
-    failChance = 0.55;
-  } else if (currentStreak <= 50) {
-    failChance = 0.4;
-  } else if (currentStreak <= 100) {
-    failChance = 0.2;
-  } else {
-    failChance = 0; // 100連勝を超えたら失敗しない
+// Endure（不死身の構え）のクールダウン用ヘルパー
+// 2回連続で成功し、3回目は失敗（以後このサイクルを繰り返す）
+function checkEndureAllowed(target) {
+  if (!target) return true;
+  if (!target._endureCycle) {
+    target._endureCycle = { count: 0 };
   }
-
-  if (Math.random() < failChance) {
-    if (window.barrierUsesLeft > 0) {
-      window.barrierUsesLeft--;
-      log.push(`${displayName(player.name)}は、不思議な結界に守られている！（残り${window.barrierUsesLeft}回）`);
-      log.push(`${displayName(user.name)}のスキル「${skill.name}」は発動失敗した！`);
-      return; // 発動処理を中止
-    }
-  }
+  target._endureCycle.count++;
+  const isFailTurn = (target._endureCycle.count % 3 === 0);
+  return !isFailTurn;
 }
 
-  let statusLogged = false;
+window.getSkillEffect = function (skill, user, target, log) {
   let totalDamage = 0;
-    skill.uses = (skill.uses || 0) + 1;
-    let skillData = skillPool.find(sk => sk.name === skill.name);
-    // 混合スキルは静的データがないため特別処理
-    if (!skillData) {
-        if (skill.isMixed) {
-            skillData = { category: 'mixed' };  // ダミーのスキルデータでカテゴリーを指定
-        } else {
-            return log;
-        }
+  skill.uses = (skill.uses || 0) + 1;
+  let skillData = skillPool.find(sk => sk.name === skill.name);
+  // 混合スキルは静的データがないため特別処理
+  if (!skillData) {
+    if (skill.isMixed) {
+      skillData = { category: 'mixed' };  // ダミーのスキルデータでカテゴリーを指定
+    } else {
+      return log;
     }
-    skill.level = (typeof skill.level === 'number' && !isNaN(skill.level)) ? skill.level : 1;
-
-    switch (skillData.category) {
-			
-case 'multi': {
-    let baseDmg = Math.max(0, user.attack);
-    const baseHits = skillData.baseHits || 1;
-    let hits = baseHits;
-    if (skillData.extraHits && skill.level >= (skillData.extraHitsTriggerLevel || 9999)) {
-        hits += skillData.extraHits;
-    }
-
-    const growthBonus = skillData.multiGrowthFactor || 0;
-    const growthPower = 1 + (skill.level / 1000) * growthBonus;
-    let totalDmg = baseDmg * (1 + hits * 0.2) * growthPower;
-
-    const barrierEff = target.effects.find(e => e.type === 'barrier');
-    if (barrierEff) {
-        totalDmg = Math.max(0, Math.floor(totalDmg * (1 - barrierEff.reduction)));
-    }
-
-    const splitBaseDmg = Math.floor(totalDmg / hits);
-    let remaining = totalDmg - splitBaseDmg * hits;
-
-    const baseAccuracy = Math.max(0.5, 0.95 - (hits - 1) * 0.05);
-
-    const critMax = skillData.criticalRateMax || 0; // 例：0.3（最大30%）
-    const critRate = critMax * (1 - Math.exp(-skill.level / 600));
-
-    for (let i = 0; i < hits; i++) {
-        if (Math.random() < baseAccuracy) {
-            const randFactor = 0.7 + Math.random() * 0.6;
-            let rawHitDmg = splitBaseDmg * randFactor;
-
-            const isCrit = Math.random() < critRate;
-
-            let hitDmg = isCrit
-                ? Math.floor(rawHitDmg) // クリティカル時、防御無視
-                : Math.max(0, Math.floor(rawHitDmg - target.defense / 2));
-
-            if (remaining > 0) {
-                hitDmg += 1;
-                remaining -= 1;
-            }
-
-            target.hp -= hitDmg;
-            totalDamage += hitDmg;
-
-            const critText = isCrit ? '（クリティカル！）' : '';
-            log.push(`${displayName(user.name)}の${skill.name}：${hitDmg}ダメージ ${critText} (${i + 1}回目)`);
-        } else {
-            log.push(`${displayName(user.name)}の${skill.name}：攻撃を外した (${i + 1}回目)`);
-        }
-    }
-    break;
-}
-case 'poison': {
-  const base = skillData.power + skill.level * skillData.levelFactor;
-
-  const atkFactor = (skillData.atkFactorBase || 0) +
-    ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
-
-  const atkBonus = user.attack * atkFactor;
-  const firstTurnDmg = base + atkBonus;
-
-  const growthRate = skillData.growthRate || 1.0;
-  const duration = skillData.duration;
-  const damagePerTurn = [];
-
-  let dmg = firstTurnDmg;
-  for (let t = 0; t < duration; t++) {
-    damagePerTurn.push(Math.floor(dmg));
-    dmg *= growthRate;
   }
+  skill.level = (typeof skill.level === 'number' && !isNaN(skill.level)) ? skill.level : 1;
 
-  target.effects.push({
-    type: '毒',
-    damageSequence: damagePerTurn,
-    turnIndex: 0,
-    remaining: duration
-  });
+  switch (skillData.category) {
 
-  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒（ATK補正あり、初期${Math.floor(firstTurnDmg)}×${duration}ターン）`);
-  break;
-}
-case 'burn': {
-  const base = skillData.power + skill.level * skillData.levelFactor;
+    case 'multi': {
+      let baseDmg = Math.max(0, user.attack);
+      const baseHits = skillData.baseHits || 1;
+      let hits = baseHits;
+      if (skillData.extraHits && skill.level >= (skillData.extraHitsTriggerLevel || 9999)) {
+        hits += skillData.extraHits;
+      }
 
-  const atkFactor = (skillData.atkFactorBase || 0) +
-    ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
+      const growthBonus = skillData.multiGrowthFactor || 0;
+      const growthPower = 1 + (skill.level / 1000) * growthBonus;
+      let totalDmg = baseDmg * (1 + hits * 0.2) * growthPower;
 
-  const atkBonus = user.attack * atkFactor;
-  const dmg = Math.floor(base + atkBonus);
+      const barrierEff = target.effects.find(e => e.type === 'barrier');
+      if (barrierEff) {
+        totalDmg = Math.max(0, Math.floor(totalDmg * (1 - barrierEff.reduction)));
+      }
 
-  target.effects.push({ type: '火傷', damage: dmg, remaining: skillData.duration });
+      const splitBaseDmg = Math.floor(totalDmg / hits);
+      let remaining = totalDmg - splitBaseDmg * hits;
 
-  log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に火傷（${dmg}×${skillData.duration}ターン）`);
-  break;
-}
+      const baseAccuracy = Math.max(0.5, 0.95 - (hits - 1) * 0.05);
+
+      const critMax = skillData.criticalRateMax || 0;
+      const critRate = critMax * (1 - Math.exp(-skill.level / 600));
+
+      for (let i = 0; i < hits; i++) {
+        if (Math.random() < baseAccuracy) {
+          const randFactor = 0.7 + Math.random() * 0.6;
+          let rawHitDmg = splitBaseDmg * randFactor;
+
+          const isCrit = Math.random() < critRate;
+
+          let hitDmg = isCrit
+            ? Math.floor(rawHitDmg) // クリティカル時、防御無視
+            : Math.max(0, Math.floor(rawHitDmg - target.defense / 2));
+
+          if (remaining > 0) {
+            hitDmg += 1;
+            remaining -= 1;
+          }
+
+          target.hp -= hitDmg;
+          totalDamage += hitDmg;
+
+          // エンデュア効果判定：致死ダメージをHP1で耐える
+          const endureEff = target.effects.find(e => e.type === 'endure');
+          let prevented = 0;
+                    if (endureEff && target.hp < 1) {
+            const ok = checkEndureAllowed(target);
+            if (!ok) {
+              log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+              console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+            } else {
+            prevented = 1 - target.hp;
+            target.hp = 1;
+            endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+            hitDmg -= prevented;
+            totalDamage -= prevented;
+            console.log(`[Endure] ${displayName(target.name)} endured a hit with 1 HP (prevented ${prevented})`);
+                      }
+          }
+
+
+          const critText = isCrit ? '（クリティカル！）' : '';
+          log.push(`${displayName(user.name)}の${skill.name}：${hitDmg}ダメージ ${critText} (${i + 1}回目)`);
+          if (endureEff && prevented > 0) {
+            log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+          }
+        } else {
+          log.push(`${displayName(user.name)}の${skill.name}：攻撃を外した (${i + 1}回目)`);
+        }
+      }
+      break;
+    }
+
+    case 'poison': {
+      const base = skillData.power + skill.level * skillData.levelFactor;
+      const atkFactor = (skillData.atkFactorBase || 0) +
+        ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
+      const atkBonus = user.attack * atkFactor;
+      const firstTurnDmg = base + atkBonus;
+      const growthRate = skillData.growthRate || 1.0;
+      const duration = skillData.duration;
+      const damagePerTurn = [];
+
+      let dmg = firstTurnDmg;
+      for (let t = 0; t < duration; t++) {
+        damagePerTurn.push(Math.floor(dmg));
+        dmg *= growthRate;
+      }
+
+      target.effects.push({
+        type: '毒',
+        damageSequence: damagePerTurn,
+        turnIndex: 0,
+        remaining: duration
+      });
+
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に毒（ATK補正あり、初期${Math.floor(firstTurnDmg)}×${duration}ターン）`);
+      break;
+    }
+
+    case 'burn': {
+      const base = skillData.power + skill.level * skillData.levelFactor;
+      const atkFactor = (skillData.atkFactorBase || 0) +
+        ((skillData.atkFactorMax || 0) - (skillData.atkFactorBase || 0)) * (skill.level / 999);
+      const atkBonus = user.attack * atkFactor;
+      const dmg = Math.floor(base + atkBonus);
+
+      target.effects.push({ type: '火傷', damage: dmg, remaining: skillData.duration });
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に火傷（${dmg}×${skillData.duration}ターン）`);
+      break;
+    }
+
     case 'lifesteal': {
       let dmg = Math.max(0, user.attack - target.defense / 2);
       const barrierEff = target.effects.find(e => e.type === 'barrier');
@@ -3149,140 +3150,163 @@ case 'burn': {
       }
       target.hp -= dmg;
       totalDamage += dmg;
+      // エンデュア判定（ターゲット）
+      const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+        dmg -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
       const heal = Math.floor(dmg * (0.2 + 0.001 * skill.level));
       user.hp = Math.min(user.maxHp, user.hp + heal);
       log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ & ${heal}回復`);
       break;
     }
-case 'skillSeal':
-case 'seal': {
-  const candidates = target.skills.filter(sk => !sk.sealed);
-  const shuffled = candidates.sort(() => 0.5 - Math.random());
 
-  const sealCount = Math.min(skillData.sealCount ?? 99, shuffled.length);
-  const sealChance = skillData.sealChance ?? 1.0;
-  const sealDuration = skillData.duration ?? 1;
+    case 'skillSeal':
+    case 'seal': {
+      const candidates = target.skills.filter(sk => !sk.sealed);
+      const shuffled = candidates.sort(() => 0.5 - Math.random());
+      const sealCount = Math.min(skillData.sealCount ?? 99, shuffled.length);
+      const sealChance = skillData.sealChance ?? 1.0;
+      const sealDuration = skillData.duration ?? 1;
+      let sealed = 0;
+      for (let i = 0; i < sealCount; i++) {
+        if (Math.random() < sealChance) {
+          shuffled[i].sealed = true;
+          shuffled[i].sealRemaining = sealDuration;
+          log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}のスキル「${shuffled[i].name}」を${sealDuration}ターン封印！`);
+          sealed++;
+        }
+      }
+      if (sealed === 0) {
+        log.push(`${displayName(user.name)}の${skill.name}：しかし封印に失敗した！`);
+      }
+      break;
+    }
 
-  let sealed = 0;
-  for (let i = 0; i < sealCount; i++) {
-    if (Math.random() < sealChance) {
-      shuffled[i].sealed = true;
-      shuffled[i].sealRemaining = sealDuration;
-      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}のスキル「${shuffled[i].name}」を${sealDuration}ターン封印！`);
-      sealed++;
-    }
-  }
-  if (sealed === 0) {
-    log.push(`${displayName(user.name)}の${skill.name}：しかし封印に失敗した！`);
-  }
-  break;
-    }
     case 'barrier': {
       user.effects.push({ type: 'barrier', reduction: skillData.reduction, remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ軽減バリア展開`);
       break;
     }
-case 'regen': {
-  const baseHeal = skillData.amount + skillData.levelFactor * skill.level;
-  const atkFactor = skillData.atkFactor || 0; // skills.jsに記載（例: 0.02）
-  const atkBonus = user.attack * atkFactor;
-  const healPerTurn = Math.floor(baseHeal + atkBonus);
 
-  user.effects.push({ type: 'regen', heal: healPerTurn, atkFactor: atkFactor, remaining: skillData.duration });
+    case 'regen': {
+      const baseHeal = skillData.amount + skillData.levelFactor * skill.level;
+      const atkFactor = skillData.atkFactor || 0;
+      const atkBonus = user.attack * atkFactor;
+      const healPerTurn = Math.floor(baseHeal + atkBonus);
+      user.effects.push({ type: 'regen', heal: healPerTurn, atkFactor: atkFactor, remaining: skillData.duration });
+      log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン毎ターン${healPerTurn}HP回復（ATK補正含む）`);
+      break;
+    }
 
-  log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン毎ターン${healPerTurn}HP回復（ATK補正含む）`);
-  break;
-}
     case 'reflect': {
       user.effects.push({ type: 'reflect', percent: skillData.reflectPercent, remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターンダメージ反射状態`);
       break;
     }
+
     case 'evasion': {
       user.effects.push({ type: 'evasion', chance: skillData.evasionChance, remaining: skillData.duration });
       log.push(`${displayName(user.name)}の${skill.name}：${skillData.duration}ターン回避率上昇`);
       break;
     }
-case 'buff': {
-  const bonusTurns = getLevelTurnBonus(skill.level || 1);
-  const duration = (skillData.duration || 1) + bonusTurns;
-  const baseFactor = skillData.factor || 1.5;
-  const factor = baseFactor + (skill.level || 1) * 0.0005; // レベルに応じて上昇
 
-  skillData.targetStats.forEach(stat => {
-    const existing = user.effects.find(e => e.type === 'buff' && e.stat === stat);
-    if (existing) {
-      user[stat] = existing.original;
-      user.effects = user.effects.filter(e => e !== existing);
+    case 'buff': {
+      const bonusTurns = getLevelTurnBonus(skill.level || 1);
+      const duration = (skillData.duration || 1) + bonusTurns;
+      const baseFactor = skillData.factor || 1.5;
+      const factor = baseFactor + (skill.level || 1) * 0.0005;
+      skillData.targetStats.forEach(stat => {
+        const existing = user.effects.find(e => e.type === 'buff' && e.stat === stat);
+        if (existing) {
+          user[stat] = existing.original;
+          user.effects = user.effects.filter(e => e !== existing);
+        }
+        const original = user[stat];
+        user[stat] = Math.floor(user[stat] * factor);
+        user.effects.push({ type: 'buff', stat: stat, original: original, remaining: duration });
+      });
+      log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 強化！`);
+      break;
     }
-    const original = user[stat];
-    user[stat] = Math.floor(user[stat] * factor);
-    user.effects.push({ type: 'buff', stat: stat, original: original, remaining: duration });
-  });
-  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 強化！`);
-  break;
-}
-case 'debuff': {
-  const bonusTurns = getLevelTurnBonus(skill.level || 1);
-  const duration = (skillData.duration || 1) + bonusTurns;
-  const baseFactor = skillData.factor || 0.5;
-  const factor = Math.max(0.1, baseFactor - (skill.level || 1) * 0.0003); // 下限を0.1に制限
 
-  skillData.targetStats.forEach(stat => {
-    const existing = user.effects.find(e => e.type === 'debuff' && e.stat === stat);
-    if (existing) {
-      user[stat] = existing.original;
-      user.effects = user.effects.filter(e => e !== existing);
+    case 'debuff': {
+      const bonusTurns = getLevelTurnBonus(skill.level || 1);
+      const duration = (skillData.duration || 1) + bonusTurns;
+      const baseFactor = skillData.factor || 0.5;
+      const factor = Math.max(0.1, baseFactor - (skill.level || 1) * 0.0003);
+      skillData.targetStats.forEach(stat => {
+        const existing = user.effects.find(e => e.type === 'debuff' && e.stat === stat);
+        if (existing) {
+          user[stat] = existing.original;
+          user.effects = user.effects.filter(e => e !== existing);
+        }
+        const original = user[stat];
+        user[stat] = Math.floor(user[stat] * factor);
+        user.effects.push({ type: 'debuff', stat: stat, original: original, remaining: duration });
+      });
+      log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 弱体！`);
+      break;
     }
-    const original = user[stat];
-    user[stat] = Math.floor(user[stat] * factor);
-    user.effects.push({ type: 'debuff', stat: stat, original: original, remaining: duration });
-  });
-  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 弱体！`);
-  break;
-}
-case 'buffExtension': {
-  const bonusTurns = getLevelTurnBonus(skill.level || 1);
-  const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
-  let extended = false;
-  user.effects.forEach(e => {
-    if (e.type === 'buff' || e.type === 'berserk') {
-      e.remaining += extendTurns;
-      extended = true;
+
+    case 'buffExtension': {
+      const bonusTurns = getLevelTurnBonus(skill.level || 1);
+      const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
+      let extended = false;
+      user.effects.forEach(e => {
+        if (e.type === 'buff' || e.type === 'berserk') {
+          e.remaining += extendTurns;
+          extended = true;
+        }
+      });
+      if (extended) {
+        log.push(`${displayName(user.name)}の${skill.name}：強化効果延長+${extendTurns}ターン`);
+      } else {
+        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+      }
+      break;
     }
-  });
-  if (extended) {
-    log.push(`${displayName(user.name)}の${skill.name}：強化効果延長+${extendTurns}ターン`);
-  } else {
-    log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
-  }
-  break;
-}
-case 'debuffExtension': {
-  const bonusTurns = getLevelTurnBonus(skill.level || 1);
-  const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
-  let extended = false;
-  user.effects.forEach(e => {
-    if (e.type === 'debuff') {
-      e.remaining += extendTurns;
-      extended = true;
+
+    case 'debuffExtension': {
+      const bonusTurns = getLevelTurnBonus(skill.level || 1);
+      const extendTurns = (skillData.extendTurns || 1) + bonusTurns;
+      let extended = false;
+      user.effects.forEach(e => {
+        if (e.type === 'debuff') {
+          e.remaining += extendTurns;
+          extended = true;
+        }
+      });
+      if (extended) {
+        log.push(`${displayName(user.name)}の${skill.name}：弱体効果延長+${extendTurns}ターン`);
+      } else {
+        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+      }
+      break;
     }
-  });
-  if (extended) {
-    log.push(`${displayName(user.name)}の${skill.name}：弱体効果延長+${extendTurns}ターン`);
-  } else {
-    log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
-  }
-  break;
-}
+
     case 'heal': {
       const healAmount = Math.floor(user.maxHp * (skillData.healRatio + skillData.levelFactor * skill.level));
       user.hp = Math.min(user.maxHp, user.hp + healAmount);
       log.push(`${displayName(user.name)}の${skill.name}：${healAmount}HP回復`);
       break;
     }
+
     case 'damage': {
-      const effectiveDef = target.defense * (1 - skillData.ignoreDefense);
+      const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
       let dmg = Math.max(0, Math.floor(user.attack * skillData.multiplier - effectiveDef / 2));
       const barrierEff = target.effects.find(e => e.type === 'barrier');
       if (barrierEff) {
@@ -3290,66 +3314,380 @@ case 'debuffExtension': {
       }
       target.hp -= dmg;
       totalDamage += dmg;
+      // エンデュア判定（ターゲット）
+      const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+        dmg -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived attack with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
       log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ`);
       break;
     }
-case 'stun': {
-  const stunChance = skillData.stunChance ?? 1.0; // デフォルトは100%
-  if (Math.random() < stunChance) {
-    target.effects.push({ type: 'stun', remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
-    log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}を${skillData.duration}ターン行動不能にした`);
-  } else {
-    log.push(`${displayName(user.name)}の${skill.name}：しかし行動不能にできなかった`);
+
+    case 'stun': {
+      const stunChance = skillData.stunChance ?? 1.0;
+      if (Math.random() < stunChance) {
+        target.effects.push({ type: 'stun', remaining: (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1) });
+        log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}を${skillData.duration}ターン行動不能にした`);
+      } else {
+        log.push(`${displayName(user.name)}の${skill.name}：しかし行動不能にできなかった`);
+      }
+      break;
+    }
+
+    case 'berserk': {
+      const bonusTurns = getLevelTurnBonus(skill.level || 1);
+      const duration = (skillData.duration || 1) + bonusTurns;
+      const attackFactor = 2.0 + (skill.level || 1) * 0.0005;
+      const defenseFactor = Math.max(0.1, 0.5 - (skill.level || 1) * 0.0002);
+      const originalAttack = user.attack;
+      const originalDefense = user.defense;
+      user.attack = Math.floor(user.attack * attackFactor);
+      user.defense = Math.floor(user.defense * defenseFactor);
+      user.effects.push({ type: 'buff', stat: 'attack', original: originalAttack, remaining: duration });
+      user.effects.push({ type: 'debuff', stat: 'defense', original: originalDefense, remaining: duration });
+      log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン 攻撃${attackFactor.toFixed(2)}倍 / 防御${defenseFactor.toFixed(2)}倍`);
+      break;
+    }
+
+    // --- 新規スキルカテゴリの処理を追加 ---
+
+    case 'counter': {
+      const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
+      user.effects.push({ type: 'counter', percent: skillData.counterPercent || 0.5, remaining: duration, accumulated: 0, skillName: skill.name });
+      console.log(`[Counter] ${displayName(user.name)} activated ${skill.name} (duration ${duration}, ${Math.floor((skillData.counterPercent || 0.5) * 100)}% damage stored)`);
+      log.push(`${displayName(user.name)}の${skill.name}：カウンター態勢！`);
+      break;
+    }
+
+    case 'purifyCounter': {
+      let sumDamage = 0;
+      const effectsToRemove = ['毒', '火傷'];
+      for (const eff of [...user.effects]) {
+        if (effectsToRemove.includes(eff.type)) {
+          if (eff.type === '毒') {
+            // 残り毒ダメージを合計
+            if (eff.damageSequence) {
+              const idx = eff.turnIndex || 0;
+              const remainingSeq = eff.damageSequence.slice(idx);
+              sumDamage += remainingSeq.reduce((a, b) => a + b, 0);
+            } else if (typeof eff.damage === 'number' && eff.remaining) {
+              sumDamage += eff.damage * eff.remaining;
+            }
+          } else if (eff.type === '火傷') {
+            if (typeof eff.damage === 'number' && eff.remaining) {
+              sumDamage += eff.damage * eff.remaining;
+            }
+          }
+          user.effects = user.effects.filter(e => e !== eff);
+        }
+      }
+      sumDamage = Math.floor(sumDamage);
+      if (sumDamage <= 0) {
+        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+        break;
+      }
+      target.hp -= sumDamage;
+      totalDamage += sumDamage;
+      // エンデュア判定（ターゲット）
+      const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+        sumDamage -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived purify-counter with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に${sumDamage}ダメージ（浄化反撃）`);
+      break;
+    }
+
+    case 'itemReuse': {
+      const chance = skillData.activationRate ?? 1.0;
+      if (Math.random() < chance) {
+        const usableItems = player.itemMemory.filter(item => item.remainingUses > 0);
+        if (usableItems.length === 0) {
+          log.push(`${displayName(user.name)}の${skill.name}：しかし再利用できるアイテムがない！`);
+          console.log("[ItemReuse] No usable item to activate");
+        } else {
+          const item = usableItems[Math.floor(Math.random() * usableItems.length)];
+          log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が${item.skillName}を発動！`);
+          console.log(`[ItemReuse] Activating item: ${item.color}${item.adjective}${item.noun} -> ${item.skillName}`);
+          const prevDamage = user.battleStats[item.skillName] || 0;
+          const itemSkillDef = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
+          if (itemSkillDef) {
+            getSkillEffect({ ...itemSkillDef, level: item.skillLevel || 1 }, player, target, log);
+          }
+          if (item.skillLevel < 3000 && Math.random() < 0.4) {
+            item.skillLevel++;
+            log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+            drawItemMemoryList();
+          }
+          item.remainingUses--;
+          const isWithinProtectedPeriod = window.protectItemUntil && window.battleCount <= window.protectItemUntil;
+          if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
+            log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+            player.itemMemory.splice(player.itemMemory.indexOf(item), 1);
+            drawItemMemoryList();
+          }
+          const newDamage = user.battleStats[item.skillName] || 0;
+          const itemDamage = newDamage - prevDamage;
+          totalDamage += itemDamage;
+        }
+      } else {
+        log.push(`${displayName(user.name)}の${skill.name}：しかし効果は発動しなかった`);
+        console.log("[ItemReuse] Reuse attempt failed");
+      }
+      break;
+    }
+
+    case 'endure': {
+      const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
+      user.effects.push({ type: 'endure', remaining: duration, preventedDamage: 0, skillName: skill.name });
+      console.log(`[Endure] ${displayName(user.name)} activated ${skill.name} (duration ${duration})`);
+      log.push(`${displayName(user.name)}の${skill.name}：HP1で耐える耐久態勢！`);
+      break;
+    }
+
+    case 'gap': {
+      const userTotal = Math.max(1, user.attack + user.defense + user.speed);
+      const targetTotal = Math.max(1, target.attack + target.defense + target.speed);
+      const favorDominant = skillData.favor === 'dominant';
+      let ratio = favorDominant ? (userTotal / targetTotal) : (targetTotal / userTotal);
+      const minRatio = skillData.minRatio || 0.1;
+      const maxRatio = skillData.maxRatio || 3.0;
+      ratio = Math.max(minRatio, Math.min(maxRatio, ratio));
+      const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
+      let dmg = Math.max(0, Math.floor(user.attack * (skillData.baseMultiplier || 1) * ratio - effectiveDef / 2));
+      const barrierEff = target.effects.find(e => e.type === 'barrier');
+      if (barrierEff) {
+        dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
+      }
+      target.hp -= dmg;
+      totalDamage += dmg;
+      const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+        dmg -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived gap attack with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
+      log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ`);
+      break;
+    }
+
+    case 'maxHpDown': {
+      const ratio = skillData.hpRatio || 0;
+      let reduceAmount = Math.floor(target.maxHp * ratio);
+      if (ratio > 0 && reduceAmount < 1) reduceAmount = 1;
+      reduceAmount = Math.min(reduceAmount, target.maxHp - 1);
+      if (reduceAmount <= 0) {
+        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+        break;
+      }
+      target.maxHp -= reduceAmount;
+      if (target.hp > target.maxHp) {
+        const lostHP = target.hp - target.maxHp;
+        target.hp = target.maxHp;
+        console.log(`[MaxHpDown] ${displayName(target.name)} maxHP -${reduceAmount}, current HP reduced by ${lostHP}`);
+      }
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}の最大HPを${reduceAmount}削り取った`);
+      break;
+    }
+
+    case 'sacrifice': {
+      const hpCostRatio = skillData.hpCost || 0;
+      const hpCost = Math.floor(user.maxHp * hpCostRatio);
+      let recoilDamage = hpCost;
+      if (hpCost > 0) {
+        user.hp -= hpCost;
+        console.log(`[Sacrifice] ${displayName(user.name)} lost ${hpCost} HP by using ${skill.name}`);
+        const endureEffUser = user.effects.find(e => e.type === 'endure');
+                if (endureEffUser && user.hp < 1) {
+          const ok = checkEndureAllowed(user);
+          if (!ok) {
+            log.push(`${displayName(user.name)}は不死身の構えの連続使用に失敗した！`);
+            console.log(`[Endure] ${displayName(user.name)} failed due to cooldown (every 3rd use).`);
+          } else {
+          const prevented = 1 - user.hp;
+          user.hp = 1;
+          endureEffUser.preventedDamage = (endureEffUser.preventedDamage || 0) + prevented;
+          recoilDamage -= prevented;
+          console.log(`[Endure] ${displayName(user.name)} survived sacrifice with 1 HP (prevented ${prevented})`);
+          log.push(`${displayName(user.name)}はHP1で踏みとどまった！`);
+                  }
+        }
+
+      }
+      const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
+      let dmg = Math.max(0, Math.floor(user.attack * (skillData.multiplier || 1) - effectiveDef / 2));
+      const barrierEff = target.effects.find(e => e.type === 'barrier');
+      if (barrierEff) {
+        dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
+      }
+      target.hp -= dmg;
+      totalDamage += dmg;
+      const endureEffTarget = target.effects.find(e => e.type === 'endure');
+            if (endureEffTarget && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEffTarget.preventedDamage = (endureEffTarget.preventedDamage || 0) + prevented;
+        dmg -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived sacrifice attack with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
+      log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ & 自身も${recoilDamage}ダメージ`);
+      break;
+    }
+
+    case 'random': {
+      const minMul = skillData.minMultiplier ?? 0;
+      const maxMul = skillData.maxMultiplier ?? 1;
+      const randFactor = minMul + Math.random() * (maxMul - minMul);
+      const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
+      let dmg = Math.max(0, Math.floor(user.attack * randFactor - effectiveDef / 2));
+      const barrierEff = target.effects.find(e => e.type === 'barrier');
+      if (barrierEff) {
+        dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
+      }
+      target.hp -= dmg;
+      totalDamage += dmg;
+      const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+        const ok = checkEndureAllowed(target);
+        if (!ok) {
+          log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
+          console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
+        } else {
+        const prevented = 1 - target.hp;
+        target.hp = 1;
+        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+        dmg -= prevented;
+        totalDamage -= prevented;
+        console.log(`[Endure] ${displayName(target.name)} survived random attack with 1 HP (prevented ${prevented})`);
+        log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+              }
+      }
+
+      log.push(`${displayName(user.name)}の${skill.name}：${dmg}ダメージ`);
+      break;
+    }
+
+    case 'steal': {
+      const stat = skillData.stat || 'attack';
+      const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
+      // 元のステータス保存と既存効果解除
+      const existingBuff = user.effects.find(e => e.type === 'buff' && e.stat === stat);
+      if (existingBuff) {
+        user[stat] = existingBuff.original;
+        user.effects = user.effects.filter(e => e !== existingBuff);
+      }
+      const existingDebuff = target.effects.find(e => e.type === 'debuff' && e.stat === stat);
+      if (existingDebuff) {
+        target[stat] = existingDebuff.original;
+        target.effects = target.effects.filter(e => e !== existingDebuff);
+      }
+      const stealRatio = skillData.stealRatio || 0;
+      const enemyStatValue = target[stat];
+      const stealPoints = Math.max(0, Math.floor(enemyStatValue * stealRatio));
+      if (stealPoints <= 0) {
+        log.push(`${displayName(user.name)}の${skill.name}：効果なし`);
+        break;
+      }
+      const userOriginal = user[stat];
+      const enemyOriginal = target[stat];
+      target[stat] = Math.max(0, target[stat] - stealPoints);
+      user[stat] = user[stat] + stealPoints;
+      user.effects.push({ type: 'buff', stat: stat, original: userOriginal, remaining: duration });
+      target.effects.push({ type: 'debuff', stat: stat, original: enemyOriginal, remaining: duration });
+      const statJP = stat === 'attack' ? '攻撃力' : stat === 'defense' ? '防御力' : stat === 'speed' ? '素早さ' : stat;
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}の${statJP}を${stealPoints}奪い取った（${duration}ターン）`);
+      break;
+    }
+
+    case 'block': {
+      const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
+      user.effects.push({ type: 'block', remaining: duration });
+      console.log(`[Block] ${displayName(user.name)} is in block stance for ${duration} turn(s)`);
+      log.push(`${displayName(user.name)}の${skill.name}：守りの構え！`);
+      break;
+    }
+
+    case 'bomb': {
+      const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
+      const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
+      const baseAtk = user.attack * (skillData.multiplier || 1);
+      const bombDmg = Math.max(0, Math.floor(baseAtk - effectiveDef / 2));
+      target.effects.push({ type: '爆弾', damage: bombDmg, remaining: duration });
+      console.log(`[Bomb] ${displayName(target.name)} has a bomb (爆弾) set for ${duration} turn(s) with ${bombDmg} damage`);
+      log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に爆弾を設置した（${duration}ターン後爆発）`);
+      break;
+    }
+
+    // ...
+    // （パッシブスキル等その他のケースは変更なし）
+    // ...
   }
-  break;
 
-    }
-case 'berserk': {
-  const bonusTurns = getLevelTurnBonus(skill.level || 1);
-  const duration = (skillData.duration || 1) + bonusTurns;
-
-  const attackFactor = 2.0 + (skill.level || 1) * 0.0005;
-  const defenseFactor = Math.max(0.1, 0.5 - (skill.level || 1) * 0.0002);
-
-  // 既存のbuff/debuffと同じ方式で、元の値を保存
-  const originalAttack = user.attack;
-  const originalDefense = user.defense;
-
-  user.attack = Math.floor(user.attack * attackFactor);
-  user.defense = Math.floor(user.defense * defenseFactor);
-
-  user.effects.push({ type: 'buff', stat: 'attack', original: originalAttack, remaining: duration });
-  user.effects.push({ type: 'debuff', stat: 'defense', original: originalDefense, remaining: duration });
-
-  log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン 攻撃${attackFactor.toFixed(2)}倍 / 防御${defenseFactor.toFixed(2)}倍`);
-  break;
-}
-}
-
-if (user === player && skill.level < 9999) {
-  // 成長確率をスキルレベルに応じて調整
-  const baseChance = 0.1; // 最大20%
-  const levelFactor = skill.level < 1000 ? 1 : 1000 / skill.level;
-  const growChance = baseChance * levelFactor;
-
-  if (Math.random() < growChance) {
-    skill.level++;
-    log.push(`${displayName(user.name)}のスキル「${skill.name}」が Lv${skill.level} に成長！`);
-
-    if (player.skillMemory && player.skillMemory[skill.name] !== undefined) {
-      player.skillMemory[skill.name] = Math.max(skill.level, player.skillMemory[skill.name]);
-    }
-
-    // スキルメモリー画面が表示されていれば即時更新
-    const skillListVisible = document.getElementById("skillMemoryList");
-    if (skillListVisible && !skillListVisible.classList.contains("hidden")) {
-      syncSkillsUI();
+  if (user === player && skill.level < 9999) {
+    // 成長確率をスキルレベルに応じて調整
+    const baseChance = 0.1;
+    const levelFactor = skill.level < 1000 ? 1 : 1000 / skill.level;
+    const growChance = baseChance * levelFactor;
+    if (Math.random() < growChance) {
+      skill.level++;
+      log.push(`${displayName(user.name)}のスキル「${skill.name}」が Lv${skill.level} に成長！`);
+      if (player.skillMemory && player.skillMemory[skill.name] !== undefined) {
+        player.skillMemory[skill.name] = Math.max(skill.level, player.skillMemory[skill.name]);
+      }
+      const skillListVisible = document.getElementById("skillMemoryList");
+      if (skillListVisible && !skillListVisible.classList.contains("hidden")) {
+        syncSkillsUI();
+      }
     }
   }
-}
   // ダメージ実績を記録
-    user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
-    return log;
+  user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
+  return log;
 };
 function checkReviveOnDeath(character, log) {
   if (character.hp > 0 || !character.mixedSkills) return false;
@@ -3398,35 +3736,26 @@ function checkReviveOnDeath(character, log) {
 
 function handlePoisonBurnDamage(character, damage, log) {
   if (damage <= 0 || !character.mixedSkills) return;
-
   let totalHealPercent = 0;
-
   // 使用中のスキルの即時回復効果（type 3）を集計
   for (const mSkill of character.mixedSkills) {
     if (!mSkill.usedInBattle || !Array.isArray(mSkill.specialEffects)) continue;
-
     for (const effect of mSkill.specialEffects) {
       if (effect.type === 3 && !effect.used) {
         totalHealPercent += effect.value;
       }
     }
   }
-
   // 合計回復率から回復量を算出
   if (totalHealPercent > 0) {
-    const healAmount = Math.floor(damage * (totalHealPercent / 100));
-    if (healAmount > 0) {
-      character.hp = Math.min(character.maxHp, character.hp + healAmount);
-      if (log && typeof log.push === "function") {
-        log.push(`※ 継続ダメージ ${damage} に対し、混合スキルの効果で ${healAmount} HP 即時回復（合計 ${totalHealPercent}%）`);
-      }
+    const healAmount = Math.floor(character.maxHp * (totalHealPercent / 100));
+    character.hp = Math.min(character.maxHp, character.hp + healAmount);
+    if (log && typeof log.push === "function" && healAmount > 0) {
+      log.push(`※ ${displayName(character.name)}は即時回復効果で${healAmount}HP回復`);
     }
   }
+  return;
 }
-
-
-
-
 
 function restoreMissingItemUses() {
   if (!player || !player.itemMemory) return;
@@ -3825,8 +4154,6 @@ player.effects = [];
 enemy.effects = [];
 updateStats();
 
-applyPassiveSeals(player, enemy, log);
-
   let turn = 1;
   const MAX_TURNS = 30;
   hpHistory = [];
@@ -3839,99 +4166,66 @@ applyPassiveSeals(player, enemy, log);
 
   // ターン制バトル開始
 
+    // ターン制バトル開始
+
   while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
     log.push(`\n-- ${turn}ターン --`);
 
     if (turn === 1) {
-     applyPassiveSeals(player, enemy, log);
-     }
+      applyPassiveSeals(player, enemy, log);
+    }
     updateSealedSkills(player);
     updateSealedSkills(enemy);
 
-		if (player.mixedSkills && player.mixedSkills.length > 0) {
-		  const msg = player.mixedSkills.map((ms, i) => 
-		    `混合スキル${i + 1}「${ms.name}」: 発動率 ${Math.round(ms.activationProb * 100)}%`
-		  ).join('\n');
-	//	  console.log(msg);
-		} else {
-	//	  console.log("混合スキルはまだ取得していません。");
-		}
-	//	console.log(player.skills);
-
-		
-		player.mixedSkills?.forEach(mixedSkill => {
-		  if (!mixedSkill.used && Math.random() < mixedSkill.activationProb) {
-		    useMixedSkill(mixedSkill,player,enemy, log);  // ← 発動
-		    mixedSkill.used = true;
-		  }
-		});
-		
-
-
-		// 継続効果の処理（毒・火傷・再生など）
-		[player, enemy].forEach(ch => {
-		  for (let eff of ch.effects) {
-		    if (eff.remaining > 0) {
-		      if (eff.type === '毒') {
-		        let dmg = eff.damage;
-		
-		        // 成長型毒（growthRateあり）の場合
-		        if (eff.damageSequence) {
-		          dmg = eff.damageSequence[eff.turnIndex] || eff.damageSequence.at(-1);
-		          eff.turnIndex++;
-		        }
-		
-		        ch.hp -= dmg;
-		        log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
-		        ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
-		
-		        handlePoisonBurnDamage(ch, dmg, log); // ← 即時回復
-		
-		      } else if (eff.type === '火傷') {
-		        ch.hp -= eff.damage;
-		        log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
-		        ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
-		
-		        handlePoisonBurnDamage(ch, eff.damage, log); // ← 即時回復
-		
-		      } else if (eff.type === 'regen') {
-		        const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
-		        ch.hp += heal;
-		        if (heal > 0) {
-		          log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
-		        }}
-
-
-    // ターン経過
-    eff.remaining--;
-		
-		
-function hasAnyHighScore() {
-  if (!window.maxScores) return false;
-
-  return Object.values(window.maxScores).some(score =>
-    typeof score === 'number' && score > 0
-  );
-}
-
-if (window.isFirstBattle && !hasAnyHighScore()) {
-  showConfirmationPopup(
-`<div style="text-align:center">
-  <img src="ghost.png" alt="Wizard" style="width:180px; height:auto; margin-bottom: 10px;"><br>
-	ようこそ！<br>
-  さっそくだけど、作ったキャラクターが戦闘をしたよ。<br>
-  戦闘ログを確認してみよう。<br><br>
-  最初はフェイスコインを使ってガチャを引いたり、<br>
-  鬼畜モードで何かアイテムを入手して<br>保護するのがおすすめ！<br><br>
-  詳しくは一番上の「遊び方」を見てね。
-</div>`,
-    () => {
-      window.isFirstBattle = false;
-    }
-  );
-}}
-  }
-      // 効果残りターンが0になったものを除去＆ステータス戻す
+    // 継続効果の処理（毒・火傷・再生など）
+    [player, enemy].forEach(ch => {
+      for (let eff of ch.effects) {
+        if (eff.remaining > 0) {
+          if (eff.type === '毒') {
+            let dmg = eff.damage;
+            // 成長型毒の場合、ダメージシーケンスから取得
+            if (eff.damageSequence) {
+              dmg = eff.damageSequence[eff.turnIndex] || eff.damageSequence.at(-1);
+              eff.turnIndex++;
+            }
+            ch.hp -= dmg;
+            log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
+            ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
+            handlePoisonBurnDamage(ch, dmg, log);
+            // エンデュア効果：毒で死亡をHP1で踏みとどまる
+            const endureEff = ch.effects.find(e => e.type === 'endure');
+            if (endureEff && ch.hp < 1) {
+              const prevented = 1 - ch.hp;
+              ch.hp = 1;
+              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+              log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
+              console.log(`[Endure] ${displayName(ch.name)} survived poison with 1 HP (prevented ${prevented})`);
+            }
+          } else if (eff.type === '火傷') {
+            ch.hp -= eff.damage;
+            log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
+            ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
+            handlePoisonBurnDamage(ch, eff.damage, log);
+            const endureEff = ch.effects.find(e => e.type === 'endure');
+            if (endureEff && ch.hp < 1) {
+              const prevented = 1 - ch.hp;
+              ch.hp = 1;
+              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+              log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
+              console.log(`[Endure] ${displayName(ch.name)} survived burn with 1 HP (prevented ${prevented})`);
+            }
+          } else if (eff.type === 'regen') {
+            const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
+            ch.hp += heal;
+            if (heal > 0) {
+              log.push(`${displayName(ch.name)}は再生効果で${heal}HP回復`);
+            }
+          }
+        }
+        // ターン経過
+        eff.remaining--;
+      }
+      // 残りターンが0になった効果の除去（ステータス戻し含む）
       ch.effects = ch.effects.filter(eff => {
         if (eff.remaining <= 0) {
           if (eff.type === 'buff') {
@@ -3941,20 +4235,28 @@ if (window.isFirstBattle && !hasAnyHighScore()) {
           } else if (eff.type === 'berserk') {
             ch.attack = eff.originalAttack;
             ch.defense = eff.originalDefense;
+          } else if (eff.type === 'counter') {
+            const opponent = (ch === player ? enemy : player);
+            const counterDamage = eff.accumulated || 0;
+            if (counterDamage > 0 && opponent.hp > 0) {
+              opponent.hp = Math.max(0, opponent.hp - counterDamage);
+              log.push(`${displayName(ch.name)}の${eff.skillName}：${displayName(opponent.name)}に${counterDamage}ダメージ（反撃）`);
+              ch.battleStats[eff.skillName] = (ch.battleStats[eff.skillName] || 0) + counterDamage;
+              console.log(`[Counter] ${displayName(ch.name)}'s ${eff.skillName} dealt ${counterDamage} damage on expiration`);
+            }
           }
           return false;
         }
         return true;
       });
     });
+
     // 行動順決定（SPDの高い順）
     const order = [player, enemy].sort((a, b) => b.speed - a.speed);
     for (const actor of order) {
-      var target = enemy;
-      if (actor === player) target = enemy;
-      else target = player;
+      let target = (actor === player ? enemy : player);
       if (actor.hp <= 0) continue;
-      // 麻痺（行動不能）の確認
+      // 麻痺による行動不能
       if (actor.effects.some(e => e.type === 'stun')) {
         log.push(`${displayName(actor.name)}は麻痺して動けない！`);
         continue;
@@ -3963,15 +4265,10 @@ if (window.isFirstBattle && !hasAnyHighScore()) {
       let useSkill = !sealed && actor.skills.length > 0;
       let chosenSkills = [];
       if (useSkill) {
-        // スキルを複数同時発動（skillSimulCount分）
-
         useSkill = !sealed && actor.skills.length > 0;
         if (useSkill) {
           chosenSkills = decideSkillsToUse(actor, skillSimulCount);
-
-          // chosenSkills を順番に使う処理
         }
-
         for (const sk of chosenSkills) {
           // 回避判定
           const evasionEff = target.effects.find(e => e.type === 'evasion');
@@ -3979,62 +4276,38 @@ if (window.isFirstBattle && !hasAnyHighScore()) {
             log.push(`${displayName(target.name)}は${sk.name}を回避した！`);
             continue;
           }
+          // ブロック判定
+          const blockEff = target.effects.find(e => e.type === 'block');
+          if (blockEff) {
+            log.push(`${displayName(target.name)}は${sk.name}を防いだ！`);
+            target.effects = target.effects.filter(e => e !== blockEff);
+            console.log(`[Block] ${displayName(target.name)} blocked skill ${sk.name}`);
+            continue;
+          }
           getSkillEffect(sk, actor, target, log);
           // ダメージ反射判定
           const reflectEff = target.effects.find(e => e.type === 'reflect');
           if (reflectEff) {
-            const reflectDmg = Math.floor((actor.battleStats[sk.name] || 0) * reflectEff.percent);
+            let reflectDmg = Math.floor((actor.battleStats[sk.name] || 0) * reflectEff.percent);
             if (reflectDmg > 0) {
               actor.hp -= reflectDmg;
-              log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
-              target.battleStats['反射'] = (target.battleStats['反射'] || 0) + reflectDmg;
+              const endureEff = actor.effects.find(e => e.type === 'endure');
+              if (endureEff && actor.hp < 1) {
+                const prevented = 1 - actor.hp;
+                actor.hp = 1;
+                endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+                reflectDmg -= prevented;
+                console.log(`[Endure] ${displayName(actor.name)} endured reflect with 1 HP (prevented ${prevented})`);
+              }
+              if (reflectDmg > 0) {
+                log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
+                target.battleStats['反射'] = (target.battleStats['反射'] || 0) + reflectDmg;
+              } else {
+                log.push(`${displayName(target.name)}の反射：しかし${displayName(actor.name)}はHP1で踏みとどまった！`);
+              }
             }
           }
         }
-
-
-// プレイヤーのアイテムメモリー発動（1ターンに1度のみ）
-let triggeredItemsThisTurn = new Set();
-
-for (let i = player.itemMemory.length - 1; i >= 0; i--) {
-  const item = player.itemMemory[i];
-  const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
-
-  // このターンで既に発動済みならスキップ
-  if (triggeredItemsThisTurn.has(itemKey)) continue;
-
-  if (item.remainingUses <= 0) continue;
-  if (Math.random() >= item.activationRate) continue;
-
-  const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
-  if (skill) {
-    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
-
-getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
-
-if (item.skillLevel < 3000 && Math.random() < 0.4) {
-  item.skillLevel++;
-  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
-  drawItemMemoryList();
-}
-
-    item.remainingUses--;
-    triggeredItemsThisTurn.add(itemKey);
-
-const isWithinProtectedPeriod =
-  window.protectItemUntil && window.battleCount <= window.protectItemUntil;
-
-if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-  player.itemMemory.splice(i, 1);
-  drawItemMemoryList();
-}
-  }
-}
-
-
-
-
       } else {
         // 通常攻撃
         // 回避判定
@@ -4042,64 +4315,104 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
         if (evasionEff && Math.random() < evasionEff.chance) {
           log.push(`${displayName(target.name)}は攻撃を回避した！`);
         } else {
-          // バリアダメージ軽減適用
-          let dmg = Math.max(0, (actor.attack - target.defense / 2)*0.5);
-          const barrierEff = target.effects.find(e => e.type === 'barrier');
-          if (barrierEff) {
-            dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
-          }
-          target.hp -= dmg;
-          log.push(`${displayName(actor.name)}の通常攻撃：${dmg}ダメージ`);
-          actor.battleStats['通常攻撃'] = (actor.battleStats['通常攻撃'] || 0) + dmg;
-          // ダメージ反射判定
-          const reflectEff = target.effects.find(e => e.type === 'reflect');
-          if (reflectEff) {
-            const reflectDmg = Math.floor(dmg * reflectEff.percent);
-            if (reflectDmg > 0) {
-              actor.hp -= reflectDmg;
-              log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
-              target.battleStats['反射'] = (target.battleStats['反射'] || 0) + reflectDmg;
+          // ブロック判定
+          const blockEff = target.effects.find(e => e.type === 'block');
+          if (blockEff) {
+            log.push(`${displayName(target.name)}は攻撃を防いだ！`);
+            target.effects = target.effects.filter(e => e !== blockEff);
+            console.log(`[Block] ${displayName(target.name)} blocked the attack`);
+          } else {
+            // ダメージ計算
+            let dmg = Math.max(0, (actor.attack - target.defense / 2) * 0.5);
+            const barrierEff = target.effects.find(e => e.type === 'barrier');
+            if (barrierEff) {
+              dmg = Math.max(0, Math.floor(dmg * (1 - barrierEff.reduction)));
+            } else {
+              dmg = Math.floor(dmg);
+            }
+            target.hp -= dmg;
+            // エンデュア判定（ターゲット）
+            const endureEff = target.effects.find(e => e.type === 'endure');
+            if (endureEff && target.hp < 1) {
+              const prevented = 1 - target.hp;
+              target.hp = 1;
+              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+              dmg -= prevented;
+              console.log(`[Endure] ${displayName(target.name)} survived normal attack with 1 HP (prevented ${prevented})`);
+              log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+            }
+            log.push(`${displayName(actor.name)}の通常攻撃：${dmg}ダメージ`);
+            actor.battleStats['通常攻撃'] = (actor.battleStats['通常攻撃'] || 0) + dmg;
+            // ダメージ反射判定
+            const reflectEff = target.effects.find(e => e.type === 'reflect');
+            if (reflectEff) {
+              let reflectDmg = Math.floor(dmg * reflectEff.percent);
+              if (reflectDmg > 0) {
+                actor.hp -= reflectDmg;
+                const endureEffActor = actor.effects.find(e => e.type === 'endure');
+                if (endureEffActor && actor.hp < 1) {
+                  const prevented = 1 - actor.hp;
+                  actor.hp = 1;
+                  endureEffActor.preventedDamage = (endureEffActor.preventedDamage || 0) + prevented;
+                  reflectDmg -= prevented;
+                  console.log(`[Endure] ${displayName(actor.name)} endured reflected damage with 1 HP (prevented ${prevented})`);
+                }
+                if (reflectDmg > 0) {
+                  log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
+                  target.battleStats['反射'] = (target.battleStats['反射'] || 0) + reflectDmg;
+                } else {
+                  log.push(`${displayName(target.name)}の反射：しかし${displayName(actor.name)}はHP1で踏みとどまった！`);
+                }
+              }
             }
           }
         }
       }
     }
 
-if (player.hp <= 0) {
-  const revived = checkReviveOnDeath(player, window.log);
-  if (!revived) {
-    window.log.push(`${displayName(player.name)}は力尽きた……`);
-  }
-}
-		
-		
-const safeRatio = (hp, maxHp) => {
-  if (maxHp <= 0) return 0;
-  const raw = hp / maxHp;
-  return Math.max(0, Math.min(1, raw));
-};
+    // プレイヤー死亡時の処理（復活判定）
+    if (player.hp <= 0) {
+      const revived = checkReviveOnDeath(player, window.log);
+      if (!revived) {
+        window.log.push(`${displayName(player.name)}は力尽きた……`);
+      }
+    }
+    // 各ターン終了時の反撃処理（耐久スキル）
+    [player, enemy].forEach(ch => {
+      const endureEff = ch.effects.find(e => e.type === 'endure');
+      if (endureEff) {
+        const opponent = (ch === player ? enemy : player);
+        const counterDamage = endureEff.preventedDamage || 0;
+        if (counterDamage > 0 && opponent.hp > 0) {
+          opponent.hp = Math.max(0, opponent.hp - counterDamage);
+          log.push(`${displayName(ch.name)}の${endureEff.skillName}反撃：${displayName(opponent.name)}に${counterDamage}ダメージ！`);
+          console.log(`[Endure] ${displayName(ch.name)} counterattacked for ${counterDamage} damage`);
+        }
+        endureEff.preventedDamage = 0;
+      }
+    });
 
-const playerRatio = Math.ceil(safeRatio(player.hp, player.maxHp) * 10);
-const enemyRatio = Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 10);
+    // 現在HP割合表示
+    const safeRatio = (hp, maxHp) => {
+      if (maxHp <= 0) return 0;
+      const raw = hp / maxHp;
+      return Math.max(0, Math.min(1, raw));
+    };
+    const playerRatio = Math.ceil(safeRatio(player.hp, player.maxHp) * 10);
+    const enemyRatio = Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 10);
+    const bar = (filled, total = 10) => {
+      const safeFilled = Math.max(0, Math.min(total, filled));
+      const filledPart = "■".repeat(safeFilled);
+      const emptyPart = "□".repeat(total - safeFilled);
+      return filledPart + emptyPart;
+    };
+    log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
+    log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
 
-const bar = (filled, total = 10) => {
-  const safeFilled = Math.max(0, Math.min(total, filled));
-  const filledPart = "■".repeat(safeFilled);
-  const emptyPart = "□".repeat(total - safeFilled);
-  return filledPart + emptyPart;
-};
-
-log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
-log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
-
-
-  recordHP();
+    recordHP();
     turn++;
   }
-		
-	
-	
-	
+
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
  // recordHP();
 

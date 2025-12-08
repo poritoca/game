@@ -1,284 +1,271 @@
-
-/*
-{
-  name: "ファイアボール",
-  type: "damage",
-  power: 100,
-  activationRate: 0.7, // 70%発動
-  priority: 5,         // 優先度5
-},
-*/
-
-
-
 export const skillPool = [
-{
-  "name": "連続攻撃",
-  "category": "multi",
-  "baseHits": 1,
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 100,
-  "description": "複数回攻撃を行う。Lv5以上で攻撃回数+1",
-  "multiGrowthLevels": [100, 500, 999],
-  "multiGrowthFactor": 0.6,
-  "criticalRateMax": 0.72
-},
-{
-  "name": "二連撃",
-  "category": "multi",
-  "baseHits": 2,
-  "description": "2回連続で攻撃を行う",
-  "extraHits": 0,
-  "multiGrowthLevels": [],
-  "multiGrowthFactor": 1.0,
-  "criticalRateMax": 0.62
-},
-{
-  "name": "三連撃",
-  "category": "multi",
-  "baseHits": 2,
-  "description": "3回連続で攻撃を行う",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 100,
-  "multiGrowthLevels": [100, 500, 999],
-  "multiGrowthFactor": 0.6,
-  "criticalRateMax": 0.62
-},
-{
-  "name": "乱れ撃ち",
-  "category": "multi",
-  "baseHits": 2,
-  "description": "無数の攻撃を繰り出す（実質3回攻撃）",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 50,
-  "multiGrowthLevels": [50, 250],
-  "multiGrowthFactor": 0.8,
-  "criticalRateMax": 0.68
-},
-{
-  "name": "乱舞",
-  "category": "multi",
-  "baseHits": 2,
-  "description": "激しい連続攻撃を行う（3回攻撃）",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 200,
-  "multiGrowthLevels": [200, 999],
-  "multiGrowthFactor": 0.7,
-  "criticalRateMax": 0.80
-},
-{
-  "name": "五連撃",
-  "category": "multi",
-  "baseHits": 4,
-  "description": "5回連続で攻撃を行う",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 100,
-  "multiGrowthLevels": [100, 500, 999],
-  "multiGrowthFactor": 0.6,
-  "criticalRateMax": 0.72
-},
-{
-  "name": "百烈拳",
-  "category": "multi",
-  "baseHits": 5,
-  "description": "猛烈な連打を浴びせる（5回攻撃）",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 10,
-  "multiGrowthLevels": [10, 50, 200, 500],
-  "multiGrowthFactor": 0.4,
-  "criticalRateMax": 0.74
-},
-{
-  "name": "連撃",
-  "category": "multi",
-  "baseHits": 1,
-  "description": "素早く2連続で攻撃する",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 100,
-  "multiGrowthLevels": [100, 500, 999],
-  "multiGrowthFactor": 0.6,
-  "criticalRateMax": 0.56
-},
-{
-  "name": "乱打",
-  "category": "multi",
-  "baseHits": 3,
-  "description": "相手を乱れ撃つ（4回攻撃）",
-  "extraHits": 1,
-  "extraHitsTriggerLevel": 100,
-  "multiGrowthLevels": [100, 500, 999],
-  "multiGrowthFactor": 0.6,
-  "criticalRateMax": 0.95
-},
-{
-  "name": "毒撃",
-  "category": "poison",
-  "power": 30,
-  "duration": 2,
-  "levelFactor": 0.01002,
-  "growthRate": 3,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "相手を毒状態にする（スキルLvに応じてATK影響が大きくなる）"
-},
-{
-  "name": "猛毒撃",
-  "category": "poison",
-  "power": 30,
-  "duration": 4,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "強力な毒で蝕む（成長＋ATK依存）"
-},
-{
-  "name": "劇毒",
-  "category": "poison",
-  "power": 35,
-  "duration": 6,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "致命的な毒（成長＋ATK依存）"
-},
-{
-  "name": "毒霧",
-  "category": "poison",
-  "power": 28,
-  "duration": 3,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "毒の霧で相手を包み込む（成長＋ATK依存）"
-},
-{
-  "name": "毒牙",
-  "category": "poison",
-  "power": 26,
-  "duration": 3,
-  "levelFactor": 0.01002,
-  "growthRate": 2,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "猛毒の牙（成長＋ATK依存）"
-},
-{
-  "name": "猛毒花",
-  "category": "poison",
-  "power": 30,
-  "duration": 5,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "猛毒の花粉（成長＋ATK依存）"
-},
-{
-  "name": "致死毒",
-  "category": "poison",
-  "power": 45,
-  "duration": 6,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "致死性の毒（成長＋ATK依存）"
-},
-{
-  "name": "瘴気",
-  "category": "poison",
-  "power": 40,
-  "duration": 4,
-  "levelFactor": 0.01002,
-  "growthRate": 1.5,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "瘴気で蝕む（成長＋ATK依存）"
-},
-{
-  "name": "毒針",
-  "category": "poison",
-  "power": 25,
-  "duration": 2,
-  "levelFactor": 0.01002,
-  "growthRate": 3,
-  "atkFactorBase": 0.02,
-  "atkFactorMax": 0.6,
-  "description": "毒の棘で刺す（短期成長、ATK依存）"
-},
-{
-  "name": "火傷",
-  "category": "burn",
-  "power": 105,
-  "duration": 10,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "火傷状態（ATK依存の固定ダメージ、スキルLvで成長）"
-},
-{
-  "name": "大炎上",
-  "category": "burn",
-  "power": 120,
-  "duration": 10,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "激しい炎で火傷状態に（ATK依存）"
-},
-{
-  "name": "灼熱",
-  "category": "burn",
-  "power": 115,
-  "duration": 8,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "灼熱の炎で火傷（ATK依存）"
-},
-{
-  "name": "業火",
-  "category": "burn",
-  "power": 125,
-  "duration": 10,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "業火で焼き尽くす（ATK依存）"
-},
-{
-  "name": "黒炎",
-  "category": "burn",
-  "power": 250,
-  "duration": 6,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "黒い炎で火傷させる（ATK依存）"
-},
-{
-  "name": "煉獄炎",
-  "category": "burn",
-  "power": 145,
-  "duration": 12,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "煉獄の炎で焼く（ATK依存）"
-},
-{
-  "name": "熱波",
-  "category": "burn",
-  "power": 315,
-  "duration": 4,
-  "levelFactor": 0.01002,
-  "atkFactorBase": 0.04,
-  "atkFactorMax": 0.8,
-  "description": "熱波で火傷（ATK依存）"
-},
+  {
+    "name": "連続攻撃",
+    "category": "multi",
+    "baseHits": 1,
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 100,
+    "description": "複数回攻撃を行う。Lv5以上で攻撃回数+1",
+    "multiGrowthLevels": [100, 500, 999],
+    "multiGrowthFactor": 0.6,
+    "criticalRateMax": 0.72
+  },
+  {
+    "name": "二連撃",
+    "category": "multi",
+    "baseHits": 2,
+    "description": "2回連続で攻撃を行う",
+    "extraHits": 0,
+    "multiGrowthLevels": [],
+    "multiGrowthFactor": 1.0,
+    "criticalRateMax": 0.62
+  },
+  {
+    "name": "三連撃",
+    "category": "multi",
+    "baseHits": 2,
+    "description": "3回連続で攻撃を行う",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 100,
+    "multiGrowthLevels": [100, 500, 999],
+    "multiGrowthFactor": 0.6,
+    "criticalRateMax": 0.62
+  },
+  {
+    "name": "乱れ撃ち",
+    "category": "multi",
+    "baseHits": 2,
+    "description": "無数の攻撃を繰り出す（実質3回攻撃）",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 50,
+    "multiGrowthLevels": [50, 250],
+    "multiGrowthFactor": 0.8,
+    "criticalRateMax": 0.68
+  },
+  {
+    "name": "乱舞",
+    "category": "multi",
+    "baseHits": 2,
+    "description": "激しい連続攻撃を行う（3回攻撃）",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 200,
+    "multiGrowthLevels": [200, 999],
+    "multiGrowthFactor": 0.7,
+    "criticalRateMax": 0.80
+  },
+  {
+    "name": "五連撃",
+    "category": "multi",
+    "baseHits": 4,
+    "description": "5回連続で攻撃を行う",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 100,
+    "multiGrowthLevels": [100, 500, 999],
+    "multiGrowthFactor": 0.6,
+    "criticalRateMax": 0.72
+  },
+  {
+    "name": "百烈拳",
+    "category": "multi",
+    "baseHits": 5,
+    "description": "猛烈な連打を浴びせる（5回攻撃）",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 10,
+    "multiGrowthLevels": [10, 50, 200, 500],
+    "multiGrowthFactor": 0.4,
+    "criticalRateMax": 0.74
+  },
+  {
+    "name": "連撃",
+    "category": "multi",
+    "baseHits": 1,
+    "description": "素早く2連続で攻撃する",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 100,
+    "multiGrowthLevels": [100, 500, 999],
+    "multiGrowthFactor": 0.6,
+    "criticalRateMax": 0.56
+  },
+  {
+    "name": "乱打",
+    "category": "multi",
+    "baseHits": 3,
+    "description": "相手を乱れ撃つ（4回攻撃）",
+    "extraHits": 1,
+    "extraHitsTriggerLevel": 100,
+    "multiGrowthLevels": [100, 500, 999],
+    "multiGrowthFactor": 0.6,
+    "criticalRateMax": 0.95
+  },
+  {
+    "name": "毒撃",
+    "category": "poison",
+    "power": 30,
+    "duration": 2,
+    "levelFactor": 0.01002,
+    "growthRate": 3,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "相手を毒状態にする（スキルLvに応じてATK影響が大きくなる）"
+  },
+  {
+    "name": "猛毒撃",
+    "category": "poison",
+    "power": 30,
+    "duration": 4,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "強力な毒で蝕む（成長＋ATK依存）"
+  },
+  {
+    "name": "劇毒",
+    "category": "poison",
+    "power": 35,
+    "duration": 6,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "致命的な毒（成長＋ATK依存）"
+  },
+  {
+    "name": "毒霧",
+    "category": "poison",
+    "power": 28,
+    "duration": 3,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "毒の霧で相手を包み込む（成長＋ATK依存）"
+  },
+  {
+    "name": "毒牙",
+    "category": "poison",
+    "power": 26,
+    "duration": 3,
+    "levelFactor": 0.01002,
+    "growthRate": 2,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "猛毒の牙（成長＋ATK依存）"
+  },
+  {
+    "name": "猛毒花",
+    "category": "poison",
+    "power": 30,
+    "duration": 5,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "猛毒の花粉（成長＋ATK依存）"
+  },
+  {
+    "name": "致死毒",
+    "category": "poison",
+    "power": 45,
+    "duration": 6,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "致死性の毒（成長＋ATK依存）"
+  },
+  {
+    "name": "瘴気",
+    "category": "poison",
+    "power": 40,
+    "duration": 4,
+    "levelFactor": 0.01002,
+    "growthRate": 1.5,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "瘴気で蝕む（成長＋ATK依存）"
+  },
+  {
+    "name": "毒針",
+    "category": "poison",
+    "power": 25,
+    "duration": 2,
+    "levelFactor": 0.01002,
+    "growthRate": 3,
+    "atkFactorBase": 0.02,
+    "atkFactorMax": 0.6,
+    "description": "毒の棘で刺す（短期成長、ATK依存）"
+  },
+  {
+    "name": "火傷",
+    "category": "burn",
+    "power": 105,
+    "duration": 10,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "火傷状態（ATK依存の固定ダメージ、スキルLvで成長）"
+  },
+  {
+    "name": "大炎上",
+    "category": "burn",
+    "power": 120,
+    "duration": 10,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "激しい炎で火傷状態に（ATK依存）"
+  },
+  {
+    "name": "灼熱",
+    "category": "burn",
+    "power": 115,
+    "duration": 8,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "灼熱の炎で火傷（ATK依存）"
+  },
+  {
+    "name": "業火",
+    "category": "burn",
+    "power": 125,
+    "duration": 10,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "業火で焼き尽くす（ATK依存）"
+  },
+  {
+    "name": "黒炎",
+    "category": "burn",
+    "power": 250,
+    "duration": 6,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "黒い炎で火傷させる（ATK依存）"
+  },
+  {
+    "name": "煉獄炎",
+    "category": "burn",
+    "power": 145,
+    "duration": 12,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "煉獄の炎で焼く（ATK依存）"
+  },
+  {
+    "name": "熱波",
+    "category": "burn",
+    "power": 315,
+    "duration": 4,
+    "levelFactor": 0.01002,
+    "atkFactorBase": 0.04,
+    "atkFactorMax": 0.8,
+    "description": "熱波で火傷（ATK依存）"
+  },
   {
     "name": "吸収",
     "category": "lifesteal",
@@ -388,42 +375,42 @@ export const skillPool = [
     "duration": 3,
     "description": "防護フィールドでダメージを軽減する"
   },
-{
-  "name": "再生",
-  "category": "regen",
-  "amount": 60,
-  "duration": 6,
-  "levelFactor": 0.02,
-  "atkFactor": 0.4,
-  "description": "強化された自然再生（ATK依存）"
-},
-{
-  "name": "急速再生",
-  "category": "regen",
-  "amount": 80,
-  "duration": 6,
-  "levelFactor": 0.02,
-  "atkFactor": 0.6,
-  "description": "火傷など強い継続ダメージに対応する再生力（ATK依存）"
-},
-{
-  "name": "自然治癒",
-  "category": "regen",
-  "amount": 60,
-  "duration": 6,
-  "levelFactor": 0.02,
-  "atkFactor": 0.4,
-  "description": "自然の力で継続的に回復する（ATK依存）"
-},
-{
-  "name": "祝福",
-  "category": "regen",
-  "amount": 70,
-  "duration": 6,
-  "levelFactor": 0.02,
-  "atkFactor": 0.5,
-  "description": "祝福の力による高性能な再生（ATK依存）"
-},
+  {
+    "name": "再生",
+    "category": "regen",
+    "amount": 60,
+    "duration": 6,
+    "levelFactor": 0.02,
+    "atkFactor": 0.4,
+    "description": "強化された自然再生（ATK依存）"
+  },
+  {
+    "name": "急速再生",
+    "category": "regen",
+    "amount": 80,
+    "duration": 6,
+    "levelFactor": 0.02,
+    "atkFactor": 0.6,
+    "description": "火傷など強い継続ダメージに対応する再生力（ATK依存）"
+  },
+  {
+    "name": "自然治癒",
+    "category": "regen",
+    "amount": 60,
+    "duration": 6,
+    "levelFactor": 0.02,
+    "atkFactor": 0.4,
+    "description": "自然の力で継続的に回復する（ATK依存）"
+  },
+  {
+    "name": "祝福",
+    "category": "regen",
+    "amount": 70,
+    "duration": 6,
+    "levelFactor": 0.02,
+    "atkFactor": 0.5,
+    "description": "祝福の力による高性能な再生（ATK依存）"
+  },
   {
     "name": "反射",
     "category": "reflect",
@@ -465,7 +452,7 @@ export const skillPool = [
     "evasionChance": 0.4,
     "duration": 3,
     "description": "一定ターン攻撃を回避しやすくなる",
-    "levelFactor": 5e-05
+    "levelFactor": 0.00005
   },
   {
     "name": "高速回避",
@@ -473,7 +460,7 @@ export const skillPool = [
     "evasionChance": 0.4,
     "duration": 3,
     "description": "身体能力を高め攻撃を回避しやすくする",
-    "levelFactor": 5e-05
+    "levelFactor": 0.00005
   },
   {
     "name": "影分身",
@@ -481,7 +468,7 @@ export const skillPool = [
     "evasionChance": 0.4,
     "duration": 4,
     "description": "複数の分身で攻撃を回避する",
-    "levelFactor": 5e-05
+    "levelFactor": 0.00005
   },
   {
     "name": "見切り",
@@ -489,7 +476,7 @@ export const skillPool = [
     "evasionChance": 0.4,
     "duration": 4,
     "description": "敵の攻撃を見切り、回避率が上昇する",
-    "levelFactor": 5e-05
+    "levelFactor": 0.00005
   },
   {
     "name": "蜃気楼",
@@ -497,7 +484,7 @@ export const skillPool = [
     "evasionChance": 0.4,
     "duration": 3,
     "description": "蜃気楼を起こし攻撃を回避する",
-    "levelFactor": 5e-05
+    "levelFactor": 0.00005
   },
   {
     "name": "強化",
@@ -850,8 +837,82 @@ export const skillPool = [
     "category": "stun",
     "duration": 2,
     "stunChance": 0.25,
-    "priority": 5,         // 優先度5
+    "priority": 5,
     "description": "蔦で縛り付け、25%の確率で2ターン行動不能にする"
+  },
+  {
+    "name": "復讐態勢",
+    "category": "counter",
+    "counterPercent": 0.5,
+    "duration": 3,
+    "description": "一定ターン受けたダメージの50%を蓄積し、効果終了時にまとめて反撃する"
+  },
+  {
+    "name": "聖なる浄化",
+    "category": "purifyCounter",
+    "description": "毒・火傷状態を解除し、蓄積していた継続ダメージを相手に返す浄化反撃"
+  },
+  {
+    "name": "錬金術",
+    "category": "itemReuse",
+    "activationRate": 0.7,
+    "description": "ランダムで所持アイテムの効果を再利用する（失敗する場合もある）"
+  },
+  {
+    "name": "不死身の構え",
+    "category": "endure",
+    "duration": 2,
+    "description": "一定ターンの間、致死ダメージをHP1で耐え、各ターン終了時に耐えたダメージで反撃する"
+  },
+  {
+    "name": "逆境アタック",
+    "category": "gap",
+    "description": "相手とのステータス総量差に応じて威力が変動する攻撃（自分が弱いほど強力）",
+    "minRatio": 0.5,
+    "maxRatio": 3.0
+  },
+  {
+    "name": "生命破断",
+    "category": "maxHpDown",
+    "hpRatio": 0.1,
+    "description": "相手の最大HPを直接10%削り取る特殊攻撃"
+  },
+  {
+    "name": "捨て身攻撃",
+    "category": "sacrifice",
+    "hpCost": 0.2,
+    "multiplier": 2.0,
+    "ignoreDefense": 0.3,
+    "description": "自身のHPを20%消費して強力な攻撃を放つ（自身もダメージ）"
+  },
+  {
+    "name": "大博打",
+    "category": "random",
+    "minMultiplier": 0.0,
+    "maxMultiplier": 3.0,
+    "description": "威力が0～3倍で変動するギャンブル攻撃"
+  },
+  {
+    "name": "力吸収",
+    "category": "steal",
+    "stat": "attack",
+    "stealRatio": 0.2,
+    "duration": 3,
+    "description": "敵の攻撃力を20%吸収し、自身の攻撃力を上昇させる（一定ターン）"
+  },
+  {
+    "name": "守りの構え",
+    "category": "block",
+    "duration": 1,
+    "description": "次に受ける攻撃を1回だけ無効化する"
+  },
+  {
+    "name": "タイムボム",
+    "category": "bomb",
+    "duration": 3,
+    "multiplier": 2.5,
+    "ignoreDefense": 1.0,
+    "description": "相手に時限爆弾を設置し、数ターン後に大ダメージを与える"
   },
   {
     "name": "静寂の守り",
@@ -888,11 +949,11 @@ export const skillPool = [
     "subtype": "reflect",
     "description": "反射スキルを戦闘開始時に封印する"
   },
- {
-  "name": "封印の守り",
-  "category": "passive",
-  "effect": "blockTurnEffects",
-  "subtype": ["stun", "paralyze", "sleep"],
-  "description": "スタン系・痺れ系・睡眠系スキルを戦闘開始時に封印する"
-}
+  {
+    "name": "封印の守り",
+    "category": "passive",
+    "effect": "blockTurnEffects",
+    "subtype": ["stun", "paralyze", "sleep"],
+    "description": "スタン系・痺れ系・睡眠系スキルを戦闘開始時に封印する"
+  }
 ];
