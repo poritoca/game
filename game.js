@@ -4308,6 +4308,49 @@ updateStats();
             }
           }
         }
+// プレイヤーのアイテムメモリー発動（1ターンに1度のみ）
+let triggeredItemsThisTurn = new Set();
+
+for (let i = player.itemMemory.length - 1; i >= 0; i--) {
+  const item = player.itemMemory[i];
+  const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
+
+  // このターンで既に発動済みならスキップ
+  if (triggeredItemsThisTurn.has(itemKey)) continue;
+
+  if (item.remainingUses <= 0) continue;
+  if (Math.random() >= item.activationRate) continue;
+
+  const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
+  if (skill) {
+    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
+
+getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
+
+if (item.skillLevel < 3000 && Math.random() < 0.4) {
+  item.skillLevel++;
+  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+  drawItemMemoryList();
+}
+
+    item.remainingUses--;
+    triggeredItemsThisTurn.add(itemKey);
+
+const isWithinProtectedPeriod =
+  window.protectItemUntil && window.battleCount <= window.protectItemUntil;
+
+if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
+  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+  player.itemMemory.splice(i, 1);
+  drawItemMemoryList();
+}
+  }
+}
+
+
+
+
+
       } else {
         // 通常攻撃
         // 回避判定
