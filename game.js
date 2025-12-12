@@ -3938,7 +3938,7 @@ if (isAutoBattle && isWaitingGrowth) {
 
   // skipの重み（低いほどskipが優先される）
   // streakRatioが0なら weight=10、1なら weight=1（高いほど選ばれにくく）
-  const skipWeight = 1 + 9 * streakRatio; // 1〜10
+	const skipWeight = 1 + 9 * (1 - streakRatio);
   const normalWeight = 1;
 
   const growthOptions = [
@@ -4475,7 +4475,7 @@ const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
 
 // --- Manual boost: Normal mode only (isAutoBattle === false) ---
 let adjustedFinalRate = finalRate;
-if (!isAutoBattle && window.specialMode === 'normal') {
+if (window.specialMode === 'normal') {
   adjustedFinalRate = Math.min(1, finalRate * 8);
 }
 
@@ -4672,18 +4672,16 @@ if (window.maxScores && typeof window.maxScores === 'object') {
 }
 
 // ドロップ確率チェック
-if (Math.random() < FACE_COIN_DROP_RATE) {
+// ドロップ確率チェック（鬼畜モード限定）
+if (window.specialMode === 'brutal' && Math.random() < FACE_COIN_DROP_RATE) {
   // スコアが高いほど平均コイン数が増える（最大10枚）
-  const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2); // 40万で約3枚
-  const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1); // 1〜averageCoinsの乱数
+  const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2);
+  const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1);
 
   faceCoins += coinGain;
 
   const coinElem = document.getElementById('faceCoinCount');
   if (coinElem) coinElem.innerText = faceCoins;
-
-  // 任意：デバッグログ
-  // console.log(`フェイスコイン +${coinGain}（合計: ${faceCoins}） totalScore=${totalScore}`);
 }
 
 updateFaceUI();
