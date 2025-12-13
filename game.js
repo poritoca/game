@@ -4521,7 +4521,10 @@ Math.random() < adjustedFinalRate) {
     // ★ 20戦ごとのボス勝利時：アイテム or ステータス成長
     if (window.isBossBattle) {
       const bossRoll = Math.random(); // 0〜1
-      if (bossRoll < 0.1) {
+			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.9;
+			
+			if (bossRoll < bossStatRate) {
+
         // ---- 10%：ステータス成長ボーナス ----
         currentStreak += 1;
 
