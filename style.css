@@ -97,6 +97,8 @@ canvas#playerImg,
 canvas#enemyImg {
   width: 64px;
   height: 64px;
+  object-fit: contain;
+  object-position: center;
   image-rendering: pixelated;
   display: block;
   margin: 8px auto;
@@ -2238,5 +2240,14 @@ canvas {
 
 /* 敵フェイス画像はカラーで表示したいので、グレースケールを解除 */
 #enemyImg {
+  width: 64px;        /* 横だけ固定 */
+  height: auto;       /* 縦は比率維持 */
+  max-height: 64px;   /* はみ出し防止 */
+	
+}
+
+/* ===== 敵・ボス画像は白黒フィルタを解除 ===== */
+#enemyImg,
+#enemyCanvas {
   filter: none !important;
 }
