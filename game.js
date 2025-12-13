@@ -4177,6 +4177,28 @@ if (window.isBossBattle) {
   }
 
   enemyMultiplier *= bossMul;
+	
+	
+	// ===== 最大連勝数に応じて無限に増える連勝補正（指数カーブ）=====
+	if (window.isBossBattle) {
+	  const streak = Math.max(
+	    window.currentStreak || 0,
+	    window.maxStreak || 0,
+	    (window.progressMeta && window.progressMeta.maxStreak) || 0
+	  );
+	
+	  // 10連勝→2倍、40連勝→8倍 になるようにフィットした係数
+	  const k = 0.03289;
+	  const A = 2.56919;
+	
+	  const s = Math.max(0, streak);
+	  const streakMul = 1 + A * (Math.exp(k * s) - 1);
+	
+	  enemyMultiplier *= streakMul;
+	  log.push(`【連勝補正】最大連勝${s} → 敵倍率 x${streakMul.toFixed(3)}（指数）`);
+	}
+	
+	
   log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
 }
 
@@ -4185,6 +4207,7 @@ if (window.isBossBattle) {
   enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
 });
 enemy.hp = enemy.maxHp;
+
 
 // --- 4) ログ出力（内訳を詳細に表示） ---
 log.push(
