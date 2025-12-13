@@ -3847,23 +3847,58 @@ resetMixedSkillUsage();
 // --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
+
+// --- ボス戦間隔をランダム化（例：40〜60） ---
+if (typeof window.BOSS_BATTLE_INTERVAL_MIN !== 'number') window.BOSS_BATTLE_INTERVAL_MIN = 40;
+if (typeof window.BOSS_BATTLE_INTERVAL_MAX !== 'number') window.BOSS_BATTLE_INTERVAL_MAX = 60;
+
+function randIntInclusive(min, max) {
+  min = Math.floor(min);
+  max = Math.floor(max);
+  if (max < min) [min, max] = [max, min];
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// 次のボス戦の戦闘番号（初回だけ設定）
+if (typeof window.nextBossBattleAt !== 'number') {
+  window.nextBossBattleAt = window.battlesPlayed + randIntInclusive(window.BOSS_BATTLE_INTERVAL_MIN, window.BOSS_BATTLE_INTERVAL_MAX);
+}
 window.isBossBattle = false;
 window.bossFacePath = null;
 
-if (window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0) {
+// このボス戦で実際に使う「ボス敵追加倍率」を保存（画像選択にも使う）
+window.currentBossEnemyMultiplier = null;
+
+if (window.battlesPlayed >= window.nextBossBattleAt) {
   window.isBossBattle = true;
-  // 連勝数に応じてレアリティを決定（最低条件のみ固定）
-  const streak = typeof window.currentStreak === 'number' ? window.currentStreak : 0;
+
+  // --- 1) ボス敵追加倍率を先に確定して保持（後段の敵生成でも同じ値を使う） ---
+  const minMul = (typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5;
+  const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
+  const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
+
+  const r = Math.random() ** exp; // 低倍率寄り
+  const bossMul = minMul + r * (maxMul - minMul);
+  window.currentBossEnemyMultiplier = bossMul;
+
+  // --- 2) 画像レアリティ選択：連勝だけでなく「ボス倍率が高いほど」上振れ ---
+  const streak = (typeof window.currentStreak === 'number') ? window.currentStreak : 0;
+
+  // 0〜1に正規化（連勝は現実的レンジで効かせる：0〜50勝で頭打ち）
+  const streakScore = Math.max(0, Math.min(1, streak / 50));
+  const bossScore   = Math.max(0, Math.min(1, (bossMul - minMul) / (maxMul - minMul)));
+
+  // 「連勝 or ボス倍率」の良い方を採用（どちらかが良ければレアに）
+  const score = Math.max(streakScore, bossScore);
+
+  // しきい値（最小変更で“体感”を上げる）
+  // score: 0.00〜1.00
   let rarity = 'D';
-  if (streak >= 500) {
-    rarity = 'S';
-  } else if (streak >= 400) {
-    rarity = 'A';
-  } else if (streak >= 300) {
-    rarity = 'B';
-  } else if (streak >= 200) {
-    rarity = 'C';
-  }
+  if (score >= 0.85) rarity = 'S';
+  else if (score >= 0.65) rarity = 'A';
+  else if (score >= 0.45) rarity = 'B';
+  else if (score >= 0.25) rarity = 'C';
+
   try {
     if (typeof drawRandomFace === 'function') {
       const faceInfo = drawRandomFace(rarity);
@@ -3874,7 +3909,11 @@ if (window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0) {
   } catch (e) {
     console.warn('boss face selection failed', e);
   }
+
+  // 次回のボス戦予定を更新（ランダム間隔）
+  window.nextBossBattleAt = window.battlesPlayed + randIntInclusive(window.BOSS_BATTLE_INTERVAL_MIN, window.BOSS_BATTLE_INTERVAL_MAX);
 }
+
 
 if (player.baseStats && player.growthBonus) {
   player.attack = player.baseStats.attack + player.growthBonus.attack;
@@ -4127,8 +4166,15 @@ if (window.isBossBattle) {
   const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
   const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
 
-  const r = Math.random() ** exp;
-  const bossMul = minMul + r * (maxMul - minMul);
+  // 既にボス戦開始時に確定している倍率があれば、それを使う（画像選択と同期）
+  let bossMul = (typeof window.currentBossEnemyMultiplier === 'number') ? window.currentBossEnemyMultiplier : null;
+
+  // 互換：何らかの理由で未設定ならここで確定し、windowに保存
+  if (bossMul === null) {
+    const r = Math.random() ** exp;
+    bossMul = minMul + r * (maxMul - minMul);
+    window.currentBossEnemyMultiplier = bossMul;
+  }
 
   enemyMultiplier *= bossMul;
   log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
@@ -4556,7 +4602,7 @@ Math.random() < adjustedFinalRate) {
         function getBossStatMultiplier() {
           const minM = (typeof window.BOSS_STAT_MIN_MULTIPLIER === 'number') ? window.BOSS_STAT_MIN_MULTIPLIER : 1.5;
           const maxM = (typeof window.BOSS_STAT_MAX_MULTIPLIER === 'number') ? window.BOSS_STAT_MAX_MULTIPLIER : 10.0;
-          const pTop = (typeof window.BOSS_STAT_TOP_PROB === 'number') ? window.BOSS_STAT_TOP_PROB : (1 / 10000);
+          const pTop = (typeof window.BOSS_STAT_TOP_PROB === 'number') ? window.BOSS_STAT_TOP_PROB : (1 / 100000);
           const exp  = (typeof window.BOSS_STAT_POWER_EXP === 'number') ? window.BOSS_STAT_POWER_EXP : 4;
 
           // ごく低確率で最高倍率
@@ -5062,11 +5108,11 @@ finalResEl.onclick = () => {
     }
   }
 
-  // 20戦ごとにオートバトルを停止
+  // ボス戦発生時にオートバトルを停止
   try {
     if (typeof window.battlesPlayed === 'number' &&
         window.battlesPlayed > 0 &&
-        window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
+        window.isBossBattle === true &&
         typeof stopAutoBattle === 'function') {
       stopAutoBattle();
     }
