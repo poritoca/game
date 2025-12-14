@@ -2242,7 +2242,7 @@ canvas {
 #enemyImg {
   width: 64px;        /* 横だけ固定 */
   height: auto;       /* 縦は比率維持 */
-  max-height: 64px;   /* はみ出し防止 */
+  max-height: 264px;   /* はみ出し防止 */
 	
 }
 

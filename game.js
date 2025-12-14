@@ -24,13 +24,13 @@ if (typeof window !== "undefined") {
 
   // ボス敵の強さ倍率（敵の基礎倍率にさらに掛け算される）
   if (typeof window.BOSS_ENEMY_MIN_MULTIPLIER !== "number") {
-    window.BOSS_ENEMY_MIN_MULTIPLIER = 3; // 最低倍率
+    window.BOSS_ENEMY_MIN_MULTIPLIER = 2; // 最低倍率
   }
   if (typeof window.BOSS_ENEMY_MAX_MULTIPLIER !== "number") {
-    window.BOSS_ENEMY_MAX_MULTIPLIER = 10; // 最高倍率
+    window.BOSS_ENEMY_MAX_MULTIPLIER = 5; // 最高倍率
   }
   if (typeof window.BOSS_ENEMY_POWER_EXP !== "number") {
-    window.BOSS_ENEMY_POWER_EXP = 8; // 分布の偏り（大きいほど低倍率寄り）
+    window.BOSS_ENEMY_POWER_EXP = 9; // 分布の偏り（大きいほど低倍率寄り）
   }
 
   // ボス勝利時のステータス上昇倍率の範囲
@@ -4194,8 +4194,8 @@ if (window.isBossBattle) {
 	  const s = Math.max(0, streak);
 	  const streakMul = 1 + A * (Math.exp(k * s) - 1);
 	
-	  enemyMultiplier *= streakMul;
-	  log.push(`【連勝補正】最大連勝${s} → 敵倍率 x${streakMul.toFixed(3)}（指数）`);
+enemy.maxHp = Math.floor(enemy.maxHp * streakMul); // ★HPだけ
+log.push(`【連勝補正】最大連勝${s} → HP倍率 x${streakMul.toFixed(3)}（指数）`);
 	}
 	
 	
