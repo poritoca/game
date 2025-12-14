@@ -4761,11 +4761,31 @@ updateFaceUI();
 
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
-const rarity = enemy.rarity * (0.2 + currentStreak * 0.01);
-let skillGainChance = Math.min(1.0, 0.01 * rarity);
+// ---- 新スキル習得確率（通常/鬼畜を揃えつつ、通常だけゆっくり上昇） ----
+// 目安：通常は平均0.5%くらい、1000連勝で2%程度へ
+const s = Math.max(0, Number(currentStreak) || 0);
+
+// 通常モードの基礎確率：0.5% + (連勝×0.0015%)
+// ※ 1000連勝で 0.5% + 1.5% = 2.0%
+let baseChance = 0.005 + 0.000015 * s;
+
+// 敵rarityの影響は「弱め」にする（極端にブレないよう 4乗根 = ゆるい伸び）
+const rarity = Math.max(0.1, Number(enemy.rarity) || 1);
+const rarityScale = Math.pow(rarity, 0.25);
+
+// 鬼畜モードは「通常の低連勝帯」と揃える（=ほぼ0.5%付近で固定）
+let skillGainChance;
 if (window.specialMode === 'brutal') {
-    skillGainChance = 0.02;  // 鬼畜モードで変更する
+  skillGainChance = 0.005 * rarityScale;  // だいたい0.5%（rarityでほんの少しだけ上下）
+} else {
+  skillGainChance = baseChance * rarityScale; // 通常は少しずつ上がる
 }
+
+// 上限（安全弁）：暴走防止。必要なら 0.03 や 0.05 に調整OK
+skillGainChance = Math.min(0.05, Math.max(0, skillGainChance));
+
+// デバッグしたいならこれを有効化
+// log.push(`新スキル獲得率: ${(skillGainChance * 100).toFixed(2)}% (streak=${s}, rarity=${rarity})`);
  // log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
