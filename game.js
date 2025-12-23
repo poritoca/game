@@ -24,13 +24,13 @@ if (typeof window !== "undefined") {
 
   // ボス敵の強さ倍率（敵の基礎倍率にさらに掛け算される）
   if (typeof window.BOSS_ENEMY_MIN_MULTIPLIER !== "number") {
-    window.BOSS_ENEMY_MIN_MULTIPLIER = 2; // 最低倍率
+    window.BOSS_ENEMY_MIN_MULTIPLIER = 3; // 最低倍率
   }
   if (typeof window.BOSS_ENEMY_MAX_MULTIPLIER !== "number") {
-    window.BOSS_ENEMY_MAX_MULTIPLIER = 5; // 最高倍率
+    window.BOSS_ENEMY_MAX_MULTIPLIER = 10; // 最高倍率
   }
   if (typeof window.BOSS_ENEMY_POWER_EXP !== "number") {
-    window.BOSS_ENEMY_POWER_EXP = 9; // 分布の偏り（大きいほど低倍率寄り）
+    window.BOSS_ENEMY_POWER_EXP = 8; // 分布の偏り（大きいほど低倍率寄り）
   }
 
   // ボス勝利時のステータス上昇倍率の範囲
@@ -544,9 +544,16 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     usedNames.add(name);
   }
 
-  // 初期化
+  
+  // ---- 敗北/再構築時に「保護中の混合スキル」を失わないよう保持 ----
+  const preservedProtectedMixed = Array.isArray(player.mixedSkills)
+    ? player.mixedSkills.filter(ms => ms && ms.isMixed && ms.isProtected)
+    : [];
+// 初期化
   player.skills = [];
-  if (!player.mixedSkills) player.mixedSkills = [];
+  // 混合スキル配列を再構築（保護中のみ保持）
+  player.mixedSkills = preservedProtectedMixed.slice();
+
 
   // 固有スキル先に追加（重複防止）
   const uniqueSkillObj = { name: uniqueSkillName, level: uniqueLevel, uses: 0, isUnique: true };
@@ -572,6 +579,16 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
       player.skills.push(combinedSkill);
     }
   }
+
+  // 保護中の混合スキルをスキル一覧へ復元（戦闘開始時の特殊効果ログ/発動のため）
+  if (Array.isArray(player.mixedSkills) && player.mixedSkills.length > 0) {
+    for (const ms of player.mixedSkills) {
+      if (ms && ms.isMixed && ms.isProtected && !hasSkill(ms.name)) {
+        player.skills.push(ms);
+      }
+    }
+  }
+
 
   if (typeof drawSkillMemoryList === 'function') drawSkillMemoryList();
   if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
@@ -1233,6 +1250,9 @@ function useMixedSkill(mixedSkill, user, target, log) {
     if (Array.isArray(skill.specialEffects)) {
       for (const effect of skill.specialEffects) {
         const handler = specialEffectHandlers[effect.type];
+
+  // SPECIAL_ONLY_RETURN: 内包スキル(baseSkills)は発動しない（仕様）
+  return;
         if (typeof handler === "function") {
           handler(effect.value, skill);
         }
@@ -1250,7 +1270,18 @@ function useMixedSkill(mixedSkill, user, target, log) {
         applySkillRecursive(base);  // 再帰呼び出し
       }
     } else {
-      getSkillEffect(skill, user, target, log);
+      try {
+        if (typeof window.getSkillEffect === "function") {
+          window.getSkillEffect(skill, user, target, log);
+        } else if (typeof getSkillEffect === "function") {
+          getSkillEffect(skill, user, target, log);
+        } else {
+          log.push("※ エラー: getSkillEffect が見つからないため、効果を適用できません");
+        }
+      } catch (e) {
+        console.error("[MixedSkill] getSkillEffect failed:", e);
+        log.push(`※ エラー: 混合スキル効果適用中に例外が発生しました (${e && e.message ? e.message : e})`);
+      }
     }
   }
 
@@ -1777,16 +1808,22 @@ function decideSkillsToUse(actor, maxActivations) {
 		const usableSkills = actor.skills.filter(skill => {
 		    const data = skillPool.find(s => s.name === skill.name);
 		    const isPassive = data?.category === 'passive';
+		    const isMixedCategory = data?.category === 'mixed';
 		
-		    // 発動済みの混合スキルは除外
-		    if (skill.isMixed && skill.usedInBattle) return false;
+		    // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
+		    if (skill.isMixed) return false;
 		
-		    return !skill.sealed && !isPassive;
+		    return !skill.sealed && !isPassive && !isMixedCategory;
 		});
 
     let availableSkills = usableSkills;
 
-    // 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
+    
+    // 通常スキルが1つも無い場合はスキル発動なし
+    if (!availableSkills || availableSkills.length === 0) {
+        return [];
+    }
+// 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
     if (window.specialMode === 'brutal') {
         availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
         if (availableSkills.length === 0) {
@@ -1808,7 +1845,7 @@ function decideSkillsToUse(actor, maxActivations) {
     let selectedNames = [];
 
     // 再抽選は最大5回まで（攻撃スキルがある場合のみ）
-    const maxRetries = hasAnyOffensive ? 5 : 1;
+    const maxRetries = hasAnyOffensive ? 10 : 1;
 
     for (let retry = 0; retry < maxRetries; retry++) {
         const weightedSkills = [];
@@ -3690,6 +3727,8 @@ window.getSkillEffect = function (skill, user, target, log) {
   return log;
 };
 function checkReviveOnDeath(character, log) {
+  // 方針B：混合開始時効果は revive_mixed_start で処理するため、旧mixedSkills系の復活は無効化
+  if (window && window._policyBMixedStart) return false;
   if (character.hp > 0 || !character.mixedSkills) return false;
 
   // 使用可能な復活効果をすべて抽出
@@ -3699,8 +3738,9 @@ function checkReviveOnDeath(character, log) {
     const effects = mSkill.specialEffects || [];
 
     for (const eff of effects) {
-      if (eff.type === 2 && !eff.used && mSkill.usedInBattle) {
-        availableRevives.push({ skill: mSkill, effect: eff });
+      if (eff.type === 2 && !eff.used) {
+        const p = _normProb(mSkill.activationProb, 0.35);
+        if (Math.random() <= p) { availableRevives.push({ skill: mSkill, effect: eff }); }
       }
     }
   }
@@ -3739,10 +3779,15 @@ function handlePoisonBurnDamage(character, damage, log) {
   let totalHealPercent = 0;
   // 使用中のスキルの即時回復効果（type 3）を集計
   for (const mSkill of character.mixedSkills) {
-    if (!mSkill.usedInBattle || !Array.isArray(mSkill.specialEffects)) continue;
+    if (!Array.isArray(mSkill.specialEffects)) continue;
     for (const effect of mSkill.specialEffects) {
       if (effect.type === 3 && !effect.used) {
-        totalHealPercent += effect.value;
+        const p = _normProb(mSkill.activationProb, 0.35);
+        if (Math.random() <= p) {
+          totalHealPercent += effect.value;
+          // 1回発動したらその戦闘中は消費扱い（連続発動を抑える）
+          effect.used = true;
+        }
       }
     }
   }
@@ -3832,9 +3877,220 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
 };
 
 // バトル開始処理（1戦ごと）
+
+// ===============================
+// 混合スキル：戦闘開始時に特殊効果のみ自動付与（発動不要）
+// - type 2: 復活（HP0になった瞬間に発動）
+// - type 3: 毒/火傷の継続ダメージ吸収（DoTダメージ後に回復）
+// ※混合スキルの「内包スキル(baseSkills)」は発動しません（仕様）
+// ===============================
+function _normProb(p, fallback = 0.35) {
+  let n = Number(p);
+  if (!isFinite(n)) return fallback;
+  // 0〜1 の想定だが、%指定（例: 35）も受け付ける
+  if (n > 1) n = n / 100;
+  return Math.max(0, Math.min(1, n));
+}
+
+function _normRatio(v, fallback = 0.35) {
+  let n = Number(v);
+  if (!isFinite(n)) n = fallback;
+  // %指定（例: 46）も受け付ける
+  if (n > 1) n = n / 100;
+  return Math.max(0.0, Math.min(1.0, n));
+}
+
+
+
+function applyMixedSpecialEffectsAtBattleStart(user, log) {
+  if (!user || !Array.isArray(user.skills)) return;
+
+  const battleId = window.battleId || 0;
+
+  // 前の戦闘の混合開始時効果は必ず掃除（ログ不整合防止）
+  user.effects = user.effects || [];
+  // 解除＆原状復帰が必要なものは resetMixedStartAfterBattle 側で戻すので、ここでは混合開始時のeffectだけ掃除
+  user.effects = user.effects.filter(e => !(e && (e.type === 'revive_mixed_start' || e.type === 'dotAbsorb_mixed_start' || e.type === 'mixedStatBuff_mixed_start')));
+
+  // 1戦につき1回だけ（battleIdでガード）。勝敗/中断で取りこぼしがあっても次戦で必ず出すため、battleId基準にする
+  if (user._mixedStartLastBattleId === battleId) return;
+  user._mixedStartLastBattleId = battleId;
+
+  const mixedList = user.skills.filter(s => s && s.isMixed);
+  if (!mixedList.length) return;
+
+  for (const ms of mixedList) {
+    const effs = Array.isArray(ms.specialEffects) ? ms.specialEffects : [];
+    if (!effs.length) continue;
+
+    const lv = Math.max(1, Number(ms.level || 1) || 1);
+    const scale = 1.0 + Math.min(0.40, (lv - 1) * 0.01); // +1%/Lv 最大+40%
+    const procChance = _normProb(ms.activationProb, 0.35);
+
+    for (const e0 of effs) {
+      if (!e0) continue;
+      const type = Number(e0.type);
+      const baseVal = Number(e0.value ?? e0.amount ?? e0.ratio ?? 0);
+      const v = isFinite(baseVal) ? baseVal * scale : baseVal;
+
+      // type 2: 復活（HP割合）
+      if (type === 2) {
+        const reviveRatio = Math.max(0.05, _normRatio(v, 0.35));
+        user.effects.push({
+          type: 'revive_mixed_start',
+          source: ms.name,
+          battleId,
+          reviveRatio,
+          procChance,
+          used: false
+        });
+        if (log) log.push(`${displayName(user.name)}は【復活】を得た（混合:${ms.name} / 発動率${Math.round(procChance*100)}% / 復活${Math.round(reviveRatio*100)}%）`);
+      }
+
+      // type 3: 毒/火傷吸収（DoTダメージの一部を回復）
+      if (type === 3) {
+        const absorbRatio = Math.max(0.05, _normRatio(v, 0.25));
+        user.effects.push({
+          type: 'dotAbsorb_mixed_start',
+          source: ms.name,
+          battleId,
+          absorbRatio,
+          procChance,
+          used: false
+        });
+        if (log) log.push(`${displayName(user.name)}は【毒/火傷吸収】を得た（混合:${ms.name} / 発動率${Math.round(procChance*100)}% / 吸収${Math.round(absorbRatio*100)}%）`);
+      }
+
+      // type 4-7: ステータス倍率バフ（所持時に適用）→ 発動率でオン/オフ（1戦につき1回判定）
+      // 4:攻撃 5:防御 6:素早さ 7:最大HP
+      if (type >= 4 && type <= 7) {
+        const statKey = (type === 4 ? 'attack' : type === 5 ? 'defense' : type === 6 ? 'speed' : 'maxHp');
+        const mult = Math.max(1.0, Number(v || 1.0));
+        const ok = (Math.random() <= procChance);
+        if (ok) {
+          const original = user[statKey];
+          user[statKey] = Math.floor((user[statKey] || 0) * mult);
+          user.effects.push({
+            type: 'mixedStatBuff_mixed_start',
+            source: ms.name,
+            battleId,
+            stat: statKey,
+            mult,
+            original
+          });
+          if (statKey === 'maxHp') {
+            // maxHpを増やしたら現在HPも上限に合わせて補正
+            user.hp = Math.min(user[statKey], user.hp || user[statKey]);
+          }
+          if (log) log.push(`※${ms.name}の効果で${displayName(user.name)}の${statKey}が${mult.toFixed(2)}倍になった（発動率${Math.round(procChance*100)}%）`);
+        } else {
+          if (log) log.push(`※${ms.name}の${statKey}倍率効果は発動しなかった（発動率${Math.round(procChance*100)}%）`);
+        }
+      }
+    }
+  }
+}
+
+function resetMixedStartAfterBattle(ch) {
+  if (!ch) return;
+
+  // 混合開始時ステータス倍率バフを原状復帰
+  if (Array.isArray(ch.effects)) {
+    const buffs = ch.effects.filter(e => e && e.type === 'mixedStatBuff_mixed_start');
+    for (const b of buffs) {
+      if (b.stat && typeof b.original !== 'undefined') {
+        ch[b.stat] = b.original;
+      }
+    }
+    ch.effects = ch.effects.filter(e => !(e && (e.type === 'revive_mixed_start' || e.type === 'dotAbsorb_mixed_start' || e.type === 'mixedStatBuff_mixed_start')));
+  }
+
+  // 次戦で必ず開始ログを出すため、battleIdガードを解除
+  ch._mixedStartLastBattleId = null;
+}
+
+
+
+
+
+
+function tryReviveOnDeath(ch, log) {
+  if (!ch || ch.hp > 0) return false;
+  if (!Array.isArray(ch.effects)) return false;
+
+  const battleId = window.battleId || 0;
+
+  const candidates = ch.effects.filter(e => e && e.type === 'revive_mixed_start' && !e.used && (e.battleId === battleId));
+  if (!candidates.length) return false;
+
+  // 複数の混合スキルがある時でも全てに発動チャンス
+  const procs = [];
+  for (const eff of candidates) {
+    const proc = _normProb(eff.procChance, 1.0);
+    if (Math.random() <= proc) procs.push(eff);
+  }
+  if (!procs.length) {
+    if (log) {
+      const names = candidates.map(e => e.source).join(' / ');
+      log.push(`※復活は発動しなかった（候補:${names}）`);
+    }
+    return false;
+  }
+
+  // 複数成功時は復活割合が高いものを採用
+  procs.sort((a,b) => (_normRatio(b.reviveRatio,0.35) - _normRatio(a.reviveRatio,0.35)));
+  const eff = procs[0];
+
+  const ratio = Math.max(0.05, _normRatio(eff.reviveRatio, 0.35));
+  const newHp = Math.max(1, Math.floor((ch.maxHp || 1) * ratio));
+  ch.hp = newHp;
+  eff.used = true;
+
+  if (log) log.push(`※${eff.source}の効果で${displayName(ch.name)}が復活！（HP${Math.round(ratio*100)}%）`);
+  return true;
+}
+
+
+
+function applyDotAbsorb(ch, dotDamage, log) {
+  if (!ch || dotDamage <= 0) return false;
+  if (!Array.isArray(ch.effects)) return false;
+
+  const battleId = window.battleId || 0;
+  const candidates = ch.effects.filter(e => e && e.type === 'dotAbsorb_mixed_start' && !e.used && (e.battleId === battleId));
+  if (!candidates.length) return false;
+
+  // 全候補に発動チャンス
+  const procs = [];
+  for (const eff of candidates) {
+    const proc = _normProb(eff.procChance, 1.0);
+    if (Math.random() <= proc) procs.push(eff);
+  }
+  if (!procs.length) return false;
+
+  // 複数成功時は吸収割合が高いものを採用（1回のDoTにつき1つ）
+  procs.sort((a,b) => (_normRatio(b.absorbRatio,0.25) - _normRatio(a.absorbRatio,0.25)));
+  const eff = procs[0];
+
+  const ratio = Math.max(0.05, _normRatio(eff.absorbRatio, 0.25));
+  const heal = Math.max(1, Math.floor(dotDamage * ratio));
+  ch.hp = Math.min(ch.maxHp || ch.hp, ch.hp + heal);
+  eff.used = true;
+
+  if (log) log.push(`※${eff.source}の効果で${displayName(ch.name)}が毒/火傷ダメージを吸収して${heal}回復！（${Math.round(ratio*100)}%）`);
+  return true;
+}
+
+
+
 window.startBattle = function() {
+  window.battleId = (window.battleId || 0) + 1;
+
 		//戦闘ログはここに入れる
 	window.log = [];
+
+    // 方針B：混合スキル開始時効果（revive_mixed_start / dotAbsorb_mixed_start）を使用
+    window._policyBMixedStart = true;
 
     if (window.specialMode === 'brutal') {
     skillSimulCount = 1; // 鬼畜モードでは強制的に1に固定
@@ -3847,58 +4103,23 @@ resetMixedSkillUsage();
 // --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
-
-// --- ボス戦間隔をランダム化（例：40〜60） ---
-if (typeof window.BOSS_BATTLE_INTERVAL_MIN !== 'number') window.BOSS_BATTLE_INTERVAL_MIN = 40;
-if (typeof window.BOSS_BATTLE_INTERVAL_MAX !== 'number') window.BOSS_BATTLE_INTERVAL_MAX = 60;
-
-function randIntInclusive(min, max) {
-  min = Math.floor(min);
-  max = Math.floor(max);
-  if (max < min) [min, max] = [max, min];
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// 次のボス戦の戦闘番号（初回だけ設定）
-if (typeof window.nextBossBattleAt !== 'number') {
-  window.nextBossBattleAt = window.battlesPlayed + randIntInclusive(window.BOSS_BATTLE_INTERVAL_MIN, window.BOSS_BATTLE_INTERVAL_MAX);
-}
 window.isBossBattle = false;
 window.bossFacePath = null;
 
-// このボス戦で実際に使う「ボス敵追加倍率」を保存（画像選択にも使う）
-window.currentBossEnemyMultiplier = null;
-
-if (window.battlesPlayed >= window.nextBossBattleAt) {
+if (window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0) {
   window.isBossBattle = true;
-
-  // --- 1) ボス敵追加倍率を先に確定して保持（後段の敵生成でも同じ値を使う） ---
-  const minMul = (typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5;
-  const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
-  const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
-
-  const r = Math.random() ** exp; // 低倍率寄り
-  const bossMul = minMul + r * (maxMul - minMul);
-  window.currentBossEnemyMultiplier = bossMul;
-
-  // --- 2) 画像レアリティ選択：連勝だけでなく「ボス倍率が高いほど」上振れ ---
-  const streak = (typeof window.currentStreak === 'number') ? window.currentStreak : 0;
-
-  // 0〜1に正規化（連勝は現実的レンジで効かせる：0〜50勝で頭打ち）
-  const streakScore = Math.max(0, Math.min(1, streak / 50));
-  const bossScore   = Math.max(0, Math.min(1, (bossMul - minMul) / (maxMul - minMul)));
-
-  // 「連勝 or ボス倍率」の良い方を採用（どちらかが良ければレアに）
-  const score = Math.max(streakScore, bossScore);
-
-  // しきい値（最小変更で“体感”を上げる）
-  // score: 0.00〜1.00
+  // 連勝数に応じてレアリティを決定（最低条件のみ固定）
+  const streak = typeof window.currentStreak === 'number' ? window.currentStreak : 0;
   let rarity = 'D';
-  if (score >= 0.85) rarity = 'S';
-  else if (score >= 0.65) rarity = 'A';
-  else if (score >= 0.45) rarity = 'B';
-  else if (score >= 0.25) rarity = 'C';
-
+  if (streak >= 500) {
+    rarity = 'S';
+  } else if (streak >= 400) {
+    rarity = 'A';
+  } else if (streak >= 300) {
+    rarity = 'B';
+  } else if (streak >= 200) {
+    rarity = 'C';
+  }
   try {
     if (typeof drawRandomFace === 'function') {
       const faceInfo = drawRandomFace(rarity);
@@ -3909,11 +4130,7 @@ if (window.battlesPlayed >= window.nextBossBattleAt) {
   } catch (e) {
     console.warn('boss face selection failed', e);
   }
-
-  // 次回のボス戦予定を更新（ランダム間隔）
-  window.nextBossBattleAt = window.battlesPlayed + randIntInclusive(window.BOSS_BATTLE_INTERVAL_MIN, window.BOSS_BATTLE_INTERVAL_MAX);
 }
-
 
 if (player.baseStats && player.growthBonus) {
   player.attack = player.baseStats.attack + player.growthBonus.attack;
@@ -4080,6 +4297,12 @@ do {
     enemy = makeCharacter('敵' + Math.random());
 } while (!hasOffensiveSkill(enemy));
 
+
+
+
+// 混合スキルの戦闘開始時特殊効果を付与（必ずログを出す）
+applyMixedSpecialEffectsAtBattleStart(player, window.log);
+applyMixedSpecialEffectsAtBattleStart(enemy, window.log);
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
@@ -4166,39 +4389,10 @@ if (window.isBossBattle) {
   const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
   const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
 
-  // 既にボス戦開始時に確定している倍率があれば、それを使う（画像選択と同期）
-  let bossMul = (typeof window.currentBossEnemyMultiplier === 'number') ? window.currentBossEnemyMultiplier : null;
-
-  // 互換：何らかの理由で未設定ならここで確定し、windowに保存
-  if (bossMul === null) {
-    const r = Math.random() ** exp;
-    bossMul = minMul + r * (maxMul - minMul);
-    window.currentBossEnemyMultiplier = bossMul;
-  }
+  const r = Math.random() ** exp;
+  const bossMul = minMul + r * (maxMul - minMul);
 
   enemyMultiplier *= bossMul;
-	
-	
-	// ===== 最大連勝数に応じて無限に増える連勝補正（指数カーブ）=====
-	if (window.isBossBattle) {
-	  const streak = Math.max(
-	    window.currentStreak || 0,
-	    window.maxStreak || 0,
-	    (window.progressMeta && window.progressMeta.maxStreak) || 0
-	  );
-	
-	  // 10連勝→2倍、40連勝→8倍 になるようにフィットした係数
-	  const k = 0.03289;
-	  const A = 2.56919;
-	
-	  const s = Math.max(0, streak);
-	  const streakMul = 1 + A * (Math.exp(k * s) - 1);
-	
-enemy.maxHp = Math.floor(enemy.maxHp * streakMul); // ★HPだけ
-log.push(`【連勝補正】最大連勝${s} → HP倍率 x${streakMul.toFixed(3)}（指数）`);
-	}
-	
-	
   log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
 }
 
@@ -4207,7 +4401,6 @@ log.push(`【連勝補正】最大連勝${s} → HP倍率 x${streakMul.toFixed(3
   enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
 });
 enemy.hp = enemy.maxHp;
-
 
 // --- 4) ログ出力（内訳を詳細に表示） ---
 log.push(
@@ -4321,6 +4514,7 @@ updateStats();
     });
 
     // 行動順決定（SPDの高い順）
+
     const order = [player, enemy].sort((a, b) => b.speed - a.speed);
     for (const actor of order) {
       let target = (actor === player ? enemy : player);
@@ -4337,7 +4531,17 @@ updateStats();
         useSkill = !sealed && actor.skills.length > 0;
         if (useSkill) {
           chosenSkills = decideSkillsToUse(actor, skillSimulCount);
+        
+        
+        // 混合スキルは通常スキルとして無意味なので、通常スキルが引けない場合はスキル発動なし
+        if (!chosenSkills || chosenSkills.length === 0) {
+          log.push(`${displayName(actor.name)}は適切な通常スキルを選べなかったため、スキル発動なしでターンを終える`);
+          continue;
         }
+if (!chosenSkills || chosenSkills.length === 0) {
+          log.push(`${displayName(actor.name)}は通常スキルを引けず、何もしなかった……`);
+        }
+}
         for (const sk of chosenSkills) {
           // 回避判定
           const evasionEff = target.effects.find(e => e.type === 'evasion');
@@ -4353,7 +4557,11 @@ updateStats();
             console.log(`[Block] ${displayName(target.name)} blocked skill ${sk.name}`);
             continue;
           }
-          getSkillEffect(sk, actor, target, log);
+          if (sk && sk.isMixed) {
+            useMixedSkill(sk, actor, target, log);
+          } else {
+            getSkillEffect(sk, actor, target, log);
+          }
           // ダメージ反射判定
           const reflectEff = target.effects.find(e => e.type === 'reflect');
           if (reflectEff) {
@@ -4483,10 +4691,20 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
     }
 
     // プレイヤー死亡時の処理（復活判定）
-    if (player.hp <= 0) {
-      const revived = checkReviveOnDeath(player, window.log);
+if (player.hp <= 0) {
+      // 復活判定（混合開始時効果）
+      const revivedMixedStart = tryReviveOnDeath(player, window.log);
+      if (revivedMixedStart) {
+        // 復活したので敗北処理へ進まない
+      } else {
+        const revived = checkReviveOnDeath(player, window.log);
       if (!revived) {
+        // 戦闘終了：混合開始時効果をリセット
+        resetMixedStartAfterBattle(player);
+        resetMixedStartAfterBattle(enemy);
+
         window.log.push(`${displayName(player.name)}は力尽きた……`);
+      }
       }
     }
     // 各ターン終了時の反撃処理（耐久スキル）
@@ -4526,7 +4744,16 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
   }
 
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
- // recordHP();
+
+  // 戦闘終了：混合開始時効果を必ずリセット（次戦の開始ログ欠落防止）
+  resetMixedStartAfterBattle(player);
+  resetMixedStartAfterBattle(enemy);
+ 
+
+  // 戦闘終了：混合開始時効果＆一時ステータスを必ずリセット
+  resetMixedStartAfterBattle(player);
+  resetMixedStartAfterBattle(enemy);
+// recordHP();
 
   streakBonus = 1 + currentStreak * 0.01;
   const effectiveRarity = enemy.rarity * streakBonus;
@@ -4761,31 +4988,11 @@ updateFaceUI();
 
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
-// ---- 新スキル習得確率（通常/鬼畜を揃えつつ、通常だけゆっくり上昇） ----
-// 目安：通常は平均0.5%くらい、1000連勝で2%程度へ
-const s = Math.max(0, Number(currentStreak) || 0);
-
-// 通常モードの基礎確率：0.5% + (連勝×0.0015%)
-// ※ 1000連勝で 0.5% + 1.5% = 2.0%
-let baseChance = 0.005 + 0.000015 * s;
-
-// 敵rarityの影響は「弱め」にする（極端にブレないよう 4乗根 = ゆるい伸び）
-const rarity = Math.max(0.1, Number(enemy.rarity) || 1);
-const rarityScale = Math.pow(rarity, 0.25);
-
-// 鬼畜モードは「通常の低連勝帯」と揃える（=ほぼ0.5%付近で固定）
-let skillGainChance;
+const rarity = enemy.rarity * (0.2 + currentStreak * 0.01);
+let skillGainChance = Math.min(1.0, 0.01 * rarity);
 if (window.specialMode === 'brutal') {
-  skillGainChance = 0.005 * rarityScale;  // だいたい0.5%（rarityでほんの少しだけ上下）
-} else {
-  skillGainChance = baseChance * rarityScale; // 通常は少しずつ上がる
+    skillGainChance = 0.02;  // 鬼畜モードで変更する
 }
-
-// 上限（安全弁）：暴走防止。必要なら 0.03 や 0.05 に調整OK
-skillGainChance = Math.min(0.05, Math.max(0, skillGainChance));
-
-// デバッグしたいならこれを有効化
-// log.push(`新スキル獲得率: ${(skillGainChance * 100).toFixed(2)}% (streak=${s}, rarity=${rarity})`);
  // log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 if (Math.random() < skillGainChance) {
     const owned = new Set(player.skills.map(s => s.name));
@@ -5151,11 +5358,11 @@ finalResEl.onclick = () => {
     }
   }
 
-  // ボス戦発生時にオートバトルを停止
+  // 20戦ごとにオートバトルを停止
   try {
     if (typeof window.battlesPlayed === 'number' &&
         window.battlesPlayed > 0 &&
-        window.isBossBattle === true &&
+        window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
         typeof stopAutoBattle === 'function') {
       stopAutoBattle();
     }

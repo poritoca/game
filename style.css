@@ -1915,7 +1915,7 @@ body::before{
 #faceMemoryUI, #skillMemoryList, #uniqueSkillList, #ownedFaceList {
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   background: var(--panel-bg) !important; border: 1px solid var(--panel-brd) !important;
-  color: var(--ink) !important; filter: grayscale(100%); box-shadow: 0 0 12px rgba(255,255,255,0.10);
+  color: var(--ink) !important; filter: grayscale(80%); box-shadow: 0 0 12px rgba(255,255,255,0.10);
 }
 input[type="text"], textarea, input[type="number"], select, button, .quick-guide-toggle {
   background: rgba(255,255,255,0.08) !important; color: var(--ink) !important; border: 1px solid var(--glass-brd) !important;
@@ -2251,3 +2251,22 @@ canvas {
 #enemyCanvas {
   filter: none !important;
 }
+
+/* 戦闘ログはモノクロ解除（HPハート等を見やすく） */
+#battleLog {
+  filter: none !important;
+}
+
+/* --- Battle Log: compact stat lines (HP/maxHP + ATK/DEF/SPD) --- */
+#battleLog .stat-line{
+  font-size: 0.78em;
+  line-height: 1.2;
+  margin: 2px 0 4px 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  letter-spacing: 0.02em;
+}
+#battleLog .stat-line.player{ }
+#battleLog .stat-line.enemy{ }
