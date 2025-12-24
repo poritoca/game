@@ -637,6 +637,159 @@ function displayBattleLogWithoutAsync(log) {
       div.classList.add('turn-banner');
     }
 
+
+// ─ ターン終了ステータス（折り畳み式・CSSでカード表示） ─
+else if (lineText.startsWith('__TURN_STATS__|')) {
+  div.classList.add('turn-stats', 'turn-stats-collapsible');
+
+  // 見出し（初期は必ず閉じる）
+  const header = document.createElement('div');
+  header.classList.add('turn-stats-header');
+  header.setAttribute('role', 'button');
+  header.setAttribute('tabindex', '0');
+  header.setAttribute('aria-expanded', 'false');
+
+  const arrow = document.createElement('span');
+  arrow.classList.add('turn-stats-arrow');
+  arrow.textContent = '▶';
+  header.appendChild(arrow);
+
+  const title = document.createElement('span');
+  title.classList.add('turn-stats-title');
+  title.textContent = ' ステータス（タップで開閉）';
+  header.appendChild(title);
+
+  div.appendChild(header);
+
+  // 中身（max-heightで開閉。height:autoアニメは禁止のため不使用）
+  const content = document.createElement('div');
+  content.classList.add('turn-stats-content');
+  content.style.maxHeight = '0px';
+  content.style.overflow = 'hidden';
+  content.setAttribute('aria-hidden', 'true');
+  div.appendChild(content);
+
+  // __TURN_STATS__|P,hp,max,dMax,atk,dAtk,def,dDef,spd,dSpd|E,...
+  const parts = lineText.split('|').slice(1);
+
+  const parseSide = (seg) => {
+    const vals = seg.split(',');
+    // vals[0] = 'P' or 'E'
+    const n = (v) => (Number.isFinite(Number(v)) ? Math.floor(Number(v)) : 0);
+    return {
+      side: vals[0] || '?',
+      hp: n(vals[1]),
+      max: n(vals[2]),
+      dMax: n(vals[3]),
+      atk: n(vals[4]),
+      dAtk: n(vals[5]),
+      def: n(vals[6]),
+      dDef: n(vals[7]),
+      spd: n(vals[8]),
+      dSpd: n(vals[9]),
+    };
+  };
+
+  const makeDelta = (v) => {
+    const span = document.createElement('span');
+    span.classList.add('delta');
+    const sign = v > 0 ? '+' : '';
+    span.textContent = `(${sign}${v})`;
+    if (v > 0) span.classList.add('pos');
+    if (v < 0) span.classList.add('neg');
+    return span;
+  };
+
+  const makeRow = (data) => {
+    const row = document.createElement('div');
+    row.classList.add('turn-stats-row');
+
+    const label = document.createElement('div');
+    label.classList.add('side');
+    label.textContent = (data.side === 'P') ? '自' : (data.side === 'E' ? '敵' : data.side);
+    row.appendChild(label);
+
+    const card = document.createElement('div');
+    card.classList.add('turn-stats-card');
+    row.appendChild(card);
+
+    const mkLine = (key, mainText, deltaVal) => {
+      const line = document.createElement('div');
+      line.classList.add('stat');
+      line.setAttribute('data-key', key);
+
+      const k = document.createElement('span');
+      k.classList.add('k');
+      k.textContent = (key === 'hp') ? 'HP' : key.toUpperCase();
+      line.appendChild(k);
+
+      const v = document.createElement('span');
+      v.classList.add('v');
+      v.textContent = mainText;
+      line.appendChild(v);
+
+      // Δ（バフ/デバフ）表示：0でも出す（視認性と桁揃えのため）
+      const d = makeDelta(Number(deltaVal || 0));
+      line.appendChild(d);
+
+      return line;
+    };
+
+    // 1行=1ステータス（桁が増えても崩れにくい）
+    // HP行は「現在/最大」、括弧は最大HPの増減（dMax）を表示
+    card.appendChild(mkLine('hp', `${data.hp}/${data.max}`, data.dMax));
+    card.appendChild(mkLine('atk', `${data.atk}`, data.dAtk));
+    card.appendChild(mkLine('def', `${data.def}`, data.dDef));
+    card.appendChild(mkLine('spd', `${data.spd}`, data.dSpd));
+
+    return row;
+  };
+
+  for (const seg of parts) {
+    if (!seg) continue;
+    const data = parseSide(seg);
+    content.appendChild(makeRow(data));
+  }
+
+  const setOpen = (open) => {
+    if (open) {
+      header.setAttribute('aria-expanded', 'true');
+      content.setAttribute('aria-hidden', 'false');
+      arrow.textContent = '▼';
+      // 一度0に戻してから scrollHeight を採用（iOS Safari対策）
+      content.style.maxHeight = '0px';
+      requestAnimationFrame(() => {
+        content.style.maxHeight = `${content.scrollHeight}px`;
+      });
+    } else {
+      header.setAttribute('aria-expanded', 'false');
+      content.setAttribute('aria-hidden', 'true');
+      arrow.textContent = '▶';
+      content.style.maxHeight = '0px';
+    }
+  };
+
+  const toggle = () => {
+    const isOpen = header.getAttribute('aria-expanded') === 'true';
+    setOpen(!isOpen);
+  };
+
+  // クリック/タップ（最小限のイベントバインド：このヘッダのみ）
+  header.addEventListener('click', toggle);
+
+  // キーボード操作（任意だが安全）
+  header.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  });
+
+  // 初期状態：必ず折り畳み
+  setOpen(false);
+}
+
+
     // ─ 勝敗行 ─
     else if (lineText.includes('勝者')) {
       div.textContent = lineText;
@@ -701,6 +854,64 @@ function displayBattleLogWithoutAsync(log) {
   }
 
   showNextLine();
+}
+
+
+
+/********************************
+ * 戦闘ログ：ターン終了ステータス表示（CSS装飾用）
+ * - ログには安全なマーカー文字列を入れ、描画側でDOM生成する
+ ********************************/
+function ensureBattleBaseSnapshot(ch) {
+  if (!ch) return;
+  ch.__battleBaseSnapshot = {
+    maxHp: Number(ch.maxHp || 0),
+    attack: Number(ch.attack || 0),
+    defense: Number(ch.defense || 0),
+    speed: Number(ch.speed || 0)
+  };
+}
+
+function buildTurnEndStatsLine(player, enemy) {
+  const snapP = player && player.__battleBaseSnapshot ? player.__battleBaseSnapshot : null;
+  const snapE = enemy && enemy.__battleBaseSnapshot ? enemy.__battleBaseSnapshot : null;
+
+  const p = {
+    hp: Math.max(0, Math.floor(Number(player?.hp ?? 0))),
+    max: Math.max(0, Math.floor(Number(player?.maxHp ?? 0))),
+    atk: Math.max(0, Math.floor(Number(player?.attack ?? 0))),
+    def: Math.max(0, Math.floor(Number(player?.defense ?? 0))),
+    spd: Math.max(0, Math.floor(Number(player?.speed ?? 0))),
+    dMax: snapP ? Math.floor(Number(player.maxHp || 0) - Number(snapP.maxHp || 0)) : 0,
+    dAtk: snapP ? Math.floor(Number(player.attack || 0) - Number(snapP.attack || 0)) : 0,
+    dDef: snapP ? Math.floor(Number(player.defense || 0) - Number(snapP.defense || 0)) : 0,
+    dSpd: snapP ? Math.floor(Number(player.speed || 0) - Number(snapP.speed || 0)) : 0,
+  };
+
+  const e = {
+    hp: Math.max(0, Math.floor(Number(enemy?.hp ?? 0))),
+    max: Math.max(0, Math.floor(Number(enemy?.maxHp ?? 0))),
+    atk: Math.max(0, Math.floor(Number(enemy?.attack ?? 0))),
+    def: Math.max(0, Math.floor(Number(enemy?.defense ?? 0))),
+    spd: Math.max(0, Math.floor(Number(enemy?.speed ?? 0))),
+    dMax: snapE ? Math.floor(Number(enemy.maxHp || 0) - Number(snapE.maxHp || 0)) : 0,
+    dAtk: snapE ? Math.floor(Number(enemy.attack || 0) - Number(snapE.attack || 0)) : 0,
+    dDef: snapE ? Math.floor(Number(enemy.defense || 0) - Number(snapE.defense || 0)) : 0,
+    dSpd: snapE ? Math.floor(Number(enemy.speed || 0) - Number(snapE.speed || 0)) : 0,
+  };
+
+  // __TURN_STATS__|P,hp,max,dMax,atk,dAtk,def,dDef,spd,dSpd|E,...
+  return `__TURN_STATS__|P,${p.hp},${p.max},${p.dMax},${p.atk},${p.dAtk},${p.def},${p.dDef},${p.spd},${p.dSpd}` +
+         `|E,${e.hp},${e.max},${e.dMax},${e.atk},${e.dAtk},${e.def},${e.dDef},${e.spd},${e.dSpd}`;
+}
+
+function pushTurnEndStatsLog(log, player, enemy) {
+  if (!Array.isArray(log)) return;
+  try {
+    log.push(buildTurnEndStatsLine(player, enemy));
+  } catch (e) {
+    // ログ生成の失敗で戦闘自体が止まらないようにする
+  }
 }
 
 
@@ -1175,6 +1386,33 @@ function onSkillAcquired(newSkill) {
 // ※既存のスキル取得処理の最後で onSkillAcquired(newSkill) が呼ばれるように組み込んでください。
 
 
+
+/********************************
+ * 混合スキル：レベル補正ユーティリティ
+ * - 「ほんの少しずつ伸びる」ため、対数で緩やかに増加（最大+15%）
+ ********************************/
+function getMixedSkillLevelScale(level) {
+  const lv = Math.max(1, Number(level || 1) || 1);
+  // Lv1=1.00, Lv10≈1.02, Lv100≈1.04, Lv1000≈1.06 ... 最大1.15
+  const scale = 1.0 + Math.min(0.15, 0.02 * Math.log10(lv));
+  return scale;
+}
+
+function getScaledMixedSpecialEffectValue(skill, effect) {
+  if (!effect) return 0;
+  const type = Number(effect.type);
+  const base = Number(effect.baseValue ?? effect.value ?? effect.amount ?? effect.ratio ?? 0);
+  const scale = getMixedSkillLevelScale(skill && skill.level);
+  if (!isFinite(base)) return base;
+
+  // 4-7（倍率系）は「1からの差分」だけを伸ばす
+  if (type >= 4 && type <= 7) {
+    return 1 + (base - 1) * scale;
+  }
+  // 1-3（%系）はそのまま伸ばす
+  return base * scale;
+}
+
 /********************************
  * 混合スキルの発動処理
  ********************************/
@@ -1232,11 +1470,23 @@ function useMixedSkill(mixedSkill, user, target, log) {
 
   // --- 特殊効果を初期化（必要に応じて） ---
   function ensureSpecialEffects(skill) {
+    // 旧形式（specialEffectType/Value）→ 新形式（specialEffects[]）へ
     if (!skill.specialEffects && skill.specialEffectType != null) {
       skill.specialEffects = [{
         type: skill.specialEffectType,
-        value: skill.specialEffectValue
+        value: skill.specialEffectValue,
+        baseValue: skill.specialEffectValue
       }];
+    }
+    // baseValue を必ず保持（スキルレベル補正の基準にする）
+    if (Array.isArray(skill.specialEffects)) {
+      for (const eff of skill.specialEffects) {
+        if (!eff) continue;
+        if (typeof eff.baseValue === 'undefined') {
+          const v = (typeof eff.value !== 'undefined') ? eff.value : (eff.amount ?? eff.ratio ?? 0);
+          eff.baseValue = v;
+        }
+      }
     }
   }
 
@@ -1251,11 +1501,12 @@ function useMixedSkill(mixedSkill, user, target, log) {
       for (const effect of skill.specialEffects) {
         const handler = specialEffectHandlers[effect.type];
 
-  // SPECIAL_ONLY_RETURN: 内包スキル(baseSkills)は発動しない（仕様）
-  return;
-        if (typeof handler === "function") {
-          handler(effect.value, skill);
-        }
+  // SPECIAL_ONLY: 内包スキル(baseSkills)は発動しない（仕様）
+// ただし「特殊効果そのもの」は必ず実行する（return で潰さない）
+if (typeof handler === "function") {
+  const scaled = getScaledMixedSpecialEffectValue(skill, effect);
+  handler(scaled, skill, effect);
+}
       }
     }
 
@@ -1290,6 +1541,96 @@ function useMixedSkill(mixedSkill, user, target, log) {
 
 
 
+/********************************
+ * 混合スキル：効果一覧ポップアップ
+ ********************************/
+window.showMixedSkillEffectListPopup = function() {
+  const popupId = "mixed-effect-list-popup";
+  const existing = document.getElementById(popupId);
+  if (existing) existing.remove();
+
+  const wrap = document.createElement("div");
+  wrap.id = popupId;
+  wrap.style.position = "fixed";
+  wrap.style.left = "50%";
+  wrap.style.top = "50%";
+  wrap.style.transform = "translate(-50%, -50%)";
+  wrap.style.maxWidth = "92vw";
+  wrap.style.width = "520px";
+  wrap.style.maxHeight = "80vh";
+  wrap.style.overflow = "auto";
+  wrap.style.background = "#222";
+  wrap.style.color = "#fff";
+  wrap.style.border = "2px solid #fff";
+  wrap.style.borderRadius = "10px";
+  wrap.style.padding = "14px 16px";
+  wrap.style.zIndex = "10020";
+  wrap.style.whiteSpace = "pre-wrap";
+  wrap.style.boxShadow = "0 6px 20px rgba(0,0,0,0.6)";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "閉じる";
+  closeBtn.style.position = "sticky";
+  closeBtn.style.top = "0";
+  closeBtn.style.float = "right";
+  closeBtn.style.marginLeft = "12px";
+  closeBtn.style.padding = "6px 10px";
+  closeBtn.style.border = "1px solid #fff";
+  closeBtn.style.background = "#333";
+  closeBtn.style.color = "#fff";
+  closeBtn.style.borderRadius = "8px";
+  closeBtn.addEventListener("click", () => wrap.remove());
+
+  const title = document.createElement("div");
+  title.textContent = "混合スキル：レベル補正つき効果一覧";
+  title.style.fontWeight = "700";
+  title.style.marginBottom = "8px";
+
+  const body = document.createElement("div");
+  const skills = (window.player && Array.isArray(window.player.skills)) ? window.player.skills.filter(s => s && s.isMixed) : [];
+  if (!skills.length) {
+    body.textContent = "混合スキルがありません。";
+  } else {
+    let t = "";
+    for (const ms of skills) {
+      const lv = Math.max(1, Number(ms.level || 1) || 1);
+      const scale = getMixedSkillLevelScale(lv);
+      const p = Math.round(_normProb(ms.activationProb, 0.35) * 100);
+      t += `■ ${ms.name}  (Lv${lv} / 発動率${p}% / レベル補正×${scale.toFixed(3)})\n`;
+
+      const effs = Array.isArray(ms.specialEffects) ? ms.specialEffects : (ms.specialEffectType != null ? [{ type: ms.specialEffectType, value: ms.specialEffectValue, baseValue: ms.specialEffectValue }] : []);
+      if (!effs.length) {
+        t += "  - 特殊効果なし\n\n";
+        continue;
+      }
+      for (const eff of effs) {
+        if (!eff) continue;
+        const type = Number(eff.type);
+        const base = Number(eff.baseValue ?? eff.value ?? 0);
+        const scaled = getScaledMixedSpecialEffectValue(ms, eff);
+
+        const fmtPct = (v) => `${(Math.round(v * 10) / 10)}%`;
+        const fmtMul = (v) => `${(Math.round(v * 1000) / 1000)}倍`;
+
+        if (type === 1) t += `  - 敵残HP%ダメージ: ${fmtPct(base)} → ${fmtPct(scaled)}\n`;
+        else if (type === 2) t += `  - 復活HP%: ${fmtPct(base)} → ${fmtPct(scaled)}\n`;
+        else if (type === 3) t += `  - 毒/火傷吸収(即時回復)%: ${fmtPct(base)} → ${fmtPct(scaled)}\n`;
+        else if (type === 4) t += `  - 攻撃倍率(所持時): ${fmtMul(base)} → ${fmtMul(scaled)}\n`;
+        else if (type === 5) t += `  - 防御倍率(所持時): ${fmtMul(base)} → ${fmtMul(scaled)}\n`;
+        else if (type === 6) t += `  - 速度倍率(所持時): ${fmtMul(base)} → ${fmtMul(scaled)}\n`;
+        else if (type === 7) t += `  - 最大HP倍率(所持時): ${fmtMul(base)} → ${fmtMul(scaled)}\n`;
+        else t += `  - type${type}: ${base} → ${scaled}\n`;
+      }
+      t += "\n";
+    }
+    body.textContent = t.trim();
+  }
+
+  wrap.appendChild(closeBtn);
+  wrap.appendChild(title);
+  wrap.appendChild(body);
+  document.body.appendChild(wrap);
+};
 function showSpecialEffectDetail(mixedSkill, event) {
   const existingPopup = document.getElementById("effect-popup");
   if (existingPopup) existingPopup.remove();
@@ -1805,25 +2146,25 @@ function clearPassiveStatBuffs(player) {
 function decideSkillsToUse(actor, maxActivations) {
     if (!actor.usedSkillNames) actor.usedSkillNames = new Set();
 
-		const usableSkills = actor.skills.filter(skill => {
-		    const data = skillPool.find(s => s.name === skill.name);
-		    const isPassive = data?.category === 'passive';
-		    const isMixedCategory = data?.category === 'mixed';
-		
-		    // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
-		    if (skill.isMixed) return false;
-		
-		    return !skill.sealed && !isPassive && !isMixedCategory;
-		});
+    const usableSkills = actor.skills.filter(skill => {
+        const data = skillPool.find(s => s.name === skill.name);
+        const isPassive = data?.category === 'passive';
+        const isMixedCategory = data?.category === 'mixed';
+
+        // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
+        if (skill.isMixed) return false;
+
+        return !skill.sealed && !isPassive && !isMixedCategory;
+    });
 
     let availableSkills = usableSkills;
 
-    
     // 通常スキルが1つも無い場合はスキル発動なし
     if (!availableSkills || availableSkills.length === 0) {
         return [];
     }
-// 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
+
+    // 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
     if (window.specialMode === 'brutal') {
         availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
         if (availableSkills.length === 0) {
@@ -1831,9 +2172,6 @@ function decideSkillsToUse(actor, maxActivations) {
             availableSkills = [...usableSkills];
         }
     }
-
-    const skillSelectionBias = 2.0;
-    const skillNamesInMemoryOrder = Object.keys(actor.skillMemory || {});
 
     // プレイヤーが1つでも攻撃スキルを所持しているか
     const hasAnyOffensive = availableSkills.some(sk => {
@@ -1844,26 +2182,17 @@ function decideSkillsToUse(actor, maxActivations) {
     let finalSkills = [];
     let selectedNames = [];
 
-    // 再抽選は最大5回まで（攻撃スキルがある場合のみ）
+    // 攻撃スキルが存在する場合、攻撃スキルが含まれるまでリトライ（最大10回）
     const maxRetries = hasAnyOffensive ? 10 : 1;
 
     for (let retry = 0; retry < maxRetries; retry++) {
-        const weightedSkills = [];
-        availableSkills.forEach(skill => {
-            const index = skillNamesInMemoryOrder.indexOf(skill.name);
-            const position = index >= 0 ? index : skillNamesInMemoryOrder.length;
-            const weight = Math.pow(skillNamesInMemoryOrder.length - position, skillSelectionBias);
-            const count = Math.ceil(weight);
-            for (let i = 0; i < count; i++) weightedSkills.push(skill);
-        });
-
-        const shuffled = [...weightedSkills].sort(() => Math.random() - 0.5);
-        const uniqueCandidates = Array.from(new Set(shuffled));
+        // ✅ ランダムに選ぶ（固定化を防ぐため、スキルメモリ順の重み付けはしない）
+        const pool = [...availableSkills].sort(() => Math.random() - 0.5);
 
         finalSkills = [];
         selectedNames = [];
 
-        for (const sk of uniqueCandidates) {
+        for (const sk of pool) {
             const skillData = skillPool.find(s => s.name === sk.name);
             const activationRate = skillData?.activationRate ?? 1.0;
             if (Math.random() < activationRate) {
@@ -3281,20 +3610,30 @@ window.getSkillEffect = function (skill, user, target, log) {
     }
 
     case 'debuff': {
+      // debuff（skills.js の category:"debuff"）は「発動者」ではなく常に「相手（target）」へ付与する
       const bonusTurns = getLevelTurnBonus(skill.level || 1);
       const duration = (skillData.duration || 1) + bonusTurns;
       const baseFactor = skillData.factor || 0.5;
       const factor = Math.max(0.1, baseFactor - (skill.level || 1) * 0.0003);
+
+      // 念のため：effects 配列が無い個体が来ても落ちないようにする（既存仕様を壊さない安全策）
+      if (!Array.isArray(target.effects)) target.effects = [];
+      if (!Array.isArray(user.effects)) user.effects = [];
+
       skillData.targetStats.forEach(stat => {
-        const existing = user.effects.find(e => e.type === 'debuff' && e.stat === stat);
+        // 既存の同種デバフがある場合は、一旦元の値へ戻してから上書き（既存仕様踏襲）
+        const existing = target.effects.find(e => e.type === 'debuff' && e.stat === stat);
         if (existing) {
-          user[stat] = existing.original;
-          user.effects = user.effects.filter(e => e !== existing);
+          target[stat] = existing.original;
+          target.effects = target.effects.filter(e => e !== existing);
         }
-        const original = user[stat];
-        user[stat] = Math.floor(user[stat] * factor);
-        user.effects.push({ type: 'debuff', stat: stat, original: original, remaining: duration });
+
+        const original = target[stat];
+        target[stat] = Math.floor(target[stat] * factor);
+        target.effects.push({ type: 'debuff', stat: stat, original: original, remaining: duration });
       });
+
+      // ログ形式は変更しない（既存の見た目維持）
       log.push(`${displayName(user.name)}の${skill.name}：${duration}ターン ${factor.toFixed(2)}倍 弱体！`);
       break;
     }
@@ -3781,12 +4120,16 @@ function handlePoisonBurnDamage(character, damage, log) {
   for (const mSkill of character.mixedSkills) {
     if (!Array.isArray(mSkill.specialEffects)) continue;
     for (const effect of mSkill.specialEffects) {
-      if (effect.type === 3 && !effect.used) {
+      if (effect.type === 3) {
+        const battleId = window.battleId || 0;
+        // 1戦につき1回だけ（battleIdで管理）
+        if (effect._usedBattleId === battleId) continue;
+
         const p = _normProb(mSkill.activationProb, 0.35);
         if (Math.random() <= p) {
-          totalHealPercent += effect.value;
-          // 1回発動したらその戦闘中は消費扱い（連続発動を抑える）
-          effect.used = true;
+          const healPct = getScaledMixedSpecialEffectValue(mSkill, effect);
+          totalHealPercent += healPct;
+          effect._usedBattleId = battleId;
         }
       }
     }
@@ -3902,7 +4245,7 @@ function _normRatio(v, fallback = 0.35) {
 
 
 
-function applyMixedSpecialEffectsAtBattleStart(user, log) {
+function applyMixedSpecialEffectsAtBattleStart(user, opponent, log) {
   if (!user || !Array.isArray(user.skills)) return;
 
   const battleId = window.battleId || 0;
@@ -3924,7 +4267,7 @@ function applyMixedSpecialEffectsAtBattleStart(user, log) {
     if (!effs.length) continue;
 
     const lv = Math.max(1, Number(ms.level || 1) || 1);
-    const scale = 1.0 + Math.min(0.40, (lv - 1) * 0.01); // +1%/Lv 最大+40%
+    const scale = getMixedSkillLevelScale(lv); // 緩やかなレベル補正
     const procChance = _normProb(ms.activationProb, 0.35);
 
     for (const e0 of effs) {
@@ -3932,6 +4275,11 @@ function applyMixedSpecialEffectsAtBattleStart(user, log) {
       const type = Number(e0.type);
       const baseVal = Number(e0.value ?? e0.amount ?? e0.ratio ?? 0);
       const v = isFinite(baseVal) ? baseVal * scale : baseVal;
+
+
+// type 1: 敵の残りHP%の追加ダメージ
+// ※仕様変更：戦闘開始時ではなく「毎ターン開始時」に判定・適用する（継続ダメージより前）
+// （処理本体は applyMixedHpPercentDamageAtTurnStart() に移動）
 
       // type 2: 復活（HP割合）
       if (type === 2) {
@@ -3991,6 +4339,56 @@ function applyMixedSpecialEffectsAtBattleStart(user, log) {
   }
 }
 
+
+// ===============================
+// 混合スキル：毎ターン開始時の「敵の残りHP%追加ダメージ」
+// - 仕様変更：戦闘開始時ではなく、各ターン開始時に毎回チャンス判定
+// - 継続ダメージ（毒/火傷など）の処理より前に実行する
+// - 基準は「相手の現在HP（残りHP）」
+// ===============================
+function applyMixedHpPercentDamageAtTurnStart(user, opponent, log, turn) {
+  if (!user || !Array.isArray(user.skills)) return;
+  if (!opponent || !isFinite(Number(opponent.hp)) || Number(opponent.hp) <= 0) return;
+
+  // mixedSkills は user.skills 内に入っている想定（isMixed=true）
+  for (const ms of user.skills) {
+    if (!ms || !ms.isMixed) continue;
+
+    const effs = Array.isArray(ms.specialEffects) ? ms.specialEffects : [];
+    if (effs.length === 0) continue;
+
+    const lv = Number(ms.level || 1);
+    const scale = getMixedSkillLevelScale(lv); // 緩やかなレベル補正（既存関数）
+    const procChance = _normProb(ms.activationProb, 0.35);
+
+    for (const e0 of effs) {
+      if (!e0) continue;
+      const type = Number(e0.type);
+      if (type !== 1) continue;
+
+      const baseVal = Number(e0.value ?? e0.amount ?? e0.ratio ?? 0);
+      const v = isFinite(baseVal) ? baseVal * scale : baseVal;
+
+      const ratio = Math.max(0.01, _normRatio(v, 0.2));
+      const ok = (Math.random() <= procChance);
+
+      if (!ok) continue;
+
+      const before = Math.max(0, Math.floor(Number(opponent.hp)));
+      if (before <= 0) continue;
+
+      const dmg = Math.max(1, Math.floor(before * ratio));
+      opponent.hp = Math.max(0, before - dmg);
+
+      if (log) {
+        log.push(
+          `※${ms.name}の効果で${displayName(opponent.name)}に残りHPの${Math.round(ratio * 100)}%（${dmg}）の追加ダメージ！` +
+          `（発動率${Math.round(procChance * 100)}%）`
+        );
+      }
+    }
+  }
+}
 function resetMixedStartAfterBattle(ch) {
   if (!ch) return;
 
@@ -4301,8 +4699,6 @@ do {
 
 
 // 混合スキルの戦闘開始時特殊効果を付与（必ずログを出す）
-applyMixedSpecialEffectsAtBattleStart(player, window.log);
-applyMixedSpecialEffectsAtBattleStart(enemy, window.log);
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
@@ -4410,10 +4806,15 @@ log.push(
   `  ├ レアリティ倍率: ${rarityFactor.toFixed(3)}\n` +
   `  └ 成長倍率(指数): 1.05^${streakIndex} = ${growthFactor.toFixed(3)}`
 );
+
+// --- 混合スキル：戦闘開始時の特殊効果（残りHP%ダメージ/復活/吸収/バフ） ---
+// ※敵の最終ステータス（倍率適用後）を確定してから実行する（HP%ダメージの基準ズレ防止）
+applyMixedSpecialEffectsAtBattleStart(player, enemy, log);
+applyMixedSpecialEffectsAtBattleStart(enemy, player, log);
+
 				 
 // --- 5) 後処理 ---
-player.effects = [];
-enemy.effects = [];
+// ※混合スキル開始時効果(revive/dotAbsorb等)を保持するため、ここでは effects を全消去しない
 updateStats();
 
   let turn = 1;
@@ -4423,6 +4824,11 @@ updateStats();
   enemy.hp = enemy.maxHp;
   player.battleStats = {};
   enemy.battleStats = {};
+
+  // 戦闘中のバフ差分表示用：この戦闘の基準ステータスを記録
+  ensureBattleBaseSnapshot(player);
+  ensureBattleBaseSnapshot(enemy);
+
 	recordHP();
 	
 
@@ -4438,6 +4844,10 @@ updateStats();
     }
     updateSealedSkills(player);
     updateSealedSkills(enemy);
+
+    // 混合スキル：毎ターン開始時（継続ダメージより前）に残りHP%追加ダメージ判定
+    applyMixedHpPercentDamageAtTurnStart(player, enemy, log, turn);
+    applyMixedHpPercentDamageAtTurnStart(enemy, player, log, turn);
 
     // 継続効果の処理（毒・火傷・再生など）
     [player, enemy].forEach(ch => {
@@ -4692,22 +5102,22 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
 
     // プレイヤー死亡時の処理（復活判定）
 if (player.hp <= 0) {
-      // 復活判定（混合開始時効果）
-      const revivedMixedStart = tryReviveOnDeath(player, window.log);
-      if (revivedMixedStart) {
-        // 復活したので敗北処理へ進まない
-      } else {
-        const revived = checkReviveOnDeath(player, window.log);
-      if (!revived) {
-        // 戦闘終了：混合開始時効果をリセット
-        resetMixedStartAfterBattle(player);
-        resetMixedStartAfterBattle(enemy);
+  // ① 混合開始時効果（revive_mixed_start）
+  const revivedMixedStart = tryReviveOnDeath(player, window.log);
 
-        window.log.push(`${displayName(player.name)}は力尽きた……`);
-      }
-      }
-    }
-    // 各ターン終了時の反撃処理（耐久スキル）
+  // ② 旧方式（互換：混合スキルの specialEffects 直読み等）
+  const revivedLegacy = revivedMixedStart ? true : checkReviveOnDeath(player, window.log);
+
+  if (!revivedLegacy) {
+    // 戦闘終了：混合開始時効果をリセット
+    resetMixedStartAfterBattle(player);
+    resetMixedStartAfterBattle(enemy);
+
+    window.log.push(`${displayName(player.name)}は力尽きた……`);
+  }
+}
+
+// 各ターン終了時の反撃処理（耐久スキル）
     [player, enemy].forEach(ch => {
       const endureEff = ch.effects.find(e => e.type === 'endure');
       if (endureEff) {
@@ -4738,6 +5148,9 @@ if (player.hp <= 0) {
     };
     log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
     log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
+
+    // ターン終了：コンパクトなステータス一覧（CSS装飾）
+    pushTurnEndStatsLog(log, player, enemy);
 
     recordHP();
     turn++;
@@ -5399,6 +5812,15 @@ location.reload();
   if (downloadBtn) {
     downloadBtn.addEventListener('click', () => {
       window.downloadBattleLogs();
+    });
+  }
+
+  const mixedListBtn = document.getElementById('mixedEffectListBtn');
+  if (mixedListBtn) {
+    mixedListBtn.addEventListener('click', () => {
+      if (typeof window.showMixedSkillEffectListPopup === 'function') {
+        window.showMixedSkillEffectListPopup();
+      }
     });
   }
 
