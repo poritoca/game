@@ -497,7 +497,24 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <div class="quick-guide-wrapper">
         <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
         <div id="quickGuideLog" class="quick-guide-content">
-          <pre id="battleLog" style="height:250px;"></pre>
+          
+          <div id="battleLogControls" class="battle-log-controls">
+            <div class="battle-log-speed">
+              <label for="logSpeedSlider">ログ速度</label>
+              <input id="logSpeedSlider" type="range" min="5" max="200" step="1" value="20" />
+              <span id="logSpeedValue" class="battle-log-speed-value">20ms</span>
+            </div>
+            <div class="battle-log-accel">
+              <span class="battle-log-accel-label">加速度</span>
+              <div class="battle-log-accel-buttons">
+                <button type="button" id="logAccelBtn0" class="log-accel-btn">OFF</button>
+                <button type="button" id="logAccelBtn1" class="log-accel-btn">弱</button>
+                <button type="button" id="logAccelBtn2" class="log-accel-btn">強</button>
+              </div>
+            </div>
+          </div>
+
+<pre id="battleLog" style="height:350px;"></pre>
         </div>
       </div>
 

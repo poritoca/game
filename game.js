@@ -617,6 +617,105 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
 
 
 
+
+// ======================================================
+// Battle Log speed / acceleration settings (UI + persist)
+// ======================================================
+// 表示間隔（ms）：小さいほど速い
+window.__BATTLE_LOG_BASE_DELAY_MS = Number(window.__BATTLE_LOG_BASE_DELAY_MS || 20);
+
+// 加速度モード：0=OFF, 1=弱, 2=強
+window.__BATTLE_LOG_ACCEL_MODE = Number.isFinite(Number(window.__BATTLE_LOG_ACCEL_MODE))
+  ? Number(window.__BATTLE_LOG_ACCEL_MODE) : 1;
+
+function __loadBattleLogSpeedSettings(){
+  try{
+    const ms = Number(localStorage.getItem('battleLogBaseDelayMs'));
+    if (Number.isFinite(ms) && ms >= 1) window.__BATTLE_LOG_BASE_DELAY_MS = ms;
+    const am = Number(localStorage.getItem('battleLogAccelMode'));
+    if (Number.isFinite(am) && am >= 0) window.__BATTLE_LOG_ACCEL_MODE = am;
+  }catch(_e){}
+}
+
+function __saveBattleLogSpeedSettings(){
+  try{
+    localStorage.setItem('battleLogBaseDelayMs', String(window.__BATTLE_LOG_BASE_DELAY_MS));
+    localStorage.setItem('battleLogAccelMode', String(window.__BATTLE_LOG_ACCEL_MODE));
+  }catch(_e){}
+}
+
+function __clamp(n, a, b){
+  n = Number(n);
+  if (!Number.isFinite(n)) return a;
+  return Math.max(a, Math.min(b, n));
+}
+
+function __getBattleLogDelayMs(lineIndex, totalLines){
+  // base: スライダーで設定した遅延
+  const base = __clamp(window.__BATTLE_LOG_BASE_DELAY_MS, 1, 2000);
+
+  // 加速度：ログが進むにつれて少しずつ速くなる（読みやすさ維持のため下限あり）
+  const mode = __clamp(window.__BATTLE_LOG_ACCEL_MODE, 0, 2);
+
+  // 体感チューニング（3段階）
+  // - OFF: 常に base
+  // - 弱 : 進行度に応じて最大 ~2.0倍速（遅延は半分程度まで）
+  // - 強 : 進行度に応じて最大 ~3.5倍速（遅延は約1/3程度まで）
+  if (mode <= 0) return base;
+
+  const t = (totalLines > 1) ? (lineIndex / Math.max(1, totalLines - 1)) : 1; // 0..1
+  const maxSpeed = (mode === 1) ? 2.0 : 3.5;      // 速度倍率
+  const curveK   = (mode === 1) ? 1.2 : 1.8;      // 立ち上がり
+  const speedMul = 1.0 + (maxSpeed - 1.0) * Math.pow(t, curveK);
+
+  const minDelay = (mode === 1) ? 8 : 5;
+  return Math.max(minDelay, Math.floor(base / speedMul));
+}
+
+function __applyBattleLogControlsUI(){
+  const slider = document.getElementById('logSpeedSlider');
+  const valueEl = document.getElementById('logSpeedValue');
+  const b0 = document.getElementById('logAccelBtn0');
+  const b1 = document.getElementById('logAccelBtn1');
+  const b2 = document.getElementById('logAccelBtn2');
+  if (!slider || !valueEl || !b0 || !b1 || !b2) return;
+
+  // 初期反映
+  slider.value = String(__clamp(window.__BATTLE_LOG_BASE_DELAY_MS, Number(slider.min||5), Number(slider.max||200)));
+  valueEl.textContent = `${slider.value}ms`;
+
+  const setActive = () => {
+    const m = __clamp(window.__BATTLE_LOG_ACCEL_MODE, 0, 2);
+    b0.classList.toggle('active', m === 0);
+    b1.classList.toggle('active', m === 1);
+    b2.classList.toggle('active', m === 2);
+  };
+  setActive();
+
+  // 速度スライダー
+  slider.addEventListener('input', () => {
+    const v = __clamp(slider.value, Number(slider.min||5), Number(slider.max||200));
+    window.__BATTLE_LOG_BASE_DELAY_MS = v;
+    valueEl.textContent = `${v}ms`;
+    __saveBattleLogSpeedSettings();
+  });
+
+  // 加速度ボタン
+  b0.addEventListener('click', () => { window.__BATTLE_LOG_ACCEL_MODE = 0; setActive(); __saveBattleLogSpeedSettings(); });
+  b1.addEventListener('click', () => { window.__BATTLE_LOG_ACCEL_MODE = 1; setActive(); __saveBattleLogSpeedSettings(); });
+  b2.addEventListener('click', () => { window.__BATTLE_LOG_ACCEL_MODE = 2; setActive(); __saveBattleLogSpeedSettings(); });
+
+  // モバイルでの誤タップ対策（必要最低限）
+  [b0,b1,b2].forEach(btn=>{
+    btn.addEventListener('touchstart', (e)=>{ try{ e.stopPropagation(); }catch(_e){} }, {passive:true});
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  __loadBattleLogSpeedSettings();
+  __applyBattleLogControlsUI();
+});
+
 // グローバル
 let battleLogTimerId = null;
 let isBattleLogRunning = false;
@@ -871,7 +970,7 @@ else if (lineText.startsWith('__TURN_STATS__|')) {
     });
 
     i++;
-    battleLogTimerId = setTimeout(showNextLine, 20);
+    battleLogTimerId = setTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
   }
 
   showNextLine();
@@ -4332,6 +4431,9 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
 
   player.tempEffects = {}; // リセット
 
+  // この戦闘で「開始時ステータス倍率（混合）」を適用したソースを記録（重複ログ/二重判定防止）
+  player._mixedStartStatBuffAppliedSources = [];
+
   function applyBuffsRecursively(skill) {
     if (!skill || typeof skill !== 'object') return; // ← null/undefined 対策
 
@@ -4359,8 +4461,16 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
       if (stat === 'maxHp') {
         player.maxHp = Math.floor(after);
         player.hp = player.maxHp;
+      } else {
+        // attack/defense/speed も実値へ反映（ログだけ出て反映されない問題の修正）
+        player[stat] = Math.floor(after);
       }
-    }
+
+      // mixed start 側の二重判定を避けるため、適用済みを記録
+      try {
+        player._mixedStartStatBuffAppliedSources.push({ source: skill.name, stat });
+      } catch (_) {}
+}
 
     if (Array.isArray(skill.baseSkills)) {
       for (const child of skill.baseSkills) {
@@ -4469,6 +4579,13 @@ function applyMixedSpecialEffectsAtBattleStart(user, opponent, log) {
       if (type >= 4 && type <= 7) {
         const statKey = (type === 4 ? 'attack' : type === 5 ? 'defense' : type === 6 ? 'speed' : 'maxHp');
         const mult = Math.max(1.0, Number(v || 1.0));
+        // applyPassiveStatBuffsFromSkills() で同一ソースの倍率を既に適用済みなら、ここでは二重判定しない
+        if (Array.isArray(user._mixedStartStatBuffAppliedSources)) {
+          const already = user._mixedStartStatBuffAppliedSources.some(x => x && x.source === ms.name && x.stat === statKey);
+          if (already) {
+            continue;
+          }
+        }
         const ok = (Math.random() <= procChance);
         if (ok) {
           const original = user[statKey];
@@ -4952,9 +5069,19 @@ let enemyMultiplier = rarityFactor * modeFactor;
 
 // ボス戦の場合は、ボス専用の追加倍率を掛ける
 if (window.isBossBattle) {
-  const minMul = (typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5;
-  const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0;
-  const exp    = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
+  // 通常モードは従来どおり（デフォルト 3〜10）
+  // 鬼畜モードは 1.2〜4 に固定
+  const isBrutal = (window.specialMode === 'brutal');
+
+  const minMul = isBrutal
+    ? 1.2
+    : ((typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5);
+
+  const maxMul = isBrutal
+    ? 4.0
+    : ((typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0);
+
+  const exp = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
 
   const r = Math.random() ** exp;
   const bossMul = minMul + r * (maxMul - minMul);
@@ -4962,7 +5089,6 @@ if (window.isBossBattle) {
   enemyMultiplier *= bossMul;
   log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
 }
-
 // --- 3) 敵の最終値に倍率適用 ---
 ['attack','defense','speed','maxHp'].forEach(stat => {
   enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
