@@ -5334,7 +5334,7 @@ updateStats();
     if (Number.isFinite(enemy.maxHp))  enemy.maxHp  = Math.max(0, Math.floor(enemy.maxHp  * __hpMult));
 
     let turn = 1;
-    const MAX_TURNS = 30;
+    const MAX_TURNS = 15;
     hpHistory = [];
     player.hp = player.maxHp;
     enemy.hp = enemy.maxHp;
