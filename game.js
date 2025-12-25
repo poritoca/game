@@ -345,21 +345,42 @@ window.isFirstBattle = false;
 window.levelCapExemptSkills = [];  // スキルレベル制限緩和対象
 
 // 共通のクリーンアップ関数を作る
-window.clearEventPopup = function() {
-    const popup = document.getElementById('eventPopup');
-    const optionsEl = document.getElementById('eventPopupOptions');
-    const selectContainer = document.getElementById('eventPopupSelectContainer');
-    const selectEl = document.getElementById('eventPopupSelect');
-    const selectBtn = document.getElementById('eventPopupSelectBtn');
+window.clearEventPopup = function(keepGrowthBar = false) {
+  const popup = document.getElementById('eventPopup');
+  const title = document.getElementById('eventPopupTitle');
+  const optionsEl = document.getElementById('eventPopupOptions');
+  const selectContainer = document.getElementById('eventPopupSelectContainer');
+  const selectEl = document.getElementById('eventPopupSelect');
+  const selectBtn = document.getElementById('eventPopupSelectBtn');
 
-    optionsEl.innerHTML = '';  // ボタン類消去
-    selectEl.innerHTML = '';   // セレクト項目消去
-    selectContainer.style.display = 'none';
-    popup.style.display = 'none';
+  // content clear
+  if (title) title.textContent = '';
+  if (optionsEl) optionsEl.innerHTML = '';
+  if (selectEl) selectEl.innerHTML = '';
+  if (selectBtn) selectBtn.onclick = null;
+  if (selectContainer) selectContainer.style.display = 'none';
 
-    // ボタンの onclick 解除（念のため）
-    selectBtn.onclick = null;
-};
+  if (!popup) return;
+
+  // If we are in growthbar mode and want to keep the bar visible, collapse instead of hiding.
+  const isGrowthBar = (popup.dataset && popup.dataset.uiMode === 'growthbar') || popup.classList.contains('growthbar-ui');
+  if (keepGrowthBar && isGrowthBar) {
+    popup.classList.add('growthbar-ui');
+    popup.classList.remove('expanded');
+    popup.dataset.uiMode = 'growthbar';
+    popup.style.display = 'block';
+    popup.style.visibility = 'visible';
+    popup.style.position = 'fixed';
+    popup.style.top = '12px';
+    popup.style.left = '12px';
+    popup.style.transform = 'none';
+    return;
+  }
+
+  // default: fully hide
+  popup.style.display = 'none';
+  popup.style.visibility = 'hidden';
+};;
 
 window.toggleQuickGuideLog = function () {
   const content = document.getElementById("quickGuideLog");
@@ -2144,104 +2165,227 @@ function clearPassiveStatBuffs(player) {
 
 
 function decideSkillsToUse(actor, maxActivations) {
-    if (!actor.usedSkillNames) actor.usedSkillNames = new Set();
+  // ★ 通常スキル選出：ランダム＋「同じスキル連打ほど選ばれにくい」補正
+  // - maxActivations(=skillSimulCount) が 1 のとき、従来の「先頭が通りやすい」偏りを避ける
+  // - 直近ターンに使ったスキルほど重みを下げ、連続使用は指数的に下げる（ただし0にはしない）
+  if (!actor) return [];
+  if (!actor.usedSkillNames) actor.usedSkillNames = new Set();
 
-    const usableSkills = actor.skills.filter(skill => {
-        const data = skillPool.find(s => s.name === skill.name);
-        const isPassive = data?.category === 'passive';
-        const isMixedCategory = data?.category === 'mixed';
+  // 選出状態（キャラごとに保持）
+  if (!actor._skillPickState || typeof actor._skillPickState !== 'object') {
+    actor._skillPickState = {
+      recentQueue: [],   // 直近の使用履歴（名前配列）
+      lastName: null,    // 直前に使ったスキル名
+      lastStreak: 0      // 直前スキルの連続回数
+    };
+  }
+  const state = actor._skillPickState;
 
-        // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
-        if (skill.isMixed) return false;
+  const usableSkills = (actor.skills || []).filter(skill => {
+    if (!skill || typeof skill !== 'object') return false;
+    const data = skillPool.find(s => s.name === skill.name);
+    const isPassive = data?.category === 'passive';
+    const isMixedCategory = data?.category === 'mixed';
+    // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
+    if (skill.isMixed) return false;
+    return !skill.sealed && !isPassive && !isMixedCategory;
+  });
 
-        return !skill.sealed && !isPassive && !isMixedCategory;
+  // 通常スキルが1つも無い場合はスキル発動なし
+  if (!usableSkills || usableSkills.length === 0) return [];
+
+  let availableSkills = usableSkills;
+
+  // 鬼畜モード：未使用スキルのみ対象、一巡したらリセット（従来仕様維持）
+  if (window.specialMode === 'brutal') {
+    availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
+    if (availableSkills.length === 0) {
+      actor.usedSkillNames.clear();
+      availableSkills = [...usableSkills];
+    }
+  }
+
+  // プレイヤーが1つでも攻撃スキルを所持しているか
+  const hasAnyOffensive = availableSkills.some(sk => {
+    const data = skillPool.find(s => s.name === sk.name);
+    return window.offensiveSkillCategories.includes(data?.category);
+  });
+
+  // --- 重み計算（連打ペナルティ） ---
+  const RECENT_LIMIT = 6;                 // 直近何回分を見るか
+  const RECENT_PENALTY = 0.65;            // 直近にあるほど重みが落ちる係数（1回なら /1.65）
+  const STREAK_BASE = 0.35;               // 連続使用は STREAK_BASE^(streak) を掛ける（1回連続=0.35, 2回連続=0.1225...）
+  const MIN_WEIGHT = 0.02;                // 0にしない下限（完全固定を防ぐため）
+
+  function countInRecent(name) {
+    if (!name) return 0;
+    let c = 0;
+    for (let i = 0; i < state.recentQueue.length; i++) {
+      if (state.recentQueue[i] === name) c++;
+    }
+    return c;
+  }
+
+  function baseActivationRate(skill) {
+    const d = skillPool.find(s => s.name === skill.name);
+    const r = d?.activationRate ?? 1.0;
+    return Math.max(0, Math.min(1, Number(r)));
+  }
+
+  function weightForSkill(skill, alreadyChosenNames) {
+    const name = skill?.name;
+    if (!name) return 0;
+
+    // 同ターン内での重複選出は避ける（複数回発動時に極端に同じのが並ぶのを防ぐ）
+    if (alreadyChosenNames && alreadyChosenNames.has(name)) return 0;
+
+    let w = 1.0;
+
+    // 直近使用回数が多いほど下げる（/ (1 + RECENT_PENALTY * count)）
+    const recentCount = countInRecent(name);
+    w = w / (1 + RECENT_PENALTY * recentCount);
+
+    // 連続使用はさらに指数で下げる
+    if (state.lastName && name === state.lastName && state.lastStreak > 0) {
+      w = w * Math.pow(STREAK_BASE, state.lastStreak);
+    }
+
+    // 最低保証（0にしない）
+    if (w < MIN_WEIGHT) w = MIN_WEIGHT;
+
+    return w;
+  }
+
+  function weightedPick(skills, alreadyChosenNames) {
+    let total = 0;
+    const weights = [];
+    for (const sk of skills) {
+      const w = weightForSkill(sk, alreadyChosenNames);
+      weights.push(w);
+      total += w;
+    }
+    if (total <= 0) return null;
+
+    let r = Math.random() * total;
+    for (let i = 0; i < skills.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return skills[i];
+    }
+    return skills[skills.length - 1] || null;
+  }
+
+  function recordUsed(name) {
+    if (!name) return;
+    if (state.lastName === name) {
+      state.lastStreak = (state.lastStreak || 0) + 1;
+    } else {
+      state.lastName = name;
+      state.lastStreak = 1;
+    }
+    state.recentQueue.push(name);
+    if (state.recentQueue.length > RECENT_LIMIT) {
+      state.recentQueue.splice(0, state.recentQueue.length - RECENT_LIMIT);
+    }
+  }
+
+  let finalSkills = [];
+  let selectedNames = [];
+
+  // 「攻撃スキルが含まれるまで」リトライ（最大10回）は踏襲
+  const maxRetries = hasAnyOffensive ? 10 : 1;
+
+  for (let retry = 0; retry < maxRetries; retry++) {
+    finalSkills = [];
+    selectedNames = [];
+    const chosenNameSet = new Set();
+
+    // スキル候補（毎リトライで新しい配列）
+    let candidatePool = [...availableSkills];
+
+    // maxActivations 回まで抽選（発動失敗が続いた場合は早期終了）
+    for (let slot = 0; slot < maxActivations; slot++) {
+      if (!candidatePool.length) break;
+
+      // 発動失敗を織り込むため「抽選→発動率判定」を複数回試す
+      let picked = null;
+      const triedThisSlot = new Set();
+      for (let attempt = 0; attempt < 30; attempt++) {
+        picked = weightedPick(candidatePool, chosenNameSet);
+        if (!picked) break;
+
+        // 同スロットで同じ候補を延々引かない保険
+        if (triedThisSlot.has(picked.name)) {
+          // 一旦この候補をプールから外して再抽選
+          candidatePool = candidatePool.filter(s => s.name !== picked.name);
+          continue;
+        }
+        triedThisSlot.add(picked.name);
+
+        const actRate = baseActivationRate(picked);
+        if (Math.random() < actRate) {
+          // 成功：採用
+          finalSkills.push(picked);
+          selectedNames.push(picked.name);
+          chosenNameSet.add(picked.name);
+          break;
+        } else {
+          // 失敗：このスロットでは当たりにくくするため候補から一旦外す（次slotでは復帰）
+          candidatePool = candidatePool.filter(s => s.name !== picked.name);
+          picked = null;
+          continue;
+        }
+      }
+
+      // 1つも引けなかったら、このターンの追加発動は打ち切り
+      if (!picked) break;
+    }
+
+    const hasOffense = finalSkills.some(sk => {
+      const data = skillPool.find(s => s.name === sk.name);
+      return window.offensiveSkillCategories.includes(data?.category);
     });
 
-    let availableSkills = usableSkills;
+    // 攻撃スキルがあれば確定、または最大リトライに達したら終了
+    if (!hasAnyOffensive || hasOffense || retry === maxRetries - 1) break;
+  }
 
-    // 通常スキルが1つも無い場合はスキル発動なし
-    if (!availableSkills || availableSkills.length === 0) {
-        return [];
+  // 鬼畜モードなら使ったスキルを記録
+  if (window.specialMode === 'brutal') {
+    for (const sk of finalSkills) {
+      actor.usedSkillNames.add(sk.name);
     }
+  }
 
-    // 鬼畜モードなら未使用スキルのみ対象、一巡したらリセット
-    if (window.specialMode === 'brutal') {
-        availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
-        if (availableSkills.length === 0) {
-            actor.usedSkillNames.clear();
-            availableSkills = [...usableSkills];
-        }
-    }
+  // 使用履歴（連打抑制）の更新：このターンで実際に選ばれた分だけ記録
+  for (const sk of finalSkills) {
+    recordUsed(sk?.name);
+  }
 
-    // プレイヤーが1つでも攻撃スキルを所持しているか
-    const hasAnyOffensive = availableSkills.some(sk => {
+  // プレイヤー向けの表示/解析用の記録（従来仕様踏襲）
+  if (actor === player) {
+    window.lastChosenSkillNames = selectedNames.filter(name => {
+      const def = skillPool.find(s => s.name === name);
+      return def?.category !== 'passive';
+    });
+    window.lastOffensiveSkills = finalSkills
+      .filter(sk => {
         const data = skillPool.find(s => s.name === sk.name);
         return window.offensiveSkillCategories.includes(data?.category);
-    });
+      })
+      .map(sk => sk.name);
+  }
 
-    let finalSkills = [];
-    let selectedNames = [];
+  // 優先度順に並び替え（従来仕様踏襲）
+  finalSkills.sort((a, b) => {
+    const aData = skillPool.find(s => s.name === a.name);
+    const bData = skillPool.find(s => s.name === b.name);
+    const ap = aData?.priority ?? -1;
+    const bp = bData?.priority ?? -1;
+    if (bp !== ap) return bp - ap;
+    return (b.speed || 0) - (a.speed || 0);
+  });
 
-    // 攻撃スキルが存在する場合、攻撃スキルが含まれるまでリトライ（最大10回）
-    const maxRetries = hasAnyOffensive ? 10 : 1;
-
-    for (let retry = 0; retry < maxRetries; retry++) {
-        // ✅ ランダムに選ぶ（固定化を防ぐため、スキルメモリ順の重み付けはしない）
-        const pool = [...availableSkills].sort(() => Math.random() - 0.5);
-
-        finalSkills = [];
-        selectedNames = [];
-
-        for (const sk of pool) {
-            const skillData = skillPool.find(s => s.name === sk.name);
-            const activationRate = skillData?.activationRate ?? 1.0;
-            if (Math.random() < activationRate) {
-                finalSkills.push(sk);
-                selectedNames.push(sk.name);
-                if (finalSkills.length >= maxActivations) break;
-            }
-        }
-
-        // 選ばれた中に攻撃スキルがあるかチェック
-        const hasOffense = finalSkills.some(sk => {
-            const data = skillPool.find(s => s.name === sk.name);
-            return window.offensiveSkillCategories.includes(data?.category);
-        });
-
-        // 攻撃スキルがあれば確定、または最大リトライに達したら終了
-        if (!hasAnyOffensive || hasOffense || retry === maxRetries - 1) break;
-    }
-
-    // 鬼畜モードなら使ったスキルを記録
-    if (window.specialMode === 'brutal') {
-        for (const sk of finalSkills) {
-            actor.usedSkillNames.add(sk.name);
-        }
-    }
-
-    if (actor === player) {
-        window.lastChosenSkillNames = selectedNames.filter(name => {
-            const def = skillPool.find(s => s.name === name);
-            return def?.category !== 'passive';
-        });
-        window.lastOffensiveSkills = finalSkills
-            .filter(sk => {
-                const data = skillPool.find(s => s.name === sk.name);
-                return window.offensiveSkillCategories.includes(data?.category);
-            })
-            .map(sk => sk.name);
-    }
-
-    finalSkills.sort((a, b) => {
-        const aData = skillPool.find(s => s.name === a.name);
-        const bData = skillPool.find(s => s.name === b.name);
-        const ap = aData?.priority ?? -1;
-        const bp = bData?.priority ?? -1;
-        if (bp !== ap) return bp - ap;
-        return (b.speed || 0) - (a.speed || 0);
-    });
-
-    return finalSkills;
+  return finalSkills;
 }
 
 // 設定に基づいてターン数ボーナスを返す関数
@@ -4630,6 +4774,10 @@ if (isAutoBattle && isWaitingGrowth) {
 
   const selectedValue = selected.value;
 
+  // UI: show growth bar briefly even on auto-pick
+  window.showGrowthAutoBar && window.showGrowthAutoBar(`選択: ${selected.label}`);
+
+
   // ✅ 成長処理
   if (selectedValue === 'skip') {
     window.skipGrowth(); // 成長倍率だけを増やす
@@ -5861,7 +6009,14 @@ location.reload();
     isAutoBattle = true;  // ← 長押し中にセット
     if (!battleInterval) {
       battleInterval = setInterval(() => {
-//        if (isWaitingGrowth) return;
+        // 成長選択待ち中は通常は止めるが、AutoBattle中は自動選択させるため回す
+        if (isWaitingGrowth) {
+          if (isAutoBattle) {
+            // startBattle 冒頭の「isAutoBattle && isWaitingGrowth」分岐で自動成長が走る
+            startBattle();
+          }
+          return;
+        }
         window.startBattle();
       }, 100); // 連打間隔（ミリ秒）調整可
     }
@@ -5875,15 +6030,53 @@ location.reload();
   }
   window.stopAutoBattle = stopAutoBattle;
 
-  // PC向け
-  battleBtn.addEventListener("mousedown", startAutoBattle);
-  battleBtn.addEventListener("mouseup", stopAutoBattle);
-  battleBtn.addEventListener("mouseleave", stopAutoBattle);
+  // ---- AutoBattle 長押し判定（fix A / v4）----
+  // 要望:
+  //  - 長押ししている間は絶対に止まらない（成長も自動で選ぶ）
+  //  - 指を離したら止まる（=「離すと止まる」）
+  //  - 通常タップ誤爆を防ぐため、長押し成立(300ms)で開始
+  const AUTO_BATTLE_HOLD_MS = 300;
+  let __autoBattleHoldTimer = null;
+  let __autoBattleHoldStarted = false;
 
-  // スマホ向け
-  battleBtn.addEventListener("touchstart", startAutoBattle);
-  battleBtn.addEventListener("touchend", stopAutoBattle);
-  battleBtn.addEventListener("touchcancel", stopAutoBattle);
+  function onAutoBattleHoldStart(e) {
+    // 画面スクロール等で長押しが潰れないように抑止（特にiOS）
+    try { if (e && e.cancelable) e.preventDefault(); } catch (_) {}
+    __autoBattleHoldStarted = false;
+    clearTimeout(__autoBattleHoldTimer);
+    __autoBattleHoldTimer = setTimeout(() => {
+      __autoBattleHoldStarted = true;
+      startAutoBattle(); // 長押し成立で開始
+    }, AUTO_BATTLE_HOLD_MS);
+  }
+
+  function onAutoBattleHoldEnd(e) {
+    try { if (e && e.cancelable) e.preventDefault(); } catch (_) {}
+    clearTimeout(__autoBattleHoldTimer);
+    // 長押しが成立して AutoBattle が開始していた場合だけ停止（=離すと止まる）
+    if (__autoBattleHoldStarted) {
+      stopAutoBattle();
+    }
+    __autoBattleHoldStarted = false;
+  }
+
+  // 可能なら Pointer Events を優先（iOS/Safariでも近年は動作）
+  if (window.PointerEvent) {
+    battleBtn.addEventListener("pointerdown", onAutoBattleHoldStart, { passive: false });
+    battleBtn.addEventListener("pointerup", onAutoBattleHoldEnd, { passive: false });
+    battleBtn.addEventListener("pointercancel", onAutoBattleHoldEnd, { passive: false });
+    battleBtn.addEventListener("pointerleave", onAutoBattleHoldEnd, { passive: false });
+  } else {
+    // PC向け
+    battleBtn.addEventListener("mousedown", onAutoBattleHoldStart);
+    battleBtn.addEventListener("mouseup", onAutoBattleHoldEnd);
+    battleBtn.addEventListener("mouseleave", onAutoBattleHoldEnd);
+
+    // スマホ向け
+    battleBtn.addEventListener("touchstart", onAutoBattleHoldStart, { passive: false });
+    battleBtn.addEventListener("touchend", onAutoBattleHoldEnd, { passive: false });
+    battleBtn.addEventListener("touchcancel", onAutoBattleHoldEnd, { passive: false });
+  }
 
   //document.getElementById('saveCodeBtn').addEventListener('click', window.exportSaveCode);
   //document.getElementById('endGameBtn').addEventListener('click', window.endGame);
@@ -6202,44 +6395,106 @@ window.clearEventPopup = function () {
 
 // 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
-  clearEventPopup(); // 前回の内容をクリア
+  // 前回の内容をクリア（成長バーは“必要なら”残す設計だが、ここではいったん消す）
+  clearEventPopup(false);
 
   const popup = document.getElementById('eventPopup');
   const titleEl = document.getElementById('eventPopupTitle');
   const optionsEl = document.getElementById('eventPopupOptions');
 
+  if (!popup || !titleEl || !optionsEl) return;
+
+  const isGrowthSelect = (title === '成長選択');
+
+  // UI mode switch
+  if (isGrowthSelect) {
+    popup.dataset.uiMode = 'growthbar';
+    popup.classList.add('growthbar-ui');
+    popup.classList.add('expanded'); // 展開して選択肢を表示
+    popup.style.display = 'block';
+    popup.style.visibility = 'visible';
+    popup.style.position = 'fixed';
+    popup.style.top = '18vh';
+    popup.style.left = '50%';
+    popup.style.transform = 'translateX(-50%)';
+  } else {
+    // 通常ポップアップ
+    popup.dataset.uiMode = 'default';
+    popup.classList.remove('growthbar-ui');
+    popup.classList.remove('expanded');
+    popup.style.display = 'block';
+    popup.style.visibility = 'visible';
+  }
+
   titleEl.textContent = title;
 
-  // 安全なクリア方法に変更
-  while (optionsEl.firstChild) {
-    optionsEl.removeChild(optionsEl.firstChild);
-  }
+  // options clear
+  while (optionsEl.firstChild) optionsEl.removeChild(optionsEl.firstChild);
 
   // ボタン生成
   options.forEach(opt => {
     const btn = document.createElement('button');
     btn.textContent = opt.label;
+
     btn.onclick = () => {
-      popup.style.display = 'none';
-      clearEventPopup();
-      onSelect(opt.value);
+      try {
+        if (typeof onSelect === 'function') onSelect(opt.value);
+      } finally {
+        if (isGrowthSelect) {
+          // 選択したときだけバーへ戻る（完全に閉じない）
+          clearEventPopup(true);
+        } else {
+          clearEventPopup(false);
+        }
+      }
     };
+
     optionsEl.appendChild(btn);
   });
 
-  // 表示設定
-  popup.style.display = 'block';
-  popup.style.visibility = 'hidden';
-
-  const scrollTop = window.scrollY || document.documentElement.scrollTop;
-  const popupHeight = popup.offsetHeight;
-
-  popup.style.position = 'absolute';
-  popup.style.top = `${scrollTop - popupHeight / 2}px`;
-  popup.style.left = '50%';
-  popup.style.transform = 'translate(-50%, 50%)';
-  popup.style.visibility = 'visible';
+  // 位置調整（通常のみ）
+  if (!isGrowthSelect) {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const popupHeight = popup.offsetHeight || 0;
+    popup.style.position = 'absolute';
+    popup.style.top = `${scrollTop - popupHeight / 2}px`;
+    popup.style.left = '50%';
+    popup.style.transform = 'translate(-50%, 50%)';
+    popup.style.visibility = 'visible';
+  }
 };
+
+// --- Growth bar: auto-pick visual (expand briefly, then collapse) ---
+window.showGrowthAutoBar = function(message) {
+  const popup = document.getElementById('eventPopup');
+  const titleEl = document.getElementById('eventPopupTitle');
+  const optionsEl = document.getElementById('eventPopupOptions');
+  if (!popup || !titleEl || !optionsEl) return;
+
+  // build
+  clearEventPopup(false);
+  popup.dataset.uiMode = 'growthbar';
+  popup.classList.add('growthbar-ui');
+  popup.classList.add('expanded');
+  popup.style.display = 'block';
+  popup.style.visibility = 'visible';
+
+  titleEl.textContent = '成長（自動）';
+  while (optionsEl.firstChild) optionsEl.removeChild(optionsEl.firstChild);
+
+  const info = document.createElement('div');
+  info.style.fontSize = '12px';
+  info.style.opacity = '0.9';
+  info.style.lineHeight = '1.4';
+  info.textContent = message || '自動で成長を選択しました';
+  optionsEl.appendChild(info);
+
+  // auto collapse (this is the allowed "auto-select" return path)
+  setTimeout(() => {
+    clearEventPopup(true);
+  }, 650);
+};
+;
 
 
   // 【白スキルを選んで削除するポップアップ】

@@ -2646,3 +2646,74 @@ canvas {
   #battleLog .turn-stats-row { grid-template-columns: 24px 1fr; }
   #battleLog .turn-stats-card .stat { grid-template-columns: 40px 1fr auto; font-size: 9.5px; }
 }
+
+
+/* =========================================================
+   Growth bar UI (left-top thin bar -> expands to pick)
+   - Default: tiny vertical bar at top-left
+   - Expanded: compact panel near center for selecting growth
+   ========================================================= */
+
+#eventPopup.growthbar-ui{
+  position: fixed !important;
+  top: 12px !important;
+  left: 12px !important;
+  transform: none !important;
+	opacity: 0.9;
+  width: 10px;
+  height: 32px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+  z-index: 9999;
+  transition: width 220ms ease, height 220ms ease, top 240ms ease, left 240ms ease, transform 240ms ease, padding 220ms ease, border-radius 220ms ease;
+}
+
+/* collapsed bar should not be interactive (so it doesn't become a third "return" method) */
+#eventPopup.growthbar-ui:not(.expanded){
+  pointer-events: none;
+}
+
+/* Expanded panel */
+#eventPopup.growthbar-ui.expanded{
+  pointer-events: auto;
+  width: min(92vw, 420px);
+  height: auto;
+  max-height: 62vh;
+  padding: 14px 14px 12px;
+  top: 10vh !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  border-radius: 16px;
+  overflow: auto;
+}
+
+/* Title & content tweaks when in growthbar mode */
+#eventPopup.growthbar-ui #eventPopupTitle{
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  margin: 0 0 10px 0;
+  opacity: 0.4;
+}
+
+#eventPopup.growthbar-ui #eventPopupOptions button{
+  width: 100%;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.10);
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+}
+
+#eventPopup.growthbar-ui #eventPopupOptions button:active{
+  transform: translateY(1px);
+}
