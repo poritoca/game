@@ -909,7 +909,7 @@ export const skillPool = [
   {
     "name": "タイムボム",
     "category": "bomb",
-    "duration": 3,
+    "duration": 5,
     "multiplier": 2.5,
     "ignoreDefense": 1.0,
     "description": "相手に時限爆弾を設置し、数ターン後に大ダメージを与える"

@@ -2196,6 +2196,17 @@ function decideSkillsToUse(actor, maxActivations) {
 
   let availableSkills = usableSkills;
 
+
+  // usedSkillNames が Set でない場合（セーブ/復元等で配列化するケース）に備えて必ず Set に正規化
+  if (!(actor.usedSkillNames instanceof Set)) {
+    if (Array.isArray(actor.usedSkillNames)) {
+      actor.usedSkillNames = new Set(actor.usedSkillNames);
+    } else if (actor.usedSkillNames && typeof actor.usedSkillNames === 'object') {
+      actor.usedSkillNames = new Set(Object.keys(actor.usedSkillNames));
+    } else {
+      actor.usedSkillNames = new Set();
+    }
+  }
   // 鬼畜モード：未使用スキルのみ対象、一巡したらリセット（従来仕様維持）
   if (window.specialMode === 'brutal') {
     availableSkills = usableSkills.filter(skill => !actor.usedSkillNames.has(skill.name));
@@ -4977,42 +4988,189 @@ applyMixedSpecialEffectsAtBattleStart(enemy, player, log);
 // ※混合スキル開始時効果(revive/dotAbsorb等)を保持するため、ここでは effects を全消去しない
 updateStats();
 
-  let turn = 1;
-  const MAX_TURNS = 30;
-  hpHistory = [];
-  player.hp = player.maxHp;
-  enemy.hp = enemy.maxHp;
-  player.battleStats = {};
-  enemy.battleStats = {};
+  // =========================================================
+  // 短期決着（5ターン以内）になった戦闘は「無かったこと」にして仕切り直す
+  //  - 5ターン以内に決着したら、その戦闘結果/進行を採用せずリトライ
+  //  - 敵味方の最大HPを倍率で増やして再戦（10倍 → 20倍 → 30倍 ...）
+  //  - 5ターン以上（※ここでは「6ターン目に入る＝turnsElapsed>=6」）続くまで繰り返す
+  //    ※ユーザー要望の「5ターン以内」と「5ターン以上」の境界が衝突するため、
+  //      “5ターン以内はやり直し” を優先し、6ターン目に入るまでを条件にしています。
+  // =========================================================
+  const __EARLY_END_TURNS = 5;        // ここ以下で決着したらやり直し
+  const __RETRY_HP_STEP   = 10;       // 10倍刻み（10,20,30,...）
+  const __RETRY_LIMIT     = 50;       // 念のため無限ループ防止
 
-  // 戦闘中のバフ差分表示用：この戦闘の基準ステータスを記録
-  ensureBattleBaseSnapshot(player);
-  ensureBattleBaseSnapshot(enemy);
+  // 戦闘開始直前の状態（混合スキル開始時効果等の適用後）を“基準”として保存
+  // これに戻してから倍率を掛け直すことで、短期決着の戦闘を完全に無効化する。
+  let __battleRetryBasePlayer, __battleRetryBaseEnemy;
+  try {
+    __battleRetryBasePlayer = JSON.parse(JSON.stringify(player));
+    __battleRetryBaseEnemy  = JSON.parse(JSON.stringify(enemy));
+  } catch (_e) {
+    // JSON化できない最悪ケースは「やり直し無効」に倒して戦闘継続
+    __battleRetryBasePlayer = null;
+    __battleRetryBaseEnemy  = null;
+  }
 
-	recordHP();
-	
+  function __battleRetryRestore(dst, src){
+    if (!dst || !src) return;
+    try {
+      for (const k in dst) {
+        if (Object.prototype.hasOwnProperty.call(dst, k)) delete dst[k];
+      }
+      for (const k in src) {
+        if (Object.prototype.hasOwnProperty.call(src, k)) dst[k] = src[k];
+      }
+    } catch (_e) {
+      // 失敗しても戦闘継続（ここでクラッシュさせない）
+    }
+  }
 
-  // ターン制バトル開始
+  // ===== ターン10以降：最大HPの減衰（戦闘開始時最大HPの5%ずつ） =====
+  // 仕様：
+  // - 10〜30ターン目の「毎ターン開始時」に発動
+  // - 減少量は「戦闘開始時の最大HP」の 5%（小数は切り捨て）
+  // - 最大HP/現在HPともに 0 未満にならない（現在HPは最大HPを超えないようクランプ）
+  const __MAXHP_DECAY_START_TURN = 10;
+  const __MAXHP_DECAY_RATE = 0.05;
+
+  function applyMaxHpDecayAtTurnStart(ch, baseMaxHp, logArr, turnNum){
+    if (turnNum < __MAXHP_DECAY_START_TURN) return;
+
+    // baseMaxHp が 0 以下のときは減少しようがない
+    if (!Number.isFinite(baseMaxHp) || baseMaxHp <= 0) return;
+
+    const dec = Math.floor(baseMaxHp * __MAXHP_DECAY_RATE);
+    if (dec <= 0) return;
+
+    const beforeMax = Number.isFinite(ch.maxHp) ? ch.maxHp : 0;
+    const afterMax  = Math.max(0, beforeMax - dec);
+
+    if (afterMax !== beforeMax) {
+      ch.maxHp = afterMax;
+
+      // 現在HPも整合（UI/ログのHP%がズレないようにする）
+      if (!Number.isFinite(ch.hp)) ch.hp = 0;
+      if (ch.hp > ch.maxHp) ch.hp = ch.maxHp;
+      if (ch.hp < 0) ch.hp = 0;
+
+      // ログ（HP%の扱いを壊さないよう、ここでは「最大HP」の増減だけ表示）
+      try {
+        logArr.push(`${displayName(ch.name)}の最大HPが${dec}減少（${beforeMax}→${afterMax}）`);
+      } catch(_e) {
+        // displayName未定義などの最悪ケースでも戦闘継続
+        logArr.push(`${(ch && ch.name) ? ch.name : '対象'}の最大HPが${dec}減少（${beforeMax}→${afterMax}）`);
+      }
+    }
+  }
+
+  // -------------------------
+  // 仕切り直しループ本体
+  // -------------------------
+  let __retryIndex = 0; // 0=通常、1=10倍、2=20倍...
+  let __battleStartMaxHp_player = 0;
+  let __battleStartMaxHp_enemy  = 0;
+
+  while (true) {
+    // 基準状態に戻してから、倍率を適用して“新しい戦闘開始状態”を作る
+    if (__retryIndex > 0 && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
+      __battleRetryRestore(player, __battleRetryBasePlayer);
+      __battleRetryRestore(enemy,  __battleRetryBaseEnemy);
+      updateStats();
+    }
+
+    const __hpMult = (__retryIndex === 0) ? 1 : (__retryIndex * __RETRY_HP_STEP);
+
+    // 戦闘開始時ログ（倍率が1以外のときのみ）
+    if (__hpMult !== 1) {
+      log.push(`【短期決着補正】前回の戦闘が${__EARLY_END_TURNS}ターン以内に決着したため無効化。HP倍率 x${__hpMult} で再戦開始`);
+    }
+
+    // この戦闘の最大HPを倍率で調整（他ステは触らない）
+    // ※maxHpが小数にならないよう切り捨て、0未満にならないようガード
+    if (Number.isFinite(player.maxHp)) player.maxHp = Math.max(0, Math.floor(player.maxHp * __hpMult));
+    if (Number.isFinite(enemy.maxHp))  enemy.maxHp  = Math.max(0, Math.floor(enemy.maxHp  * __hpMult));
+
+    let turn = 1;
+    const MAX_TURNS = 30;
+    hpHistory = [];
+    player.hp = player.maxHp;
+    enemy.hp = enemy.maxHp;
+    player.battleStats = {};
+    enemy.battleStats = {};
+
+    // 戦闘中のバフ差分表示用：この戦闘の基準ステータスを記録
+    ensureBattleBaseSnapshot(player);
+    ensureBattleBaseSnapshot(enemy);
+
+    // この試合の「戦闘開始時最大HP」（最大HP減衰の基準）
+    __battleStartMaxHp_player = player.maxHp;
+    __battleStartMaxHp_enemy  = enemy.maxHp;
+
+    recordHP();
 
     // ターン制バトル開始
+    while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
+      log.push(`\n-- ${turn}ターン --`);
 
-  while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
-    log.push(`\n-- ${turn}ターン --`);
+      if (turn === 1) {
+        applyPassiveSeals(player, enemy, log);
+      }
+      updateSealedSkills(player);
+      updateSealedSkills(enemy);
 
-    if (turn === 1) {
-      applyPassiveSeals(player, enemy, log);
-    }
-    updateSealedSkills(player);
-    updateSealedSkills(enemy);
+      // 最大HP減衰（10ターン目以降、ターン開始時に適用）
+      // ※この後の「残りHP%ダメージ」や継続ダメージ等の計算で、HP%が
+      // 正しくなるよう先に最大HPを更新する
+      applyMaxHpDecayAtTurnStart(player, __battleStartMaxHp_player, log, turn);
+      applyMaxHpDecayAtTurnStart(enemy,  __battleStartMaxHp_enemy,  log, turn);
+      updateStats();
 
-    // 混合スキル：毎ターン開始時（継続ダメージより前）に残りHP%追加ダメージ判定
-    applyMixedHpPercentDamageAtTurnStart(player, enemy, log, turn);
-    applyMixedHpPercentDamageAtTurnStart(enemy, player, log, turn);
+      // 混合スキル：毎ターン開始時（継続ダメージより前）に残りHP%追加ダメージ判定
+      applyMixedHpPercentDamageAtTurnStart(player, enemy, log, turn);
+      applyMixedHpPercentDamageAtTurnStart(enemy, player, log, turn);
 
-    // 継続効果の処理（毒・火傷・再生など）
-    [player, enemy].forEach(ch => {
-      for (let eff of ch.effects) {
+      // 継続効果の処理（毒・火傷・再生など）
+      [player, enemy].forEach(ch => {
+        for (let eff of ch.effects) {
         if (eff.remaining > 0) {
+          // 爆弾（タイムボム）だけは「設置から○ターン後に爆発」を必ず保証するため、
+          // ここで残りターンを減算し、0になった瞬間に爆発させる。
+          // ※毒/火傷など既存の継続仕様は変更しない（バランス崩壊防止）。
+          if (eff.type === '爆弾') {
+            eff.remaining -= 1;
+
+            if (eff.remaining <= 0) {
+              // 爆発ダメージ（バリア軽減や踏みとどまりは通常攻撃と同様に扱う）
+              let bombDamage = Math.max(0, Math.floor(eff.damage || 0));
+              const barrierEff = ch.effects.find(e => e.type === 'barrier');
+              if (barrierEff) {
+                bombDamage = Math.max(0, Math.floor(bombDamage * (1 - barrierEff.reduction)));
+              }
+
+              if (bombDamage > 0) {
+                ch.hp -= bombDamage;
+                log.push(`${displayName(ch.name)}に仕掛けられた爆弾が爆発！${bombDamage}ダメージ`);
+                ch.battleStats['爆弾'] = (ch.battleStats['爆弾'] || 0) + bombDamage;
+              } else {
+                log.push(`${displayName(ch.name)}に仕掛けられた爆弾が爆発！しかしダメージはない`);
+              }
+
+              // エンデュア効果：爆発で死亡をHP1で踏みとどまる
+              const endureEff = ch.effects.find(e => e.type === 'endure');
+              if (endureEff && ch.hp < 1) {
+                const prevented = 1 - ch.hp;
+                ch.hp = 1;
+                endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+                log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
+                console.log(`[Endure] ${displayName(ch.name)} survived bomb with 1 HP (prevented ${prevented})`);
+              }
+            }
+
+            // 爆弾はこのターンの他の継続処理（毒/火傷等）とは別枠なのでここで次へ
+            continue;
+          }
+
           if (eff.type === '毒') {
             let dmg = eff.damage;
             // 成長型毒の場合、ダメージシーケンスから取得
@@ -5318,6 +5476,28 @@ if (player.hp <= 0) {
 
     recordHP();
     turn++;
+  }
+
+
+
+    // -------------------------
+    // 短期決着チェック（5ターン以内に決着したらやり直し）
+    // -------------------------
+    const __turnsElapsed = Math.max(0, (typeof turn === 'number' ? (turn - 1) : 0));
+    const __endedByHp = (player.hp <= 0 || enemy.hp <= 0);
+
+    if (__endedByHp && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
+      __retryIndex += 1;
+      if (__retryIndex > __RETRY_LIMIT) {
+        log.push(`【短期決着補正】リトライ回数が上限（${__RETRY_LIMIT}回）に達したため、この結果を採用します。`);
+        break;
+      }
+      // 次の周回へ（基準状態に戻して、HP倍率を上げて再戦）
+      continue;
+    }
+
+    // この結果を採用してループ終了
+    break;
   }
 
   const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
