@@ -2789,24 +2789,3 @@ canvas {
 }
 
 
-
-
-/* --- Auto fade-out effect for popups (e.g., defeat window) --- */
-#eventPopup.auto-fade {
-  transition: opacity 160ms ease-out,
-              filter 160ms ease-out,
-              background-color 160ms ease-out,
-              border-color 160ms ease-out,
-              box-shadow 160ms ease-out,
-              backdrop-filter 160ms ease-out;
-  will-change: opacity, filter, background-color;
-}
-#eventPopup.auto-fade.auto-fade-out {
-  opacity: 0;
-  filter: blur(1px);
-  background-color: rgba(0,0,0,0);
-  border-color: rgba(255,255,255,0);
-  box-shadow: 0 0 0 rgba(0,0,0,0);
-  backdrop-filter: blur(0px);
-}
-

@@ -139,13 +139,9 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 		<!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
 <select id="battleCountSelect" class="rainbow-select">
-  <option value="100">100</option>
-  <option value="200" selected>200</option>
-  <option value="500">500</option>
-  <option value="1000">1000</option>
-  <option value="5000">5000</option>
-  <option value="10000">10000</option>
-  <option value="unlimited">無制限</option>
+  <option value="5">5</option>
+  <option value="10">10</option>
+  <option value="20" selected>20</option>
 </select>
 <div id="battleEffectOverlay"></div>
 
@@ -526,7 +522,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <!-- バトル操作 -->
 			<!--<button id="startBattleOnceBtn" class="normal-mode">単発バトル</button>-->
       <button id="startBattleBtn" class="normal-mode">バトル！</button>
-      <!-- <button id="mixedEffectListBtn" class="normal-mode">混合効果一覧</button>-->
+      <button id="mixedEffectListBtn" class="normal-mode">混合効果一覧</button>
 						      <canvas id="hpChart" width="600" height="100"></canvas>
 
 

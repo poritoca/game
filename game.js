@@ -236,8 +236,6 @@ window.showCenteredPopup = function(message, duration = 3000) {
   popup.style.left = "50%";
   popup.style.transform = "translateX(-50%)";  // ← ← ← 修正ポイント
   popup.style.visibility = "visible";
-  
-
 
   window.__battleSetTimeout(() => {
     popup.style.display = "none";
@@ -345,69 +343,24 @@ window.generateAndRenderUniqueSkillsByName = function(player) {
 
 };
 
-window.showConfirmationPopup = function(messageHtml, onConfirm, options = {}) {
+window.showConfirmationPopup = function(messageHtml, onConfirm) {
   const popup = document.getElementById("eventPopup");
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
-
-  // --- reset popup layout modes (growthbar-ui etc.) so defeat window doesn't inherit wide layout ---
-  try {
-    popup.classList.remove('growthbar-ui');
-    popup.classList.remove('expanded');
-    popup.classList.remove('selection-lock');
-    popup.classList.remove('has-options');
-    if (popup.dataset) {
-      delete popup.dataset.uiMode;
-    }
-    // Clear any inline sizing that may have been set by other modes
-    popup.style.width = '';
-    popup.style.maxWidth = '';
-    popup.style.height = '';
-    popup.style.maxHeight = '';
-    popup.style.padding = '';
-    popup.style.overflow = '';
-  } catch (e) {}
 
   // 内容を設定
   title.innerHTML = messageHtml;
   optionsEl.innerHTML = "";
 
+  const okBtn = document.createElement("button");
+  okBtn.textContent = "了解";
+  okBtn.style.padding = "8px 16px";
+  okBtn.onclick = () => {
+    popup.style.display = "none";
+    if (typeof onConfirm === "function") onConfirm();
+  };
+  optionsEl.appendChild(okBtn);
 
-  // options
-  const autoDismissMs = Number(options.autoDismissMs || 0);
-  const fadeOutMs = Number(options.fadeOutMs || 520);
-  const hideOk = !!options.hideOk;
-
-  // reset fade state
-  popup.classList.remove('auto-fade');
-  popup.classList.remove('auto-fade-out');
-  popup.style.opacity = '1';
-  // --- clear previous auto-dismiss timers (so it works every time) ---
-  try {
-    if (popup.__autoDismissTimer1) { clearTimeout(popup.__autoDismissTimer1); popup.__autoDismissTimer1 = null; }
-    if (popup.__autoDismissTimer2) { clearTimeout(popup.__autoDismissTimer2); popup.__autoDismissTimer2 = null; }
-  } catch(e) {}
-
-
-  if (!hideOk) {
-    const okBtn = document.createElement("button");
-    okBtn.textContent = "了解";
-    okBtn.style.padding = "8px 16px";
-    okBtn.onclick = () => {
-      // fade-out then hide
-      popup.classList.add('auto-fade');
-      popup.classList.add('auto-fade-out');
-      const _t = window.setTimeout;
-      popup.__autoDismissTimer2 = _t(() => {
-        popup.style.display = "none";
-        popup.classList.remove('auto-fade-out');
-        popup.classList.remove('auto-fade');
-        popup.style.opacity = '1';
-        if (typeof onConfirm === "function") onConfirm();
-      }, fadeOutMs);
-    };
-    optionsEl.appendChild(okBtn);
-  }
   // 一時的に表示してサイズ取得
   popup.style.display = "block";
   popup.style.visibility = "hidden";
@@ -424,23 +377,6 @@ window.showConfirmationPopup = function(messageHtml, onConfirm, options = {}) {
 
   // 表示
   popup.style.visibility = "visible";
-  // auto dismiss (e.g., defeat window)
-  if (autoDismissMs > 0) {
-    const _t = window.setTimeout;
-    popup.__autoDismissTimer1 = _t(() => {
-      // start fade-out
-      popup.classList.add('auto-fade');
-      popup.classList.add('auto-fade-out');
-      popup.__autoDismissTimer2 = _t(() => {
-        popup.style.display = "none";
-        popup.classList.remove('auto-fade-out');
-        popup.classList.remove('auto-fade');
-        popup.style.opacity = '1';
-        if (typeof onConfirm === "function") onConfirm();
-      }, fadeOutMs);
-    }, autoDismissMs);
-  }
-
 };
 
 window.isFirstBattle = false;
@@ -6110,7 +6046,6 @@ showConfirmationPopup(
 	${resetMessage}` +
   `${growthMsg}` + // ← ここで成長説明を表示
   `<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`
-  , null, { autoDismissMs: 200, fadeOutMs: 160, hideOk: true }
 );
 				
 //showSubtitle(
@@ -6831,7 +6766,7 @@ window.makeCharacter = function(name) {
     };
 };
 
-window.__clearEventPopupLegacy = function () {
+window.clearEventPopup = function () {
   const popup = document.getElementById('eventPopup');
   const title = document.getElementById('eventPopupTitle');
   const optionsEl = document.getElementById('eventPopupOptions');
