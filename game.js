@@ -4440,7 +4440,19 @@ function tryReviveOnDeath(ch, log) {
   const eff = procs[0];
 
   const ratio = Math.max(0.05, _normRatio(eff.reviveRatio, 0.35));
-  const newHp = Math.max(1, Math.floor((ch.maxHp || 1) * ratio));
+
+  // maxHp が壊れている（undefined/NaN/<=0）ケースがあると、
+  // 復活後のHP%表示や後続処理が NaN になって戦闘ログやUIが止まるため、ここで必ず補正する
+  let maxHp = Number(ch.maxHp);
+  if (!isFinite(maxHp) || maxHp <= 0) {
+    maxHp = Number(ch.baseStats && ch.baseStats.maxHp);
+    if (!isFinite(maxHp) || maxHp <= 0) maxHp = Number(ch.baseStats && ch.baseStats.hp);
+    if (!isFinite(maxHp) || maxHp <= 0) maxHp = Number(ch.hp);
+    if (!isFinite(maxHp) || maxHp <= 0) maxHp = 1;
+    ch.maxHp = maxHp;
+  }
+
+  const newHp = Math.max(1, Math.floor(maxHp * ratio));
   ch.hp = newHp;
   eff.used = true;
 
@@ -5134,8 +5146,12 @@ if (player.hp <= 0) {
 
     // 現在HP割合表示
     const safeRatio = (hp, maxHp) => {
-      if (maxHp <= 0) return 0;
-      const raw = hp / maxHp;
+      const h = Number(hp);
+      const m = Number(maxHp);
+      if (!isFinite(h) || h <= 0) return 0;
+      if (!isFinite(m) || m <= 0) return 0;
+      const raw = h / m;
+      if (!isFinite(raw)) return 0;
       return Math.max(0, Math.min(1, raw));
     };
     const playerRatio = Math.ceil(safeRatio(player.hp, player.maxHp) * 10);
