@@ -1,3 +1,42 @@
+// =====================================================
+// Global battle-visual timer wrapper (defined at file start)
+//  - We globally replaced setTimeout -> window.__battleSetTimeout in this file.
+// =====================================================
+window.__battleInProgress = window.__battleInProgress || false;
+window.__battleVisualTracking = window.__battleVisualTracking || false;
+window.__battleVisualTimers = window.__battleVisualTimers || [];
+
+window.__battleSetTimeout = window.__battleSetTimeout || function __battleSetTimeout(fn, ms) {
+  const id = setTimeout(fn, ms);
+  if (window.__battleVisualTracking) {
+    window.__battleVisualTimers.push(id);
+  }
+  return id;
+};
+
+window.__cancelBattleVisuals = window.__cancelBattleVisuals || function __cancelBattleVisuals() {
+  try {
+    if (Array.isArray(window.__battleVisualTimers)) {
+      for (const id of window.__battleVisualTimers) {
+        try { clearTimeout(id); } catch (_) {}
+      }
+      window.__battleVisualTimers.length = 0;
+    }
+    const subtitleEl = document.getElementById('subtitleOverlay');
+    if (subtitleEl) {
+      subtitleEl.style.opacity = '0';
+      subtitleEl.style.display = 'none';
+    }
+    const alertContainer = document.getElementById('customAlertContainer');
+    if (alertContainer) {
+      alertContainer.innerHTML = '';
+      alertContainer.style.display = 'none';
+    }
+    const overlay = document.getElementById('battleEffectOverlay');
+    if (overlay) overlay.innerHTML = '';
+  } catch (_) {}
+};
+
 
 // スキルレベルに応じてターン数ボーナスを決める設定
 const levelTurnBonusSettings = [
@@ -197,8 +236,10 @@ window.showCenteredPopup = function(message, duration = 3000) {
   popup.style.left = "50%";
   popup.style.transform = "translateX(-50%)";  // ← ← ← 修正ポイント
   popup.style.visibility = "visible";
+  
 
-  setTimeout(() => {
+
+  window.__battleSetTimeout(() => {
     popup.style.display = "none";
   }, duration);
 };
@@ -304,24 +345,69 @@ window.generateAndRenderUniqueSkillsByName = function(player) {
 
 };
 
-window.showConfirmationPopup = function(messageHtml, onConfirm) {
+window.showConfirmationPopup = function(messageHtml, onConfirm, options = {}) {
   const popup = document.getElementById("eventPopup");
   const title = document.getElementById("eventPopupTitle");
   const optionsEl = document.getElementById("eventPopupOptions");
+
+  // --- reset popup layout modes (growthbar-ui etc.) so defeat window doesn't inherit wide layout ---
+  try {
+    popup.classList.remove('growthbar-ui');
+    popup.classList.remove('expanded');
+    popup.classList.remove('selection-lock');
+    popup.classList.remove('has-options');
+    if (popup.dataset) {
+      delete popup.dataset.uiMode;
+    }
+    // Clear any inline sizing that may have been set by other modes
+    popup.style.width = '';
+    popup.style.maxWidth = '';
+    popup.style.height = '';
+    popup.style.maxHeight = '';
+    popup.style.padding = '';
+    popup.style.overflow = '';
+  } catch (e) {}
 
   // 内容を設定
   title.innerHTML = messageHtml;
   optionsEl.innerHTML = "";
 
-  const okBtn = document.createElement("button");
-  okBtn.textContent = "了解";
-  okBtn.style.padding = "8px 16px";
-  okBtn.onclick = () => {
-    popup.style.display = "none";
-    if (typeof onConfirm === "function") onConfirm();
-  };
-  optionsEl.appendChild(okBtn);
 
+  // options
+  const autoDismissMs = Number(options.autoDismissMs || 0);
+  const fadeOutMs = Number(options.fadeOutMs || 520);
+  const hideOk = !!options.hideOk;
+
+  // reset fade state
+  popup.classList.remove('auto-fade');
+  popup.classList.remove('auto-fade-out');
+  popup.style.opacity = '1';
+  // --- clear previous auto-dismiss timers (so it works every time) ---
+  try {
+    if (popup.__autoDismissTimer1) { clearTimeout(popup.__autoDismissTimer1); popup.__autoDismissTimer1 = null; }
+    if (popup.__autoDismissTimer2) { clearTimeout(popup.__autoDismissTimer2); popup.__autoDismissTimer2 = null; }
+  } catch(e) {}
+
+
+  if (!hideOk) {
+    const okBtn = document.createElement("button");
+    okBtn.textContent = "了解";
+    okBtn.style.padding = "8px 16px";
+    okBtn.onclick = () => {
+      // fade-out then hide
+      popup.classList.add('auto-fade');
+      popup.classList.add('auto-fade-out');
+      const _t = window.setTimeout;
+      popup.__autoDismissTimer2 = _t(() => {
+        popup.style.display = "none";
+        popup.classList.remove('auto-fade-out');
+        popup.classList.remove('auto-fade');
+        popup.style.opacity = '1';
+        if (typeof onConfirm === "function") onConfirm();
+      }, fadeOutMs);
+    };
+    optionsEl.appendChild(okBtn);
+  }
   // 一時的に表示してサイズ取得
   popup.style.display = "block";
   popup.style.visibility = "hidden";
@@ -338,6 +424,23 @@ window.showConfirmationPopup = function(messageHtml, onConfirm) {
 
   // 表示
   popup.style.visibility = "visible";
+  // auto dismiss (e.g., defeat window)
+  if (autoDismissMs > 0) {
+    const _t = window.setTimeout;
+    popup.__autoDismissTimer1 = _t(() => {
+      // start fade-out
+      popup.classList.add('auto-fade');
+      popup.classList.add('auto-fade-out');
+      popup.__autoDismissTimer2 = _t(() => {
+        popup.style.display = "none";
+        popup.classList.remove('auto-fade-out');
+        popup.classList.remove('auto-fade');
+        popup.style.opacity = '1';
+        if (typeof onConfirm === "function") onConfirm();
+      }, fadeOutMs);
+    }, autoDismissMs);
+  }
+
 };
 
 window.isFirstBattle = false;
@@ -970,7 +1073,7 @@ else if (lineText.startsWith('__TURN_STATS__|')) {
     });
 
     i++;
-    battleLogTimerId = setTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
+    battleLogTimerId = window.__battleSetTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
   }
 
   showNextLine();
@@ -1848,10 +1951,10 @@ function showSpecialEffectDetail(mixedSkill, event) {
   document.body.appendChild(popup);
   requestAnimationFrame(() => popup.style.opacity = "1");
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     if (popup.parentNode) {
       popup.style.opacity = "0";
-      setTimeout(() => popup.remove(), 300);
+      window.__battleSetTimeout(() => popup.remove(), 300);
     }
   }, 4000);
 }
@@ -1921,7 +2024,7 @@ function showGachaAnimation(rarity) {
   container.appendChild(ball);
   document.body.appendChild(container);
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     container.remove();
   }, 2000);
 }
@@ -1983,7 +2086,7 @@ function performFaceGacha() {
   // ガチャ演出
   showGachaAnimation(selectedRarity);
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     const result = drawRandomFace(selectedRarity);
     if (!result) {
       alert(`${selectedRarity}ランクのフェイスアイテムが読み込めませんでした`);
@@ -2007,10 +2110,10 @@ function showSubtitle(message, duration = 2000) {
   subtitleEl.style.transition = 'opacity 0.5s ease'; // 先に設定！
 
   // フェードアウト（duration 後）
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     subtitleEl.style.opacity = '0';
     // 完全に消えた後に display を none に戻す
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
       subtitleEl.style.display = 'none';
     }, 500); // フェード時間と一致
   }, duration);
@@ -2638,7 +2741,7 @@ const gachaBtn = document.getElementById('faceGachaBtn');
 if (gachaBtn) {
   gachaBtn.addEventListener('click', () => {
 
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
       performFaceGacha(); // 1.5秒後にガチャ処理を実行
     }, 100);
   });
@@ -3014,7 +3117,7 @@ let scrollTimeout;
 window.addEventListener('scroll', () => {
   document.getElementById('faceOverlay')?.classList.add('hidden');
   clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(() => {
+  scrollTimeout = window.__battleSetTimeout(() => {
     if (faceItemEquipped) {
       document.getElementById('faceOverlay')?.classList.remove('hidden');
     }
@@ -3095,7 +3198,7 @@ if (shouldPause) {
   if (!window.battleCount) window.battleCount = 0;
   window.protectItemUntil = window.battleCount + 10;
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     if (typeof stopAutoBattle === 'function') stopAutoBattle();
     isAutoBattle = false;
   }, 500);
@@ -3218,16 +3321,16 @@ document.addEventListener('DOMContentLoaded', () => {
     deathChar.classList.add('shake-and-grow');
 
     // 3秒後にアニメーションを除去
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
       deathChar.classList.remove('shake-and-grow');
     }, 3000);
 
     // 10〜13秒おきに再発動
-    setTimeout(animateDeathChar, 5000 + Math.random() * 3000);
+    window.__battleSetTimeout(animateDeathChar, 5000 + Math.random() * 3000);
   }
 
   // 初回のアニメーションは2秒後に開始
-  setTimeout(animateDeathChar, 2000);
+  window.__battleSetTimeout(animateDeathChar, 2000);
 	
   const toggleBtn = document.getElementById('filterModeToggleBtn');
   if (toggleBtn) {
@@ -3278,6 +3381,7 @@ function pickItemAdjectiveWithNoun(noun) {
 // RPGシミュレーター メインロジック（日本語UI、スキル100種以上対応）
 import { skillPool } from './skills.js';
 import { drawCharacterImage } from './drawCharacter.js';
+
 
 let player = null;
 let enemy = null;
@@ -3564,7 +3668,7 @@ window.player = {};            // 新しいプレイヤーオブジェクトを�
     const titleScreen = document.getElementById('titleScreen');
     const gameScreen  = document.getElementById('gameScreen');
     titleScreen.classList.add('fade-out');
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
         titleScreen.classList.add('hidden');
         gameScreen.classList.remove('hidden');
         gameScreen.classList.add('fade-in');
@@ -3591,7 +3695,7 @@ window.player = {};            // 新しいプレイヤーオブジェクトを�
                 document.getElementById('remainingBattlesDisplay').style.display = 'none';
             } else {
                 // 選択された回数を数値に変換して設定
-                const countVal = parseInt(selectedVal, 10);
+                const countVal = Math.min(20, parseInt(selectedVal, 10));
                 window.targetBattles = countVal;
                 window.remainingBattles = countVal;
                 const remainDisplay = document.getElementById('remainingBattlesDisplay');
@@ -4766,6 +4870,17 @@ function applyDotAbsorb(ch, dotDamage, log) {
 
 
 window.startBattle = function() {
+// 既に戦闘処理中なら二重起動しない（AutoBattleのバックログ防止）
+if (window.__battleInProgress) return;
+window.__battleInProgress = true;
+
+// 次の戦闘が始まったら、前回の「表示/エフェクト/遅延処理」を完全停止
+if (typeof window.__cancelBattleVisuals === 'function') {
+  window.__cancelBattleVisuals();
+}
+
+// この戦闘中に発生する「見た目用タイマー」を追跡する
+window.__battleVisualTracking = true;
   window.battleId = (window.battleId || 0) + 1;
 
 		//戦闘ログはここに入れる
@@ -4852,7 +4967,7 @@ if (player.itemMemory) {
   });
 }
 if (!window.battleCount) window.battleCount = 0;
-window.battleCount++;
+window.// battleCount removed;
 
 document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
@@ -4931,7 +5046,7 @@ if (isAutoBattle && isWaitingGrowth) {
   popup.style.left = "50%";
   popup.style.transform = "translateX(-50%)";
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     popup.style.display = "none";
   }, 1000);
 }
@@ -5995,6 +6110,7 @@ showConfirmationPopup(
 	${resetMessage}` +
   `${growthMsg}` + // ← ここで成長説明を表示
   `<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`
+  , null, { autoDismissMs: 200, fadeOutMs: 160, hideOk: true }
 );
 				
 //showSubtitle(
@@ -6152,7 +6268,20 @@ const totalScore = Math.round(
 
 if (finalResEl) {
   const maxStreak = sessionMaxStreak || 0;
-finalResEl.innerHTML = `<div class="final-death-title">${displayName(player.name)} は息絶えた…</div>
+
+  // ★変更: 設定戦闘回数で決着がつかない場合は「残りHP割合」で勝敗を判定
+  //   - 同率はプレイヤー勝ち
+  const pMax = Math.max(1, (player && (player.maxHp || player.hp)) || 1);
+  const eMax = Math.max(1, (enemy && (enemy.maxHp || enemy.hp)) || 1);
+  const pRatio = Math.max(0, Math.min(1, (player && (player.hp ?? 0)) / pMax));
+  const eRatio = Math.max(0, Math.min(1, (enemy && (enemy.hp ?? 0)) / eMax));
+  const playerWinsByRatio = (pRatio >= eRatio);
+
+  const finalOutcomeTitle = playerWinsByRatio
+    ? `${displayName(player.name)} の勝利！（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）`
+    : `${displayName(player.name)} は敗北…（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）`;
+
+  finalResEl.innerHTML = `<div class="final-death-title">${finalOutcomeTitle}</div>
 
 <div class="final-stats">
   <p>設定戦闘回数: ${window.targetBattles || "未設定"}</p>
@@ -6262,6 +6391,10 @@ syncSkillsUI();
 try {
 } catch (error) {
 }
+
+// --- 戦闘処理終了：次の戦闘に備えてフラグを戻す ---
+window.__battleVisualTracking = false;
+window.__battleInProgress = false;
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -6313,28 +6446,41 @@ location.reload();
 
   function startAutoBattle() {
     isAutoBattle = true;  // ← 長押し中にセット
-    if (!battleInterval) {
-      battleInterval = setInterval(() => {
-        // 成長選択待ち中は通常は止めるが、AutoBattle中は自動選択させるため回す
-        if (isWaitingGrowth) {
-          if (isAutoBattle) {
-            // startBattle 冒頭の「isAutoBattle && isWaitingGrowth」分岐で自動成長が走る
-            startBattle();
-          }
-          return;
-        }
+    if (battleInterval) return;
+
+    const tick = () => {
+      if (!isAutoBattle) { battleInterval = null; return; }
+
+      // 「前回の戦闘が終わる前に次を予約し続ける」ことが重くなる主因なので、
+      // ここで必ず “前回が終わってから次” にする（バックログを作らない）
+      if (window.__battleInProgress) {
+        battleInterval = window.__battleSetTimeout(tick, 50);
+        return;
+      }
+
+      // 成長選択待ち中は通常は止めるが、AutoBattle中は自動選択させるため回す
+      if (isWaitingGrowth) {
+        // startBattle 冒頭の「isAutoBattle && isWaitingGrowth」分岐で自動成長が走る
         window.startBattle();
-      }, 100); // 連打間隔（ミリ秒）調整可
-    }
+        battleInterval = window.__battleSetTimeout(tick, 100);
+        return;
+      }
+
+      window.startBattle();
+      battleInterval = window.__battleSetTimeout(tick, 100); // 連打間隔（ミリ秒）調整可
+    };
+
+    battleInterval = window.__battleSetTimeout(tick, 0);
   }
 
   function stopAutoBattle() {
     isAutoBattle = false; // ← 長押し終了
-    clearInterval(battleInterval);
+    try { clearTimeout(battleInterval); } catch (_) {}
     battleInterval = null;
     updateStats();  // ボタンを離したときに最新情報を描画
   }
   window.stopAutoBattle = stopAutoBattle;
+
 
   // ---- AutoBattle 長押し判定（fix A / v4）----
   // 要望:
@@ -6350,7 +6496,7 @@ location.reload();
     try { if (e && e.cancelable) e.preventDefault(); } catch (_) {}
     __autoBattleHoldStarted = false;
     clearTimeout(__autoBattleHoldTimer);
-    __autoBattleHoldTimer = setTimeout(() => {
+    __autoBattleHoldTimer = window.__battleSetTimeout(() => {
       __autoBattleHoldStarted = true;
       startAutoBattle(); // 長押し成立で開始
     }, AUTO_BATTLE_HOLD_MS);
@@ -6563,7 +6709,7 @@ function updateRemainingBattleDisplay() {
   // 未設定なら select から取得
   if ((typeof window.targetBattles !== "number") && selectEl) {
     const selectedVal = selectEl.value;
-    window.targetBattles = selectedVal === "unlimited" ? null : parseInt(selectedVal, 10);
+    window.targetBattles = selectedVal === "unlimited" ? null : Math.min(20, parseInt(selectedVal, 10) || 20);
   }
 
   // ステータス反映
@@ -6685,7 +6831,7 @@ window.makeCharacter = function(name) {
     };
 };
 
-window.clearEventPopup = function () {
+window.__clearEventPopupLegacy = function () {
   const popup = document.getElementById('eventPopup');
   const title = document.getElementById('eventPopupTitle');
   const optionsEl = document.getElementById('eventPopupOptions');
@@ -6796,7 +6942,7 @@ window.showGrowthAutoBar = function(message) {
   optionsEl.appendChild(info);
 
   // auto collapse (this is the allowed "auto-select" return path)
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     clearEventPopup(true);
   }, 650);
 };
@@ -7202,14 +7348,14 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
     container.appendChild(alert);
 
     // フェードイン
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
         alert.style.opacity = '1';
     }, 10);
 
     // フェードアウト＆削除
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
         alert.style.opacity = '0';
-        setTimeout(() => {
+        window.__battleSetTimeout(() => {
             if (alert.parentElement) {
                 container.removeChild(alert);
             }
@@ -7228,7 +7374,7 @@ function saveBattleLog(log) {
   window.allBattleLogs.push(log.join('\n'));
 
   // 100戦を超えたら古いものから削除
-  if (window.allBattleLogs.length > 100) {
+  if (window.allBattleLogs.length > 20) {
     window.allBattleLogs.shift();
   }
 }
@@ -7442,25 +7588,25 @@ window.addEventListener('scroll', () => {
   clearTimeout(faceTimeout); // ← 追加
 
   // スコア：1秒後に再表示
-  scoreTimeout = setTimeout(() => {
+  scoreTimeout = window.__battleSetTimeout(() => {
     if (battleEl) battleEl.style.opacity = '1';
     if (scoreEl) scoreEl.style.opacity = '1';
   }, 1500);
 
   // スキル：1.5秒後に再表示
-  skillTimeout = setTimeout(() => {
+  skillTimeout = window.__battleSetTimeout(() => {
     if (typeof updateSkillOverlay === 'function') updateSkillOverlay();
     if (skillEl) skillEl.style.opacity = '1';
   }, 1500);
 
   // アイテム：1.5秒後に再表示
-  itemTimeout = setTimeout(() => {
+  itemTimeout = window.__battleSetTimeout(() => {
     updateItemOverlay();
     if (itemEl) itemEl.style.opacity = '1';
   }, 1500);
 
   // フェイス：1秒後に再表示（scoreOverlayと同時）
-  faceTimeout = setTimeout(() => {
+  faceTimeout = window.__battleSetTimeout(() => {
     if (faceItemEquipped && faceEl) {
       faceEl.style.opacity = '1';
     }
@@ -7505,7 +7651,7 @@ document.getElementById("battleCountSelect").addEventListener("change", (e) => {
   overlay.style.display = "block";
   overlay.style.background = "rgba(0,0,0,0.5)";
 
-  setTimeout(() => {
+  window.__battleSetTimeout(() => {
     overlay.style.display = "none";
     overlay.innerHTML = "";
   }, 2000);
@@ -7764,7 +7910,7 @@ window.importSaveCode = async function (code = null) {
     const game = document.getElementById('gameScreen');
     title.classList.add('fade-out');
 
-    setTimeout(() => {
+    window.__battleSetTimeout(() => {
       title.classList.add('hidden');
       game.classList.remove('hidden');
       game.classList.add('fade-in');
@@ -7863,7 +8009,7 @@ if (!used) {
   used = 'fallback';
 }
 // フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
-setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
+window.__battleSetTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
 
   try {
     const metaStr = localStorage.getItem('rpgLocalProgressMeta');
@@ -8082,7 +8228,7 @@ if (!used) {
   used = 'fallback';
 }
 // フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
-setTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
+window.__battleSetTimeout(() => { try { delete window.__loadingFromProgress; } catch(_){} }, 0);
   };
 
   // デバッグ出力
@@ -8318,7 +8464,7 @@ if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoad
       const t = ev.target; if (!t) return;
       const txt = (t.textContent || '').trim();
       if (txt.includes('ローカルセーブ') && txt.includes('進捗')) {
-        setTimeout(function(){ mirrorSaveCore(); }, 30);
+        window.__battleSetTimeout(function(){ mirrorSaveCore(); }, 30);
       }
     }, true);
   });
@@ -8405,13 +8551,13 @@ document.addEventListener('DOMContentLoaded', function(){ /*_added_ready_refresh
       if (window.__onceBtnCooldown) return;    // 連打防止
       window.__onceBtnCooldown = true;
       try { (window.startBattle || startBattle)(); } finally {
-        setTimeout(function(){ window.__onceBtnCooldown = false; }, 400);
+        window.__battleSetTimeout(function(){ window.__onceBtnCooldown = false; }, 400);
       }
     });
   }
   document.addEventListener('DOMContentLoaded', bindOnceButton);
-  setTimeout(bindOnceButton, 0);
-  setTimeout(bindOnceButton, 500);
+  window.__battleSetTimeout(bindOnceButton, 0);
+  window.__battleSetTimeout(bindOnceButton, 500);
 })();
 
 
@@ -8439,7 +8585,7 @@ window.syncBattleButtonsMode = function(){
   });
 };
 document.addEventListener('DOMContentLoaded', window.syncBattleButtonsMode);
-setTimeout(window.syncBattleButtonsMode, 0);
+window.__battleSetTimeout(window.syncBattleButtonsMode, 0);
 
 
 ;(function(){
@@ -8527,8 +8673,8 @@ setTimeout(window.syncBattleButtonsMode, 0);
     window.showEventOptions = function(){
       const ret = base.apply(this, arguments);
       window.isPopupSelecting = true;
-      setTimeout(markHasOptions, 0);
-      setTimeout(markHasOptions, 100);   // after DOM fills
+      window.__battleSetTimeout(markHasOptions, 0);
+      window.__battleSetTimeout(markHasOptions, 100);   // after DOM fills
       return ret;
     }
   }
@@ -8542,8 +8688,8 @@ setTimeout(window.syncBattleButtonsMode, 0);
   } else {
     callInit();
   }
-  setTimeout(callInit, 0);
-  setTimeout(callInit, 600);
+  window.__battleSetTimeout(callInit, 0);
+  window.__battleSetTimeout(callInit, 600);
 })();
 // ======================================================
 // 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
