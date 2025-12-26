@@ -2281,55 +2281,13 @@ function drawCombinedSkillList() {
 
     if (skill.isProtected) {
       li.textContent += "【保護】";
-      li.style.textShadow = "0 0 5px gold";
+      li.classList.add("skill-protected");
     }
 
     // --- クリックイベント ---
     li.onclick = (event) => {
-      const alreadyProtected = player.mixedSkills.find(s => s.isProtected);
-      const isDoubleClick = (window.lastSelectedSkill === skill);
-      window.lastSelectedSkill = skill;
-
-      // 常に効果説明は表示
-      if (typeof showSpecialEffectDetail === "function") {
-        showSpecialEffectDetail(skill, event);
-      }
-
-      // 1回目のクリックは説明表示のみ
-      if (!isDoubleClick) return;
-
-      // --- 保護解除 ---
-      if (skill.isProtected) {
-        const confirmed = confirm(`${skill.name} の保護を解除しますか？`);
-        if (confirmed) {
-          skill.isProtected = false;
-          window.lastSelectedSkill = null;
-          drawCombinedSkillList();
-        }
-        return;
-      }
-
-      // --- 保護移し替え ---
-      if (alreadyProtected && alreadyProtected !== skill) {
-        const confirmed = confirm(
-          `既に「${alreadyProtected.name}」が保護されています。\nその保護を解除して「${skill.name}」を保護しますか？`
-        );
-        if (confirmed) {
-          alreadyProtected.isProtected = false;
-          skill.isProtected = true;
-          window.lastSelectedSkill = null;
-          drawCombinedSkillList();
-        }
-        return;
-      }
-
-      // --- 新規保護 ---
-      const confirmed = confirm(`${skill.name} を保護しますか？`);
-      if (confirmed) {
-        skill.isProtected = true;
-        window.lastSelectedSkill = null;
-        drawCombinedSkillList();
-      }
+      // タップで保護UI（eventPopup）を開く
+      onMixedSkillClick(skill, event);
     };
 
     list.appendChild(li);
@@ -2871,8 +2829,83 @@ function onItemClick(item, index, event) {
 	popup.style.top = `${y}px`;
 	popup.style.left = "50%";
 	popup.style.transform = "translateX(-50%)";
+	popup.style.visibility = "visible";
 	popup.style.display = "block";
 }
+
+function onMixedSkillClick(skill, event) {
+  clearEventPopup();
+
+  const popup = document.getElementById("eventPopup");
+  const title = document.getElementById("eventPopupTitle");
+  const container = document.getElementById("eventPopupOptions");
+  if (!popup || !title || !container) return;
+
+  const name = (skill && skill.name) ? skill.name : "混合スキル";
+  title.innerHTML = `混合スキル <b>${name}</b> をどうする？`;
+
+  // 現在の保護状況（混合は1つだけ保護）
+  const alreadyProtected = (player && player.mixedSkills) ? player.mixedSkills.find(s => s.isProtected) : null;
+  const protectedCount = alreadyProtected ? 1 : 0;
+
+  const info = document.createElement("div");
+  info.style.fontSize = "12px";
+  info.style.opacity = "0.9";
+  info.style.marginBottom = "10px";
+  info.innerHTML = `保護中：<b>${protectedCount}</b> / 1`;
+  container.appendChild(info);
+
+  const detailBtn = document.createElement("button");
+  detailBtn.textContent = "効果詳細を見る";
+  detailBtn.onclick = () => {
+    if (typeof showSpecialEffectDetail === "function") {
+      showSpecialEffectDetail(skill, event);
+    }
+  };
+  container.appendChild(detailBtn);
+
+  const protectBtn = document.createElement("button");
+  protectBtn.textContent = skill && skill.isProtected ? "保護を外す" : "保護する";
+  protectBtn.onclick = () => {
+    const currentProtected = (player && player.mixedSkills) ? player.mixedSkills.find(s => s.isProtected) : null;
+
+    // 解除
+    if (skill && skill.isProtected) {
+      skill.isProtected = false;
+      clearEventPopup();
+      if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+      return;
+    }
+
+    // 新規保護（上限1）: すでに保護があるなら移し替え
+    if (currentProtected && currentProtected !== skill) {
+      currentProtected.isProtected = false;
+    }
+    if (skill) skill.isProtected = true;
+
+    clearEventPopup();
+    if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+  };
+  container.appendChild(protectBtn);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "キャンセル";
+  cancelBtn.onclick = () => {
+    if (typeof showCustomAlert === "function") showCustomAlert("キャンセルしました", 1500);
+    clearEventPopup();
+  };
+  container.appendChild(cancelBtn);
+
+  // 位置と表示（visibility も戻す）
+  const y = ((event && typeof event.clientY === "number") ? event.clientY : (window.innerHeight * 0.3)) + window.scrollY;
+  popup.style.position = "absolute";
+  popup.style.top = `${y}px`;
+  popup.style.left = "50%";
+  popup.style.transform = "translateX(-50%)";
+  popup.style.visibility = "visible";
+  popup.style.display = "block";
+}
+
 
 // --- 所持アイテムリストをUIに表示・更新する関数 ---
 function updateFaceUI() {
@@ -5146,14 +5179,26 @@ let atk, def, spd, hpMax;
 
 if (window.specialMode === 'brutal') {
   // 鬼畜モード：プレイヤー基準のランダム帯（強化版 1.2〜1.8倍）
+  // ※重要：混合スキルの「所持しているだけで常時発動するステータスUP（type4-7）」で
+  //   プレイヤーの attack/defense/speed/maxHp が戦闘開始時に上書きされるため、
+  //   鬼畜モードの敵生成は「混合スキルによるステータスアップ前」の値（= baseStats + growthBonus）を基準にする。
   const statMultiplierMin = 1.2;
   const statMultiplierMax = 1.8;
   const randInRange = () => (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin));
 
-  atk   = Math.floor(player.attack  * randInRange());
-  def   = Math.floor(player.defense * randInRange());
-  spd   = Math.floor(player.speed   * randInRange());
-  hpMax = Math.floor(player.maxHp   * randInRange());
+  const pAtkBase = ((player.baseStats && typeof player.baseStats.attack === 'number') ? player.baseStats.attack : (player.attack || 0))
+                 + ((player.growthBonus && typeof player.growthBonus.attack === 'number') ? player.growthBonus.attack : 0);
+  const pDefBase = ((player.baseStats && typeof player.baseStats.defense === 'number') ? player.baseStats.defense : (player.defense || 0))
+                 + ((player.growthBonus && typeof player.growthBonus.defense === 'number') ? player.growthBonus.defense : 0);
+  const pSpdBase = ((player.baseStats && typeof player.baseStats.speed === 'number') ? player.baseStats.speed : (player.speed || 0))
+                 + ((player.growthBonus && typeof player.growthBonus.speed === 'number') ? player.growthBonus.speed : 0);
+  const pHpBase  = ((player.baseStats && typeof player.baseStats.maxHp === 'number') ? player.baseStats.maxHp : (player.maxHp || player.hp || 0))
+                 + ((player.growthBonus && typeof player.growthBonus.maxHp === 'number') ? player.growthBonus.maxHp : 0);
+
+  atk   = Math.floor(pAtkBase * randInRange());
+  def   = Math.floor(pDefBase * randInRange());
+  spd   = Math.floor(pSpdBase * randInRange());
+  hpMax = Math.floor(pHpBase  * randInRange());
 } else {
   // 通常モード：makeCharacter() の baseStats を使用
   atk   = enemy.baseStats.attack;
