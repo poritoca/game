@@ -465,20 +465,8 @@ window.clearEventPopup = function(keepGrowthBar = false) {
 
   if (!popup) return;
 
-  // If we are in growthbar mode and want to keep the bar visible, collapse instead of hiding.
-  const isGrowthBar = (popup.dataset && popup.dataset.uiMode === 'growthbar') || popup.classList.contains('growthbar-ui');
-  if (keepGrowthBar && isGrowthBar) {
-    popup.classList.add('growthbar-ui');
-    popup.classList.remove('expanded');
-    popup.dataset.uiMode = 'growthbar';
-    popup.style.display = 'block';
-    popup.style.visibility = 'visible';
-    popup.style.position = 'fixed';
-    popup.style.top = '12px';
-    popup.style.left = '12px';
-    popup.style.transform = 'none';
-    return;
-  }
+  // NOTE: 旧UIの「左上バー（growthbar-ui）」は廃止。
+  // keepGrowthBar は互換のため残すが、常に完全に閉じる。
 
   // default: fully hide
   popup.style.display = 'none';
@@ -1259,36 +1247,34 @@ window.showMixedSkillSummaryPopup = function(skill) {
       const rank = skill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "-";
       const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
       html += `<div style="font-size: 13px; font-weight: bold; color: #ffddaa;">【${star} / RANK: ${rank}】</div>`;
-      html += `<div style="color: #ffffff;">${name}（Lv${level}｜発動率: ${prob}%）</div>`;
+      const lvNum = Math.max(1, Number(level || 1) || 1);
+      const lvScale = getMixedSkillLevelScale(lvNum);
+      const lvBonusPct = Math.round((lvScale - 1) * 1000) / 10; // 0.1%刻み
+      html += `<div style="color: #ffffff;">${name}（Lv${level}｜発動率: ${prob}%｜レベル補正: ×${lvScale.toFixed(3)}（+${lvBonusPct}%））</div>`;
     } else {
       html += `<div style="color: #cccccc;">${indent}${name}（Lv${level}）</div>`;
     }
-
     if (skill.isMixed && Array.isArray(skill.specialEffects)) {
       for (const eff of skill.specialEffects) {
         const prefix = `${indent}▶ 特殊効果: `;
+        const baseVal = Number(eff.baseValue ?? eff.value ?? eff.amount ?? eff.ratio ?? 0);
+        const scaledVal = getScaledMixedSpecialEffectValue(skill, { ...eff, baseValue: baseVal, value: baseVal });
         let effectText = "";
-        switch (eff.type) {
-          case 1: effectText = `敵の残りHPの<span style="color:#ff9999;">${eff.value}%</span>分の追加ダメージ`; break;
-          case 2: effectText = `戦闘不能時にHP<span style="color:#99ccff;">${eff.value}%</span>で自動復活`; break;
-          case 3: effectText = `継続ダメージ時に<span style="color:#aaffaa;">${eff.value}%</span>即時回復`; break;
-          case 4: effectText = `攻撃力 <span style="color:#ffaa88;">${eff.value}倍</span>（所持時バフ）`; break;
-          case 5: effectText = `防御力 <span style="color:#88ddff;">${eff.value}倍</span>（所持時バフ）`; break;
-          case 6: effectText = `素早さ <span style="color:#ffee88;">${eff.value}倍</span>（所持時バフ）`; break;
-          case 7: effectText = `最大HP <span style="color:#d4ff88;">${eff.value}倍</span>（所持時バフ）`; break;
+        switch (Number(eff.type)) {
+          case 1: effectText = `敵の残りHPの<span style="color:#ff9999;">${baseVal}%</span>分の追加ダメージ（Lv補正後: ${scaledVal.toFixed(1)}%）`; break;
+          case 2: effectText = `戦闘不能時にHP<span style="color:#99ccff;">${baseVal}%</span>で自動復活（Lv補正後: ${scaledVal.toFixed(1)}%）`; break;
+          case 3: effectText = `継続ダメージ時に<span style="color:#aaffaa;">${baseVal}%</span>即時回復（Lv補正後: ${scaledVal.toFixed(1)}%）`; break;
+          case 4: effectText = `攻撃力 <span style="color:#ffaa88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`; break;
+          case 5: effectText = `防御力 <span style="color:#88ddff;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`; break;
+          case 6: effectText = `素早さ <span style="color:#ffee88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`; break;
+          case 7: effectText = `最大HP <span style="color:#d4ff88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`; break;
           default: effectText = `不明な効果 type=${eff.type}`; break;
         }
         html += `<div style="color: #dddddd;">${prefix}${effectText}</div>`;
       }
     }
-
-    if (Array.isArray(skill.baseSkills) && skill.baseSkills.length > 0) {
-      html += `<div style="color: #999999;">${indent}▼ 構成スキル:</div>`;
-      for (const base of skill.baseSkills) {
-        buildSkillDetail(base, depth + 1);
-      }
-    }
   }
+
 
   buildSkillDetail(skill);
 
@@ -2265,23 +2251,81 @@ function drawCombinedSkillList() {
   if (!player || !player.mixedSkills || !list) return;
 
   list.innerHTML = "";
+  function describeMixedEffectScaled(skill, eff) {
+    if (!eff) return null;
+
+    const type = Number(eff.type);
+    const base = Number(eff.baseValue ?? eff.value ?? eff.amount ?? eff.ratio ?? 0);
+    const scaledRaw = (typeof getScaledMixedSpecialEffectValue === "function")
+      ? getScaledMixedSpecialEffectValue(skill, eff)
+      : base;
+
+    const scaled = Number(scaledRaw);
+
+    const fmtPct = (v) => `${(Math.round(v * 10) / 10)}%`;
+    const fmtMul = (v) => `${(Math.round(v * 1000) / 1000)}倍`;
+
+    const isPct = (type >= 1 && type <= 3);
+    const baseTxt = isPct ? fmtPct(base) : fmtMul(base);
+    const scaledTxt = isPct ? fmtPct(scaled) : fmtMul(scaled);
+
+    const showArrow = (isFinite(base) && isFinite(scaled) && Math.abs(base - scaled) > 1e-9);
+    const suffix = showArrow ? `: ${baseTxt} → ${scaledTxt}` : `: ${baseTxt}`;
+
+    switch (type) {
+      case 1: return `敵残HP%ダメージ${suffix}`;
+      case 2: return `復活HP%${suffix}`;
+      case 3: return `毒/火傷吸収(即時回復)%${suffix}`;
+      case 4: return `攻撃倍率(所持時)${suffix}`;
+      case 5: return `防御倍率(所持時)${suffix}`;
+      case 6: return `速度倍率(所持時)${suffix}`;
+      case 7: return `最大HP倍率(所持時)${suffix}`;
+      default: return `不明な効果 type=${type}${suffix}`;
+    }
+  }
+
 
   player.mixedSkills.forEach(skill => {
     const li = document.createElement("li");
-    li.className = "skill-entry";
+    li.className = "skill-entry mixed-skill-entry";
 
     const activation = skill.activationRate ?? skill.activationProb ?? 0;
     const activationPercent = Math.round(activation * 100);
 
-    li.textContent = `${skill.starRating || ""} ${skill.name}（Lv: ${skill.level}｜発動率: ${activationPercent}%）`;
+    // --- タイトル行 ---
+    const titleLine = document.createElement('div');
+    titleLine.className = 'mixed-skill-title';
+    const lv = Math.max(1, Number(skill.level || 1) || 1);
+    const scale = (typeof getMixedSkillLevelScale === "function") ? getMixedSkillLevelScale(lv) : 1;
+    titleLine.textContent = `${skill.starRating || ""} ${skill.name}（Lv: ${lv}｜発動率: ${activationPercent}%｜補正×${Number(scale).toFixed(3)}）`;
+
+    if (skill.isProtected) {
+      titleLine.textContent += "【保護】";
+      li.classList.add("skill-protected");
+    }
+    li.appendChild(titleLine);
+
+    // --- 特殊効果（常時表示）---
+    const effects = Array.isArray(skill.specialEffects)
+      ? skill.specialEffects
+      : (skill.specialEffectType != null ? [{ type: skill.specialEffectType, value: skill.specialEffectValue }] : []);
+
+    if (effects.length > 0) {
+      const box = document.createElement('div');
+      box.className = 'mixed-skill-effects';
+      effects.forEach(eff => {
+        const line = describeMixedEffectScaled(skill, eff);
+        if (!line) return;
+        const div = document.createElement('div');
+        div.className = 'mixed-skill-effect-line';
+        div.textContent = `▶ ${line}`;
+        box.appendChild(div);
+      });
+      li.appendChild(box);
+    }
 
     if (skill.rarityClass) {
       li.classList.add(skill.rarityClass);
-    }
-
-    if (skill.isProtected) {
-      li.textContent += "【保護】";
-      li.classList.add("skill-protected");
     }
 
     // --- クリックイベント ---
@@ -2854,15 +2898,7 @@ function onMixedSkillClick(skill, event) {
   info.style.marginBottom = "10px";
   info.innerHTML = `保護中：<b>${protectedCount}</b> / 1`;
   container.appendChild(info);
-
-  const detailBtn = document.createElement("button");
-  detailBtn.textContent = "効果詳細を見る";
-  detailBtn.onclick = () => {
-    if (typeof showSpecialEffectDetail === "function") {
-      showSpecialEffectDetail(skill, event);
-    }
-  };
-  container.appendChild(detailBtn);
+  // NOTE: 「効果詳細」メニューは廃止（混合スキル一覧に常時表示へ）。
 
   const protectBtn = document.createElement("button");
   protectBtn.textContent = skill && skill.isProtected ? "保護を外す" : "保護する";
@@ -6168,7 +6204,7 @@ updateFaceUI();
 
   // 新スキル習得のチャンス
   // 敵のRarityに応じたスキル取得確率
-const rarity = enemy.rarity * (0.2 + currentStreak * 0.01);
+const rarity = enemy.rarity * (0.02 + currentStreak * 0.002);
 let skillGainChance = Math.min(1.0, 0.01 * rarity);
 if (window.specialMode === 'brutal') {
     skillGainChance = 0.02;  // 鬼畜モードで変更する
@@ -7033,7 +7069,7 @@ window.__clearEventPopupLegacy = function () {
 
 // 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
-  // 前回の内容をクリア（成長バーは“必要なら”残す設計だが、ここではいったん消す）
+  // 前回の内容をクリア（旧「左上バーUI」は廃止したため、常に通常ポップアップで表示）
   clearEventPopup(false);
 
   const popup = document.getElementById('eventPopup');
@@ -7042,27 +7078,16 @@ window.showEventOptions = function(title, options, onSelect) {
 
   if (!popup || !titleEl || !optionsEl) return;
 
-  const isGrowthSelect = (title === '成長選択');
-
-  // UI mode switch
-  if (isGrowthSelect) {
-    popup.dataset.uiMode = 'growthbar';
-    popup.classList.add('growthbar-ui');
-    popup.classList.add('expanded'); // 展開して選択肢を表示
-    popup.style.display = 'block';
-    popup.style.visibility = 'visible';
-    popup.style.position = 'fixed';
-    popup.style.top = '18vh';
-    popup.style.left = '50%';
-    popup.style.transform = 'translateX(-50%)';
-  } else {
-    // 通常ポップアップ
-    popup.dataset.uiMode = 'default';
-    popup.classList.remove('growthbar-ui');
-    popup.classList.remove('expanded');
-    popup.style.display = 'block';
-    popup.style.visibility = 'visible';
-  }
+  // 常に通常ポップアップ（中央）
+  popup.dataset.uiMode = 'default';
+  popup.classList.remove('growthbar-ui');
+  popup.classList.remove('expanded');
+  popup.style.display = 'block';
+  popup.style.visibility = 'visible';
+  popup.style.position = 'fixed';
+  popup.style.top = '50%';
+  popup.style.left = '50%';
+  popup.style.transform = 'translate(-50%, -50%)';
 
   titleEl.textContent = title;
 
@@ -7078,59 +7103,24 @@ window.showEventOptions = function(title, options, onSelect) {
       try {
         if (typeof onSelect === 'function') onSelect(opt.value);
       } finally {
-        if (isGrowthSelect) {
-          // 選択したときだけバーへ戻る（完全に閉じない）
-          clearEventPopup(true);
-        } else {
-          clearEventPopup(false);
-        }
+        clearEventPopup(false);
       }
     };
 
     optionsEl.appendChild(btn);
   });
 
-  // 位置調整（通常のみ）
-  if (!isGrowthSelect) {
-    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-    const popupHeight = popup.offsetHeight || 0;
-    popup.style.position = 'absolute';
-    popup.style.top = `${scrollTop - popupHeight / 2}px`;
-    popup.style.left = '50%';
-    popup.style.transform = 'translate(-50%, 50%)';
-    popup.style.visibility = 'visible';
-  }
+  // 位置は fixed 中央で統一（スクロールの影響を受けない）
 };
 
 // --- Growth bar: auto-pick visual (expand briefly, then collapse) ---
 window.showGrowthAutoBar = function(message) {
-  const popup = document.getElementById('eventPopup');
-  const titleEl = document.getElementById('eventPopupTitle');
-  const optionsEl = document.getElementById('eventPopupOptions');
-  if (!popup || !titleEl || !optionsEl) return;
-
-  // build
-  clearEventPopup(false);
-  popup.dataset.uiMode = 'growthbar';
-  popup.classList.add('growthbar-ui');
-  popup.classList.add('expanded');
-  popup.style.display = 'block';
-  popup.style.visibility = 'visible';
-
-  titleEl.textContent = '成長（自動）';
-  while (optionsEl.firstChild) optionsEl.removeChild(optionsEl.firstChild);
-
-  const info = document.createElement('div');
-  info.style.fontSize = '12px';
-  info.style.opacity = '0.9';
-  info.style.lineHeight = '1.4';
-  info.textContent = message || '自動で成長を選択しました';
-  optionsEl.appendChild(info);
-
-  // auto collapse (this is the allowed "auto-select" return path)
-  window.__battleSetTimeout(() => {
-    clearEventPopup(true);
-  }, 650);
+  // 旧「左上バー（growthbar）」UIは廃止。
+  // 自動成長の通知だけ、短い中央ポップアップで出す。
+  const msg = message || '自動で成長を選択しました';
+  if (typeof showCenteredPopup === 'function') {
+    showCenteredPopup(`成長（自動）<br>${msg}`, 900);
+  }
 };
 ;
 
