@@ -3242,6 +3242,93 @@ if (shouldPause) {
 showCustomAlert(message, 4000, "#ffa", "#000");
 }
 
+// -------------------------
+// 15ターン僅差勝利報酬（クラッチ報酬）
+// - HP割合差が小さいほど、レア寄りのアイテムを付与
+// - 2%差以内で発生（tier: 1=〜2%, 2=〜1%, 3=〜0.5%）
+// -------------------------
+function grantClutchRewardItem(tier, absDiffRatio, log) {
+  try {
+    if (!player) return;
+    if (!player.itemMemory) player.itemMemory = [];
+    if (player.itemMemory.length >= 10) {
+      if (log) log.push(`【クラッチ報酬】アイテム枠が満杯のため獲得できませんでした（最大10個）`);
+      return;
+    }
+    if (!Array.isArray(skillPool) || skillPool.length === 0) return;
+    if (!Array.isArray(itemColors) || itemColors.length === 0) return;
+    if (!Array.isArray(itemNouns) || itemNouns.length === 0) return;
+
+    // tierに応じて「レア寄り」へバイアス（重み指数）
+    const exp = Math.max(1, Math.min(4, (tier || 1) + 1)); // 2〜5
+
+    const pickWeighted = (arr, weightFn) => {
+      let total = 0;
+      const weights = arr.map(v => {
+        let w = 0;
+        try { w = Number(weightFn(v)); } catch(e) { w = 0; }
+        if (!isFinite(w) || w <= 0) w = 0.000001;
+        total += w;
+        return w;
+      });
+      let r = Math.random() * total;
+      for (let i = 0; i < arr.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return arr[i];
+      }
+      return arr[arr.length - 1];
+    };
+
+    const allSkills = skillPool.filter(s => s && s.category !== 'passive');
+    const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
+
+    // dropRateMultiplier / dropRate が小さいほどレア扱いなので、1/x を重みにする
+    const colorData = pickWeighted(itemColors, c => Math.pow(1 / Math.max(0.01, (c.dropRateMultiplier || 1)), exp));
+    const nounData  = pickWeighted(itemNouns,  n => Math.pow(1 / Math.max(0.01, (n.dropRateMultiplier || 1)), exp));
+
+    const adjective = pickItemAdjectiveWithNoun(nounData);
+    if (!adjective) return;
+
+    // フィルターが1つ以上有効な場合、合致しないアイテムはスキップ（既存仕様に合わせる）
+    const anyFiltersEnabled = document.querySelectorAll('.itemFilterCB:checked').length > 0;
+    const isItemFilteredOut = !shouldPauseForItem(colorData.word, adjective.word, nounData.word);
+    if (anyFiltersEnabled && isItemFilteredOut) {
+      if (log) log.push(`【クラッチ報酬】フィルター条件に合致しなかったためスキップしました`);
+      return;
+    }
+
+    const dropRate = (colorData.dropRateMultiplier || 1) * (adjective.dropRate || 1) * (nounData.dropRateMultiplier || 1);
+    const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
+
+    const newItem = {
+      color: colorData.word,
+      adjective: adjective.word,
+      noun: nounData.word,
+      skillName: skill.name,
+      activationRate: adjective.activationRate,
+      usesPerBattle: colorData.usesPerBattle,
+      breakChance: nounData.breakChance,
+      remainingUses: colorData.usesPerBattle,
+      skillLevel: 1,
+      protected: false,
+      glow: glow.toFixed(2)
+    };
+
+    player.itemMemory.push(newItem);
+    drawItemMemoryList();
+    updateItemOverlay();
+
+    const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+    const pct = (Math.max(0, absDiffRatio) * 100).toFixed(2);
+    const tierLabel = (tier >= 3) ? '超僅差' : (tier === 2) ? '僅差' : '接戦';
+    if (log) log.push(`【クラッチ報酬】${tierLabel}勝利（差${pct}%）のため、レア寄りアイテムを獲得！ ${itemName}（${newItem.skillName}）`);
+  } catch (e) {
+    if (log) log.push(`【クラッチ報酬】付与処理でエラー: ${e && e.message ? e.message : e}`);
+  }
+}
+
+
+
 // ボス専用：モードに関係なく必ずアイテムを1つ与える（中程度以上のレアリティ）
 function grantBossRewardItem() {
   try {
@@ -5787,7 +5874,56 @@ if (player.hp <= 0) {
     break;
   }
 
-  const playerWon = player.hp > 0 && (enemy.hp <= 0 || player.hp > enemy.hp);
+  // -------------------------
+// 15ターン終了時の勝敗（両者生存なら残りHP割合で判定）
+// -------------------------
+let __endedByTurnLimit = false;
+let __hpRatioPlayer = null;
+let __hpRatioEnemy = null;
+let __hpRatioDiff = null;
+
+if (player.hp > 0 && enemy.hp > 0 && typeof MAX_TURNS === 'number' && turn > MAX_TURNS) {
+  __endedByTurnLimit = true;
+  const pMax = Math.max(1, (player.maxHp || player.hp || 1));
+  const eMax = Math.max(1, (enemy.maxHp  || enemy.hp  || 1));
+  __hpRatioPlayer = Math.max(0, player.hp) / pMax;
+  __hpRatioEnemy  = Math.max(0, enemy.hp) / eMax;
+  __hpRatioDiff   = __hpRatioPlayer - __hpRatioEnemy;
+
+  const pPct = (__hpRatioPlayer * 100).toFixed(1);
+  const ePct = (__hpRatioEnemy  * 100).toFixed(1);
+  const diffPct = (Math.abs(__hpRatioDiff) * 100).toFixed(2);
+  const sign = (__hpRatioDiff >= 0) ? '+' : '-';
+  const verdict = (__hpRatioDiff >= 0) ? '勝利' : '敗北';
+
+  log.push(`
+【${MAX_TURNS}ターン終了：HP割合判定】自HP ${pPct}% / 敵HP ${ePct}%（差 ${sign}${diffPct}%）→ ${verdict}`);
+}
+
+const playerWon = player.hp > 0 && (
+  enemy.hp <= 0 ||
+  (!__endedByTurnLimit && player.hp > enemy.hp) ||
+  (__endedByTurnLimit && __hpRatioDiff >= 0)
+);
+
+// -------------------------
+// クラッチ報酬：HP割合差が小さい「僅差勝利」ほどレア寄りアイテムを付与
+// - 2%差以内のみ
+// - 0.5%以内: tier3 / 1%以内: tier2 / 2%以内: tier1
+// -------------------------
+if (playerWon && __endedByTurnLimit && typeof __hpRatioDiff === 'number') {
+  const absDiff = Math.abs(__hpRatioDiff);
+  if (absDiff <= 0.02) {
+    let tier = 1;
+    if (absDiff <= 0.005) tier = 3;
+    else if (absDiff <= 0.01) tier = 2;
+
+    if (typeof grantClutchRewardItem === 'function') {
+      grantClutchRewardItem(tier, absDiff, log);
+    }
+  }
+}
+
 
   // 戦闘終了：混合開始時効果を必ずリセット（次戦の開始ログ欠落防止）
   resetMixedStartAfterBattle(player);
@@ -5861,7 +5997,7 @@ Math.random() < adjustedFinalRate) {
     // ★ 20戦ごとのボス勝利時：アイテム or ステータス成長
     if (window.isBossBattle) {
       const bossRoll = Math.random(); // 0〜1
-			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.9;
+			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.75;
 			
 			if (bossRoll < bossStatRate) {
 
