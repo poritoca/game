@@ -5502,7 +5502,7 @@ updateStats();
     if (Number.isFinite(enemy.maxHp))  enemy.maxHp  = Math.max(0, Math.floor(enemy.maxHp  * __hpMult));
 
     let turn = 1;
-    const MAX_TURNS = 15;
+    const __MAX_TURNS = 15;
     hpHistory = [];
     player.hp = player.maxHp;
     enemy.hp = enemy.maxHp;
@@ -5520,7 +5520,7 @@ updateStats();
     recordHP();
 
     // ターン制バトル開始
-    while (turn <= MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
+    while (turn <= __MAX_TURNS && player.hp > 0 && enemy.hp > 0) {
       log.push(`\n-- ${turn}ターン --`);
 
       if (turn === 1) {
@@ -5918,7 +5918,7 @@ let __hpRatioPlayer = null;
 let __hpRatioEnemy = null;
 let __hpRatioDiff = null;
 
-if (player.hp > 0 && enemy.hp > 0 && typeof MAX_TURNS === 'number' && turn > MAX_TURNS) {
+if (player.hp > 0 && enemy.hp > 0 && typeof __MAX_TURNS === 'number' && turn > __MAX_TURNS) {
   __endedByTurnLimit = true;
   const pMax = Math.max(1, (player.maxHp || player.hp || 1));
   const eMax = Math.max(1, (enemy.maxHp  || enemy.hp  || 1));
@@ -5933,7 +5933,7 @@ if (player.hp > 0 && enemy.hp > 0 && typeof MAX_TURNS === 'number' && turn > MAX
   const verdict = (__hpRatioDiff >= 0) ? '勝利' : '敗北';
 
   log.push(`
-【${MAX_TURNS}ターン終了：HP割合判定】自HP ${pPct}% / 敵HP ${ePct}%（差 ${sign}${diffPct}%）→ ${verdict}`);
+【${__MAX_TURNS}ターン終了：HP割合判定】自HP ${pPct}% / 敵HP ${ePct}%（差 ${sign}${diffPct}%）→ ${verdict}`);
 }
 
 const playerWon = player.hp > 0 && (
