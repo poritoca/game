@@ -3796,6 +3796,20 @@ let isWaitingGrowth = false;
 
 // 追加：成長ボーナス倍率
 window.growthMultiplier = 1;
+window.growthSkipCount = 0;
+
+// 成長スキップ時の倍率カーブ（インフレ防止）
+// skipCount: 連続で「今回は選ばない」を選んだ回数
+// 三角数カーブ: 1 + n(n+1)/2 （上限256）
+window.calcGrowthMultiplierBySkipCount = function(skipCount) {
+  const n = Math.max(0, Math.floor(skipCount || 0));
+  const raw = 1 + (n * (n + 1)) / 2;
+  return Math.min(256, Math.floor(raw));
+};
+window.getNextGrowthMultiplier = function() {
+  const nextCount = (window.growthSkipCount || 0) + 1;
+  return window.calcGrowthMultiplierBySkipCount(nextCount);
+};
 
 // 成長選択時
 window.chooseGrowth = function(stat) {
@@ -3815,15 +3829,15 @@ window.chooseGrowth = function(stat) {
 //  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
 
   window.growthMultiplier = 1;  // リセット
+  window.growthSkipCount = 0;  // 連続スキップ回数もリセット
   isWaitingGrowth = false;
 };
 
 window.skipGrowth = function() {
-  window.growthMultiplier = Math.min(window.growthMultiplier * 2, 256);
-//  const logEl = document.getElementById('battleLog');
-//  logEl.textContent += `\n今回は成長をスキップ。次回成長値は倍率x${window.growthMultiplier}になります（最大256倍）。\n`;
+  window.growthSkipCount = (window.growthSkipCount || 0) + 1;
+  window.growthMultiplier = window.calcGrowthMultiplierBySkipCount(window.growthSkipCount);
 
-  showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2000);  // ← 追加
+  showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2000);
 
   isWaitingGrowth = false;
 };
@@ -5357,7 +5371,7 @@ if (isAutoBattle && isWaitingGrowth) {
     { label: "速度を上げる", value: 'speed', weight: normalWeight },
     { label: "HPを上げる", value: 'maxHp', weight: normalWeight },
     {
-      label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`,
+      label: `今回は選ばない（次回成長値x${window.getNextGrowthMultiplier()}）`,
       value: 'skip',
       weight: skipWeight
     }
@@ -6287,7 +6301,7 @@ Math.random() < adjustedFinalRate) {
     { label: "防御を上げる", value: 'defense' },
     { label: "速度を上げる", value: 'speed' },
     { label: "HPを上げる", value: 'maxHp' },
-    { label: `今回は選ばない（次回成長値x${Math.min(window.growthMultiplier * 2, 256)}）`, value: 'skip' }
+    { label: `今回は選ばない（次回成長値x${window.getNextGrowthMultiplier()}）`, value: 'skip' }
   ], (chosen) => {
     if (chosen === 'skip') {
       window.skipGrowth();
@@ -6565,6 +6579,7 @@ if (window.growthMultiplier !== 1) {
 }
 
   window.growthMultiplier = 1;
+  window.growthSkipCount = 0;
 
   window.skillDeleteUsesLeft = 3;
 
@@ -8233,6 +8248,7 @@ window.saveToLocalStorage = async function () {
     currentStreak,
     sslot,
     growthMultiplier: window.growthMultiplier,
+    growthSkipCount: window.growthSkipCount || 0,
     skillMemoryOrder: Object.entries(player.skillMemory),
     itemMemory: player.itemMemory || [],
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
@@ -8293,6 +8309,7 @@ window.exportSaveCode = async function () {
     currentStreak,
     sslot,
     growthMultiplier: window.growthMultiplier,
+    growthSkipCount: window.growthSkipCount || 0,
     skillMemoryOrder: Object.entries(player.skillMemory),
     itemMemory: player.itemMemory || [],
     rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
@@ -8381,7 +8398,16 @@ window.importSaveCode = async function (code = null) {
     player.itemMemory = parsed.itemMemory || [];
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
-    window.growthMultiplier = parsed.growthMultiplier || 1;
+        window.growthMultiplier = parsed.growthMultiplier || 1;
+    // 成長スキップ回数（未保存の旧データなら倍率からざっくり推定）
+    if (typeof parsed.growthSkipCount === 'number') {
+      window.growthSkipCount = Math.max(0, Math.floor(parsed.growthSkipCount));
+    } else {
+      const targetMul = window.growthMultiplier;
+      let n = 0;
+      while (n < 999 && window.calcGrowthMultiplierBySkipCount(n) < targetMul) n++;
+      window.growthSkipCount = n;
+    }
 
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
