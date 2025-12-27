@@ -4083,12 +4083,12 @@ window.showBattleMode = function() {
 // Endure（不死身の構え）のクールダウン用ヘルパー
 // 2回連続で成功し、3回目は失敗（以後このサイクルを繰り返す）
 function checkEndureAllowed(target) {
-  if (!target) return true;
+  if (!target) return false;
   if (!target._endureCycle) {
     target._endureCycle = { count: 0 };
   }
   target._endureCycle.count++;
-  const isFailTurn = (target._endureCycle.count % 3 === 0);
+  const isFailTurn = (target._endureCycle.count % 5 === 0);
   return !isFailTurn;
 }
 
