@@ -771,7 +771,30 @@ function __applyBattleLogControlsUI(){
   const b2 = document.getElementById('logAccelBtn2');
   if (!slider || !valueEl || !b0 || !b1 || !b2) return;
 
-  // 初期反映
+  
+  // 戦闘経過トグルボタン（加速度ボタン右）
+  try {
+    const container = (b0 && b0.parentElement) ? b0.parentElement : null;
+    if (container && !document.getElementById('battleLogToggleBtn')) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'battleLogToggleBtn';
+      btn.className = 'battle-log-toggle';
+      const refreshLabel = () => {
+        btn.textContent = window.__battleLogDetailDefaultOpen ? '📜 戦闘経過：開' : '📜 戦闘経過：閉';
+      };
+      refreshLabel();
+      btn.addEventListener('click', () => {
+        window.__battleLogDetailDefaultOpen = !window.__battleLogDetailDefaultOpen;
+        refreshLabel();
+        try {
+          localStorage.setItem('battleLogDetailDefaultOpen', window.__battleLogDetailDefaultOpen ? 'open' : 'closed');
+        } catch(e) {}
+      });
+      container.appendChild(btn);
+    }
+  } catch(e) {}
+// 初期反映
   slider.value = String(__clamp(window.__BATTLE_LOG_BASE_DELAY_MS, Number(slider.min||5), Number(slider.max||200)));
   valueEl.textContent = `${slider.value}ms`;
 
@@ -811,6 +834,14 @@ document.addEventListener('DOMContentLoaded', () => {
 let battleLogTimerId = null;
 let isBattleLogRunning = false;
 
+// ===== 戦闘経過（ターン詳細）の初期開閉トグル（設定保存） =====
+window.__battleLogDetailDefaultOpen = true;
+try {
+  const saved = localStorage.getItem('battleLogDetailDefaultOpen');
+  if (saved === 'closed') window.__battleLogDetailDefaultOpen = false;
+} catch(e) {}
+
+
 function displayBattleLogWithoutAsync(log) {
   if (isBattleLogRunning && battleLogTimerId !== null) {
     clearTimeout(battleLogTimerId);
@@ -833,6 +864,9 @@ function displayBattleLogWithoutAsync(log) {
   // 直近ターンの「終了時HP」を保持（HP増減の算出用）
   let __prevEndHpP = null;
   let __prevEndHpE = null;
+
+  // 直近ターンの「優劣バー（HP割合）」を保持（前ターンのうっすら重ね表示用）
+  let __prevAdvShares = null;
 
   // 現在のターンブロック
   let __currentTurn = null;
@@ -889,6 +923,40 @@ function displayBattleLogWithoutAsync(log) {
     hpLine.textContent = 'HP変化：計算中...';
     block.appendChild(hpLine);
 
+
+    // 100%積み上げ：残りHP割合による「優劣バー」（前ターンを薄く重ねる）
+    const advBar = document.createElement('div');
+    advBar.classList.add('turn-advbar');
+    advBar.setAttribute('role', 'img');
+    advBar.setAttribute('aria-label', '残りHP割合バー');
+
+    const advLayerCurrent = document.createElement('div');
+    advLayerCurrent.classList.add('turn-advbar-layer', 'is-current');
+
+    const advCurP = document.createElement('div');
+    advCurP.classList.add('turn-advbar-seg', 'is-player');
+    advLayerCurrent.appendChild(advCurP);
+
+    const advCurE = document.createElement('div');
+    advCurE.classList.add('turn-advbar-seg', 'is-enemy');
+    advLayerCurrent.appendChild(advCurE);
+
+    const advLayerPrev = document.createElement('div');
+    advLayerPrev.classList.add('turn-advbar-layer', 'is-prev', 'is-hidden');
+
+    const advPrevP = document.createElement('div');
+    advPrevP.classList.add('turn-advbar-seg', 'is-player');
+    advLayerPrev.appendChild(advPrevP);
+
+    const advPrevE = document.createElement('div');
+    advPrevE.classList.add('turn-advbar-seg', 'is-enemy');
+    advLayerPrev.appendChild(advPrevE);
+
+    advBar.appendChild(advLayerCurrent);
+    advBar.appendChild(advLayerPrev);
+    block.appendChild(advBar);
+
+
     // 出来事トグル（ステータスボタンに似せる）
     const evHeader = document.createElement('div');
     evHeader.classList.add('turn-stats-header', 'turn-events-header');
@@ -907,7 +975,15 @@ function displayBattleLogWithoutAsync(log) {
     evContent.style.maxHeight = '0px';
     evContent.style.overflow = 'hidden';
     evContent.setAttribute('aria-hidden', 'true');
-    block.appendChild(evContent);
+    
+    // 初期状態（設定により開いた状態で開始）
+    if (window.__battleLogDetailDefaultOpen) {
+      evContent.style.maxHeight = 'none';
+      evContent.setAttribute('aria-hidden', 'false');
+      evArrow.textContent = '▼';
+      evHeader.classList.add('open');
+    }
+block.appendChild(evContent);
 
     evHeader.addEventListener('click', () => __toggleOpenClose(evHeader, evArrow, evContent));
 
@@ -933,7 +1009,7 @@ function displayBattleLogWithoutAsync(log) {
 
     stHeader.addEventListener('click', () => __toggleOpenClose(stHeader, stArrow, stContent));
 
-    return { block, hpLine, evContent, stContent, stHeader, stArrow, evHeader, evArrow };
+    return { block, hpLine, advBar, advCurP, advCurE, advLayerPrev, advPrevP, advPrevE, evContent, stContent, stHeader, stArrow, evHeader, evArrow };
   };
 
   const __appendPlainLine = (lineText) => {
@@ -1095,6 +1171,40 @@ function displayBattleLogWithoutAsync(log) {
             `（${startHpP}→${parsed.p.hp}） / 敵 <span class="hpdelta ${clsE}" style="font-size:${sizeE.toFixed(1)}px">${__fmtDelta(dE)}</span>` +
             `（${startHpE}→${parsed.e.hp}）`;
         }
+
+          // ---- 優劣バー（100%積み上げ）更新：残りHP割合ベース ----
+          try {
+            const pRem = Math.max(0, Number(parsed.p.hp) || 0) / Math.max(1, Number(parsed.p.max) || 1);
+            const eRem = Math.max(0, Number(parsed.e.hp) || 0) / Math.max(1, Number(parsed.e.max) || 1);
+            const sum = pRem + eRem;
+            const pShare = (sum > 0) ? (pRem / sum) : 0.5;
+            const eShare = (sum > 0) ? (eRem / sum) : 0.5;
+
+            const pPct = Math.max(0, Math.min(100, pRem * 100));
+            const ePct = Math.max(0, Math.min(100, eRem * 100));
+
+            if (__currentTurn.advCurP && __currentTurn.advCurE) {
+              __currentTurn.advCurP.style.width = `${(pShare * 100).toFixed(2)}%`;
+              __currentTurn.advCurE.style.width = `${(eShare * 100).toFixed(2)}%`;
+            }
+
+            if (__currentTurn.advBar) {
+              __currentTurn.advBar.title = `残りHP：自 ${pPct.toFixed(1)}% / 敵 ${ePct.toFixed(1)}%`;
+              __currentTurn.advBar.setAttribute('aria-label', `残りHP：自 ${pPct.toFixed(1)}% / 敵 ${ePct.toFixed(1)}%`);
+            }
+
+            // 前ターンをうっすら重ねる（2ターン目以降）
+            if (__prevAdvShares && __currentTurn.advLayerPrev && __currentTurn.advPrevP && __currentTurn.advPrevE) {
+              __currentTurn.advPrevP.style.width = `${(__prevAdvShares.pShare * 100).toFixed(2)}%`;
+              __currentTurn.advPrevE.style.width = `${(__prevAdvShares.eShare * 100).toFixed(2)}%`;
+              __currentTurn.advLayerPrev.classList.remove('is-hidden');
+            } else if (__currentTurn.advLayerPrev) {
+              __currentTurn.advLayerPrev.classList.add('is-hidden');
+            }
+
+            __prevAdvShares = { pShare, eShare, pPct, ePct };
+          } catch (_e) {}
+
 
           __prevEndHpP = parsed.p.hp;
           __prevEndHpE = parsed.e.hp;

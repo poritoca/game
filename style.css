@@ -2917,3 +2917,133 @@ canvas {
 #battleLog .turn-stats-content.turn-status-content{
   background: linear-gradient(180deg, rgba(0,0,0,0.62), rgba(8,8,12,0.78));
 }
+
+
+/* 戦闘経過トグルボタン */
+.battle-log-toggle{margin-left:8px;padding:4px 8px;font-size:12px;}
+
+/* 戦闘経過トグルボタン（表示安定版） */
+.battle-log-toggle {
+  min-width: 96px;        /* ← 最重要：最低横幅 */
+  height: 28px;           /* ← 加速度ボタンと揃える */
+  padding: 0 8px;
+
+  font-size: 11px;        /* 少し小さく */
+  line-height: 1.2;
+  white-space: nowrap;    /* 折り返し禁止 */
+  text-align: center;
+
+  display: inline-flex;   /* 中央寄せ */
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;       /* はみ出し防止 */
+  text-overflow: ellipsis;/* … 表示 */
+}
+
+
+
+/* ===== Turn Advantage Bar (100% stacked, overlay previous turn) ===== */
+#battleLog .turn-advbar{
+  position: relative;
+  height: 14px;
+  margin: 6px 10px 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.14);
+  background:
+    radial-gradient(140px 30px at 20% 0%, rgba(70,140,255,0.22), transparent 55%),
+    radial-gradient(140px 30px at 80% 100%, rgba(255,80,80,0.18), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.18));
+  box-shadow:
+    0 8px 18px rgba(0,0,0,0.35),
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    inset 0 0 18px rgba(255,255,255,0.04);
+  backdrop-filter: blur(4px);
+}
+
+/* subtle center marker */
+#battleLog .turn-advbar::after{
+  content:"";
+  position:absolute;
+  top:-6px;
+  left:50%;
+  width:1px;
+  height:calc(100% + 12px);
+  transform:translateX(-0.5px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.0), rgba(255,255,255,0.22), rgba(255,255,255,0.0));
+  opacity: 0.65;
+  pointer-events:none;
+}
+
+#battleLog .turn-advbar-layer{
+  position:absolute;
+  inset:0;
+  display:flex;
+  width:100%;
+  height:100%;
+}
+
+#battleLog .turn-advbar-layer.is-current{
+  z-index: 1;
+}
+
+#battleLog .turn-advbar-layer.is-prev{
+  z-index: 2; /* ← 前ターンを上に重ねる */
+  opacity: 0.46; /* 透け（見やすさ優先で強化） */
+  filter: saturate(1.12) contrast(1.08) drop-shadow(0 0 4px rgba(255,255,255,0.12));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
+  pointer-events:none;
+}
+
+/* hide prev layer when turn1 */
+#battleLog .turn-advbar-layer.is-hidden{
+  display:none !important;
+}
+
+#battleLog .turn-advbar-seg{
+  height:100%;
+  min-width:0;
+}
+
+#battleLog .turn-advbar-seg.is-player{
+  width:50%;
+  background:
+    linear-gradient(90deg, rgba(70,140,255,1.0) 0%, rgba(40,110,255,1.0) 55%, rgba(20,90,235,1.0) 100%);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.18);
+}
+
+#battleLog .turn-advbar-seg.is-enemy{
+  width:50%;
+  background:
+    linear-gradient(90deg, rgba(255,80,80,1.0) 0%, rgba(255,55,55,1.0) 55%, rgba(220,25,25,1.0) 100%);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.18);
+}
+
+/* Make the overlay layer look “ghosted” and readable without hiding the current bar */
+#battleLog .turn-advbar-layer.is-prev .turn-advbar-seg.is-player{
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(190,225,255,0.88) 0px,
+      rgba(190,225,255,0.88) 6px,
+      rgba(190,225,255,0.30) 6px,
+      rgba(190,225,255,0.30) 12px),
+    linear-gradient(90deg, rgba(110,175,255,0.98), rgba(70,140,255,0.90));
+  mix-blend-mode: screen;
+}
+
+#battleLog .turn-advbar-layer.is-prev .turn-advbar-seg.is-enemy{
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(255,210,210,0.86) 0px,
+      rgba(255,210,210,0.86) 6px,
+      rgba(255,210,210,0.30) 6px,
+      rgba(255,210,210,0.30) 12px),
+    linear-gradient(90deg, rgba(255,140,140,0.98), rgba(255,80,80,0.90));
+  mix-blend-mode: screen;
+}
+
+/* mobile: slightly taller for readability */
+@media (max-width: 420px){
+  #battleLog .turn-advbar{ height: 16px; margin: 6px 8px 10px; }
+}
