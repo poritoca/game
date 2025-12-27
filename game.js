@@ -821,14 +821,222 @@ function displayBattleLogWithoutAsync(log) {
   battleLogEl.innerHTML = '';
 
   // HTMLタグの混入防止：一度DOMで解釈してテキスト化
-  const cleanLog = log.map(line => {
+  const cleanLog = (Array.isArray(log) ? log : []).map(line => {
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = line;
+    tempDiv.innerHTML = String(line ?? '');
     return tempDiv.textContent || '';
   });
 
   let i = 0;
   isBattleLogRunning = true;
+
+  // 直近ターンの「終了時HP」を保持（HP増減の算出用）
+  let __prevEndHpP = null;
+  let __prevEndHpE = null;
+
+  // 現在のターンブロック
+  let __currentTurn = null;
+
+  const __isHpBarLine = (t) => {
+    // 例: 自:[■■■■] 98% / 敵:[■■■■] 99%
+    return (/^(自|敵)\s*:\s*\[/.test(t) || /^(自|敵)\s*:\s*\[.*\]\s*\d+%/.test(t));
+  };
+
+  const __fmtDelta = (d) => {
+    const n = Number(d);
+    if (!Number.isFinite(n)) return '±0';
+    if (n > 0) return `+${Math.floor(n)}`;
+    if (n < 0) return `${Math.floor(n)}`;
+    return '±0';
+  };
+
+
+  // HP増減の大きさ（最大HP比）に応じてフォントサイズを決める
+  const __calcDeltaFontSizePx = (delta, maxHp, basePx = 10, maxPx = 20) => {
+    const d = Math.abs(Number(delta) || 0);
+    const m = Math.max(1, Number(maxHp) || 1);
+    const ratio = Math.min(1, d / m); // 0〜1に丸める
+    const px = basePx + (maxPx - basePx) * ratio;
+    return Math.max(basePx, Math.min(maxPx, px));
+  };
+  const __toggleOpenClose = (headerEl, arrowEl, contentEl) => {
+    if (!contentEl) return;
+    const isClosed = (contentEl.style.maxHeight === '0px' || !contentEl.style.maxHeight);
+    if (isClosed) {
+      contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
+      contentEl.setAttribute('aria-hidden', 'false');
+      if (arrowEl) arrowEl.textContent = '▼';
+      if (headerEl) headerEl.classList.add('open');
+    } else {
+      contentEl.style.maxHeight = '0px';
+      contentEl.setAttribute('aria-hidden', 'true');
+      if (arrowEl) arrowEl.textContent = '▶';
+      if (headerEl) headerEl.classList.remove('open');
+    }
+  };
+
+  const __createTurnBlock = (turnText) => {
+    const block = document.createElement('div');
+    block.classList.add('turn-block');
+
+    const title = document.createElement('div');
+    title.classList.add('turn-banner');
+    title.textContent = turnText;
+    block.appendChild(title);
+
+    const hpLine = document.createElement('div');
+    hpLine.classList.add('turn-hp-delta');
+    hpLine.textContent = 'HP変化：計算中...';
+    block.appendChild(hpLine);
+
+    // 出来事トグル（ステータスボタンに似せる）
+    const evHeader = document.createElement('div');
+    evHeader.classList.add('turn-stats-header', 'turn-events-header');
+    const evArrow = document.createElement('span');
+    evArrow.classList.add('turn-stats-arrow');
+    evArrow.textContent = '▶';
+    evHeader.appendChild(evArrow);
+    const evTitle = document.createElement('span');
+    evTitle.classList.add('turn-stats-title');
+    evTitle.textContent = ' 戦闘経過（タップで開閉）';
+    evHeader.appendChild(evTitle);
+    block.appendChild(evHeader);
+
+    const evContent = document.createElement('div');
+    evContent.classList.add('turn-stats-content', 'turn-events-content');
+    evContent.style.maxHeight = '0px';
+    evContent.style.overflow = 'hidden';
+    evContent.setAttribute('aria-hidden', 'true');
+    block.appendChild(evContent);
+
+    evHeader.addEventListener('click', () => __toggleOpenClose(evHeader, evArrow, evContent));
+
+    // ステータストグル（既存スタイル流用）
+    const stHeader = document.createElement('div');
+    stHeader.classList.add('turn-stats-header', 'turn-status-header');
+    const stArrow = document.createElement('span');
+    stArrow.classList.add('turn-stats-arrow');
+    stArrow.textContent = '▶';
+    stHeader.appendChild(stArrow);
+    const stTitle = document.createElement('span');
+    stTitle.classList.add('turn-stats-title');
+    stTitle.textContent = ' ステータス（タップで開閉）';
+    stHeader.appendChild(stTitle);
+    block.appendChild(stHeader);
+
+    const stContent = document.createElement('div');
+    stContent.classList.add('turn-stats-content', 'turn-status-content');
+    stContent.style.maxHeight = '0px';
+    stContent.style.overflow = 'hidden';
+    stContent.setAttribute('aria-hidden', 'true');
+    block.appendChild(stContent);
+
+    stHeader.addEventListener('click', () => __toggleOpenClose(stHeader, stArrow, stContent));
+
+    return { block, hpLine, evContent, stContent, stHeader, stArrow, evHeader, evArrow };
+  };
+
+  const __appendPlainLine = (lineText) => {
+    const div = document.createElement('div');
+    div.textContent = lineText;
+    battleLogEl.appendChild(div);
+  };
+
+  const __renderTurnStatsInto = (containerEl, lineText) => {
+    // containerEl は「中身だけ」を追加する（ヘッダはターン側にある）
+    if (!containerEl) return null;
+
+    // __TURN_STATS__|P,hp,max,dMax,atk,dAtk,def,dDef,spd,dSpd|E,...
+    const parts = lineText.split('|').slice(1);
+
+    const parseSide = (seg) => {
+      const vals = String(seg || '').split(',');
+      const n = (v) => (Number.isFinite(Number(v)) ? Math.floor(Number(v)) : 0);
+      return {
+        side: vals[0] || '?',
+        hp: n(vals[1]),
+        max: n(vals[2]),
+        dMax: n(vals[3]),
+        atk: n(vals[4]),
+        dAtk: n(vals[5]),
+        def: n(vals[6]),
+        dDef: n(vals[7]),
+        spd: n(vals[8]),
+        dSpd: n(vals[9]),
+      };
+    };
+
+    const makeDelta = (v) => {
+      const n = Math.floor(Number(v || 0));
+      if (!n) return '';
+      return (n > 0) ? `+${n}` : `${n}`;
+    };
+
+    const p = parseSide(parts[0] || '');
+    const e = parseSide(parts[1] || '');
+
+    const row = document.createElement('div');
+    row.classList.add('turn-stats-row');
+
+    const mkSideCard = (label, data) => {
+      const cardWrap = document.createElement('div');
+      cardWrap.classList.add('turn-stats-card');
+      const mkLine = (key, valueText, deltaVal) => {
+        const line = document.createElement('div');
+        line.classList.add('stat');
+        line.setAttribute('data-key', key);
+
+        const k = document.createElement('span');
+        k.classList.add('k');
+        k.textContent = (key === 'hp') ? 'HP' : key.toUpperCase();
+        line.appendChild(k);
+
+        const v = document.createElement('span');
+        v.classList.add('v');
+        v.textContent = valueText;
+        line.appendChild(v);
+
+        const d = document.createElement('span');
+        d.classList.add('delta');
+        const ds = makeDelta(deltaVal);
+        d.textContent = ds ? `(${ds})` : '';
+        if (ds) {
+          if (String(ds).startsWith('+')) d.classList.add('pos');
+          else d.classList.add('neg');
+        }
+        line.appendChild(d);
+
+        cardWrap.appendChild(line);
+      };
+
+      mkLine('hp', `${data.hp}/${data.max}`, 0);
+      mkLine('atk', String(data.atk), data.dAtk);
+      mkLine('def', String(data.def), data.dDef);
+      mkLine('spd', String(data.spd), data.dSpd);
+      mkLine('max', String(data.max), data.dMax);
+
+      return cardWrap;
+    };
+
+    // 左ラベル
+    const sideCol = document.createElement('div');
+    sideCol.classList.add('side');
+    sideCol.textContent = 'P';
+    row.appendChild(sideCol);
+    row.appendChild(mkSideCard('P', p));
+
+    const sideCol2 = document.createElement('div');
+    sideCol2.classList.add('side');
+    sideCol2.textContent = 'E';
+    row.appendChild(sideCol2);
+    row.appendChild(mkSideCard('E', e));
+
+    // 既存の中身をリセットして差し替え（ターン内の最後の状態だけ見ればOK）
+    containerEl.innerHTML = '';
+    containerEl.appendChild(row);
+
+    return { p, e };
+  };
 
   function showNextLine() {
     if (i >= cleanLog.length) {
@@ -839,225 +1047,90 @@ function displayBattleLogWithoutAsync(log) {
       return;
     }
 
-    const lineText = cleanLog[i].trim();
-    const div = document.createElement('div');
+    const lineTextRaw = cleanLog[i];
+    const lineText = String(lineTextRaw ?? '').trim();
 
-    // ─ ターン区切り ─
+    // 空行はスキップ
+    if (!lineText) {
+      i++;
+      battleLogTimerId = window.__battleSetTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
+      return;
+    }
+
+    // ターン区切り：新しいターンブロックを作る
     if (/^[-–]{2,}\s*\d+ターン\s*[-–]{2,}$/.test(lineText)) {
-      div.textContent = lineText;
-      div.classList.add('turn-banner');
-    }
+      __currentTurn = __createTurnBlock(lineText);
+      battleLogEl.appendChild(__currentTurn.block);
 
-
-// ─ ターン終了ステータス（折り畳み式・CSSでカード表示） ─
-else if (lineText.startsWith('__TURN_STATS__|')) {
-  div.classList.add('turn-stats', 'turn-stats-collapsible');
-
-  // 見出し（初期は必ず閉じる）
-  const header = document.createElement('div');
-  header.classList.add('turn-stats-header');
-  header.setAttribute('role', 'button');
-  header.setAttribute('tabindex', '0');
-  header.setAttribute('aria-expanded', 'false');
-
-  const arrow = document.createElement('span');
-  arrow.classList.add('turn-stats-arrow');
-  arrow.textContent = '▶';
-  header.appendChild(arrow);
-
-  const title = document.createElement('span');
-  title.classList.add('turn-stats-title');
-  title.textContent = ' ステータス（タップで開閉）';
-  header.appendChild(title);
-
-  div.appendChild(header);
-
-  // 中身（max-heightで開閉。height:autoアニメは禁止のため不使用）
-  const content = document.createElement('div');
-  content.classList.add('turn-stats-content');
-  content.style.maxHeight = '0px';
-  content.style.overflow = 'hidden';
-  content.setAttribute('aria-hidden', 'true');
-  div.appendChild(content);
-
-  // __TURN_STATS__|P,hp,max,dMax,atk,dAtk,def,dDef,spd,dSpd|E,...
-  const parts = lineText.split('|').slice(1);
-
-  const parseSide = (seg) => {
-    const vals = seg.split(',');
-    // vals[0] = 'P' or 'E'
-    const n = (v) => (Number.isFinite(Number(v)) ? Math.floor(Number(v)) : 0);
-    return {
-      side: vals[0] || '?',
-      hp: n(vals[1]),
-      max: n(vals[2]),
-      dMax: n(vals[3]),
-      atk: n(vals[4]),
-      dAtk: n(vals[5]),
-      def: n(vals[6]),
-      dDef: n(vals[7]),
-      spd: n(vals[8]),
-      dSpd: n(vals[9]),
-    };
-  };
-
-  const makeDelta = (v) => {
-    const span = document.createElement('span');
-    span.classList.add('delta');
-    const sign = v > 0 ? '+' : '';
-    span.textContent = `(${sign}${v})`;
-    if (v > 0) span.classList.add('pos');
-    if (v < 0) span.classList.add('neg');
-    return span;
-  };
-
-  const makeRow = (data) => {
-    const row = document.createElement('div');
-    row.classList.add('turn-stats-row');
-
-    const label = document.createElement('div');
-    label.classList.add('side');
-    label.textContent = (data.side === 'P') ? '自' : (data.side === 'E' ? '敵' : data.side);
-    row.appendChild(label);
-
-    const card = document.createElement('div');
-    card.classList.add('turn-stats-card');
-    row.appendChild(card);
-
-    const mkLine = (key, mainText, deltaVal) => {
-      const line = document.createElement('div');
-      line.classList.add('stat');
-      line.setAttribute('data-key', key);
-
-      const k = document.createElement('span');
-      k.classList.add('k');
-      k.textContent = (key === 'hp') ? 'HP' : key.toUpperCase();
-      line.appendChild(k);
-
-      const v = document.createElement('span');
-      v.classList.add('v');
-      v.textContent = mainText;
-      line.appendChild(v);
-
-      // Δ（バフ/デバフ）表示：0でも出す（視認性と桁揃えのため）
-      const d = makeDelta(Number(deltaVal || 0));
-      line.appendChild(d);
-
-      return line;
-    };
-
-    // 1行=1ステータス（桁が増えても崩れにくい）
-    // HP行は「現在/最大」、括弧は最大HPの増減（dMax）を表示
-    card.appendChild(mkLine('hp', `${data.hp}/${data.max}`, data.dMax));
-    card.appendChild(mkLine('atk', `${data.atk}`, data.dAtk));
-    card.appendChild(mkLine('def', `${data.def}`, data.dDef));
-    card.appendChild(mkLine('spd', `${data.spd}`, data.dSpd));
-
-    return row;
-  };
-
-  for (const seg of parts) {
-    if (!seg) continue;
-    const data = parseSide(seg);
-    content.appendChild(makeRow(data));
-  }
-
-  const setOpen = (open) => {
-    if (open) {
-      header.setAttribute('aria-expanded', 'true');
-      content.setAttribute('aria-hidden', 'false');
-      arrow.textContent = '▼';
-      // 一度0に戻してから scrollHeight を採用（iOS Safari対策）
-      content.style.maxHeight = '0px';
       requestAnimationFrame(() => {
-        content.style.maxHeight = `${content.scrollHeight}px`;
+        battleLogEl.scrollTo({ top: battleLogEl.scrollHeight, behavior: 'smooth' });
       });
-    } else {
-      header.setAttribute('aria-expanded', 'false');
-      content.setAttribute('aria-hidden', 'true');
-      arrow.textContent = '▶';
-      content.style.maxHeight = '0px';
-    }
-  };
 
-  const toggle = () => {
-    const isOpen = header.getAttribute('aria-expanded') === 'true';
-    setOpen(!isOpen);
-  };
-
-  // クリック/タップ（最小限のイベントバインド：このヘッダのみ）
-  header.addEventListener('click', toggle);
-
-  // キーボード操作（任意だが安全）
-  header.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggle();
-    }
-  });
-
-  // 初期状態：必ず折り畳み
-  setOpen(false);
-}
-
-
-    // ─ 勝敗行 ─
-    else if (lineText.includes('勝者')) {
-      div.textContent = lineText;
-      div.classList.add('battle-result', 'win');
-    }
-    else if (lineText.includes('敗北')) {
-      div.textContent = lineText;
-      div.classList.add('battle-result', 'lose');
+      i++;
+      battleLogTimerId = window.__battleSetTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
+      return;
     }
 
-    // ─ 通常ログ行 ─
-    else {
-      // HP％を含む場合（色付き）
-      if (lineText.match(/\d+%/)) {
-        const matches = [...lineText.matchAll(/(\d+)%/g)];
-        let lastIndex = 0;
+    // __TURN_STATS__：ステータス更新＋HP増減の算出＋（HPバー等は非表示）
+    if (lineText.startsWith('__TURN_STATS__')) {
+      if (__currentTurn) {
+        const parsed = __renderTurnStatsInto(__currentTurn.stContent, lineText);
+        if (parsed && parsed.p && parsed.e) {
+          // 直前ターン終了HPが無い場合、戦闘開始時は満タン前提（max）
+          const startHpP = (__prevEndHpP === null) ? parsed.p.max : __prevEndHpP;
+          const startHpE = (__prevEndHpE === null) ? parsed.e.max : __prevEndHpE;
 
-        for (const match of matches) {
-          const hp = parseInt(match[1], 10);
-          const start = match.index;
-          const end = start + match[0].length;
+          const dP = parsed.p.hp - startHpP;
+          const dE = parsed.e.hp - startHpE;
 
-          // 前のプレーンテキストを追加
-          if (start > lastIndex) {
-            const text = lineText.slice(lastIndex, start);
-            div.appendChild(document.createTextNode(text));
-          }
+          {
+          const sizeP = __calcDeltaFontSizePx(dP, parsed.p.max, 10, 20);
+          const sizeE = __calcDeltaFontSizePx(dE, parsed.e.max, 10, 20);
 
-          // 色付きのパーセント表示
-          const hue = Math.floor((hp / 100) * 120);
-          const span = document.createElement('span');
-          span.textContent = `${hp}%`;
-          span.style.color = `hsl(${hue}, 100%, 45%)`;
-          span.style.fontWeight = 'bold';
-          div.appendChild(span);
+          const clsP = (dP < 0) ? 'hpdelta-neg-player' : (dP > 0 ? 'hpdelta-pos' : 'hpdelta-zero');
+          const clsE = (dE < 0) ? 'hpdelta-neg-enemy' : (dE > 0 ? 'hpdelta-pos' : 'hpdelta-zero');
 
-          lastIndex = end;
+          __currentTurn.hpLine.innerHTML =
+            `HP増減：自 <span class="hpdelta ${clsP}" style="font-size:${sizeP.toFixed(1)}px">${__fmtDelta(dP)}</span>` +
+            `（${startHpP}→${parsed.p.hp}） / 敵 <span class="hpdelta ${clsE}" style="font-size:${sizeE.toFixed(1)}px">${__fmtDelta(dE)}</span>` +
+            `（${startHpE}→${parsed.e.hp}）`;
         }
 
-        // 残りのテキストを追加
-        if (lastIndex < lineText.length) {
-          div.appendChild(document.createTextNode(lineText.slice(lastIndex)));
+          __prevEndHpP = parsed.p.hp;
+          __prevEndHpE = parsed.e.hp;
+
+          // ステータスが入ったら、開いた時に高さが合うように閉状態維持
+          __currentTurn.stContent.style.maxHeight = '0px';
+          __currentTurn.stContent.setAttribute('aria-hidden', 'true');
+          __currentTurn.stArrow.textContent = '▶';
+          __currentTurn.stHeader.classList.remove('open');
         }
-      } else {
-        // 通常行（%なし）
-        div.textContent = lineText;
       }
+      i++;
+      battleLogTimerId = window.__battleSetTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
+      return;
     }
 
-    // 追加＆スクロール
-    battleLogEl.appendChild(div);
+    // HPバー等は「HP増減まとめ」で置き換えるので非表示
+    if (__isHpBarLine(lineText)) {
+      i++;
+      battleLogTimerId = window.__battleSetTimeout(showNextLine, __getBattleLogDelayMs(i, cleanLog.length));
+      return;
+    }
+
+    // ターン中の出来事
+    if (__currentTurn) {
+      const evLine = document.createElement('div');
+      evLine.classList.add('turn-event-line');
+      evLine.textContent = lineText;
+      __currentTurn.evContent.appendChild(evLine);
+    } else {
+      // ターン開始前（倍率/開始時効果など）は従来通り直書き
+      __appendPlainLine(lineText);
+    }
 
     requestAnimationFrame(() => {
-      battleLogEl.scrollTo({
-        top: battleLogEl.scrollHeight,
-        behavior: 'smooth'
-      });
+      battleLogEl.scrollTo({ top: battleLogEl.scrollHeight, behavior: 'smooth' });
     });
 
     i++;
@@ -5559,12 +5632,16 @@ updateStats();
 
     const __hpMult = __calcRetryHpMultiplier(__retryIndex);
 
+    // この周回（この試合）で追加されたログの開始位置（仕切り直し時に丸ごと消すため）
+    const __attemptLogStart = log.length;
+
     // 戦闘開始時ログ（倍率が1以外のときのみ）
+    // ※仕切り直し周回のときは、この行も含めて後でまとめて削除され、ダイジェストに置き換わる
     if (__hpMult !== 1) {
-      log.push(`【短期決着補正】前回の戦闘が${__EARLY_END_TURNS}ターン以内に決着したため無効化。HP倍率 x${__hpMult} で再戦開始`);
+      log.push(`【短期決着補正】HP倍率 x${__hpMult}（リトライ#${__retryIndex}）`);
     }
 
-    // この戦闘の最大HPを倍率で調整（他ステは触らない）
+// この戦闘の最大HPを倍率で調整（他ステは触らない）
     // ※maxHpが小数にならないよう切り捨て、0未満にならないようガード
     if (Number.isFinite(player.maxHp)) player.maxHp = Math.max(0, Math.floor(player.maxHp * __hpMult));
     if (Number.isFinite(enemy.maxHp))  enemy.maxHp  = Math.max(0, Math.floor(enemy.maxHp  * __hpMult));
@@ -5965,12 +6042,39 @@ if (player.hp <= 0) {
     const __endedByHp = (player.hp <= 0 || enemy.hp <= 0);
 
     if (__endedByHp && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
-      __retryIndex += 1;
-      if (__retryIndex > __RETRY_LIMIT) {
+      // リトライ上限を超える場合は、この結果を採用（＝ログは消さない）
+      if ((__retryIndex + 1) > __RETRY_LIMIT) {
         log.push(`【短期決着補正】リトライ回数が上限（${__RETRY_LIMIT}回）に達したため、この結果を採用します。`);
         break;
       }
+
+      // -------------------------
+      // ★ ダイジェスト化：この周回で追加したログを丸ごと消して、1行だけに置き換える
+      // -------------------------
+      try {
+        const __winnerText =
+          (player.hp <= 0 && enemy.hp <= 0) ? '相打ち' :
+          (player.hp <= 0) ? 'プレイヤー敗北' :
+          (enemy.hp <= 0) ? 'プレイヤー勝利' : '未決着';
+
+        // 次の周回の倍率（今回が #n なら、次は #n+1 の倍率）
+        const __nextRetryIndex = __retryIndex + 1;
+        const __nextHpMult = __calcRetryHpMultiplier(__nextRetryIndex);
+
+        // この周回で追加されたログを削除
+        if (typeof __attemptLogStart === 'number' && __attemptLogStart >= 0 && __attemptLogStart <= log.length) {
+          log.splice(__attemptLogStart, log.length - __attemptLogStart);
+        }
+
+        // ダイジェスト1行を追加（この行だけが残る）
+        log.push(`【短期決着ダイジェスト】#${__nextRetryIndex}：${__turnsElapsed}ターンで${__winnerText} → 無効化（次戦HP倍率 x${__nextHpMult}）`);
+      } catch (_e) {
+        // 万一ダイジェスト生成に失敗しても、リトライ自体は継続（ログは残す）
+        log.push(`【短期決着ダイジェスト】${__turnsElapsed}ターン以内に決着 → 無効化（次戦へ）`);
+      }
+
       // 次の周回へ（基準状態に戻して、HP倍率を上げて再戦）
+      __retryIndex += 1;
       continue;
     }
 
