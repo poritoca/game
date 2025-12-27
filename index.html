@@ -157,6 +157,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 <button id="loadLocalBtn" onclick="loadFromLocalStorage()">ローカルからロード</button>
 <button id="loadLocalProgressBtn" onclick="loadProgressFromLocalStorageCompat()">中断データからロード（戦闘数進捗含む）</button>
+<button id="loadFromTextBtn">テキストからロード</button>
+<input type="file" id="loadTextFileInput" accept=".txt" style="display:none" />
 
   <!--    <div id="loadSection">
       <textarea id="saveData" rows="4" placeholder="セーブデータを入力"></textarea><br />
@@ -624,6 +626,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
      <!--   <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly /> -->
+<button id="toggleAutoSave" class="toggle-btn off">自動保存: OFF（10戦ごと）</button>
+<button id="exportSaveTxtBtn" onclick="exportSaveAsTextFile()">セーブデータをテキスト出力</button>
+<input type="text" id="saveCodeBox" readonly style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; opacity:0;" />
+
 			
 <button id="localSaveBtn" onclick="saveToLocalStorage()">ローカルにセーブ（未保存）</button>
 <button id="localProgressSaveBtn" onclick="localProgressSaveMirror()">※戦闘数進捗を含む中断セーブはこちら</button>

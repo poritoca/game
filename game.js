@@ -559,51 +559,6 @@ const itemAdjectives = [
   { word: '神の', activationRate: 1.0, dropRate: 0.00001 }
 ];
 
-// =====================================================
-// Item remainingUses normalization (Infinity-safe)
-//   - JSON.stringify(Infinity) becomes null, which breaks item triggering after retries / saves.
-//   - We store "infinite" uses as a large finite number + a flag, and can reconstruct from color.
-// =====================================================
-const ITEM_INFINITE_USES_VALUE = Number.MAX_SAFE_INTEGER;
-
-function getItemUsesPerBattleByColor(colorWord) {
-  const found = itemColors.find(c => c.word === colorWord);
-  return found ? found.usesPerBattle : 1;
-}
-
-function normalizeItemUses(item, forceReset = false) {
-  if (!item) return;
-
-  const uses = getItemUsesPerBattleByColor(item.color);
-
-  if (uses === Infinity) {
-    item._infiniteUses = true;
-    item.remainingUses = ITEM_INFINITE_USES_VALUE;
-    item.usesPerBattle = Infinity;
-    return;
-  }
-
-  item._infiniteUses = false;
-  item.usesPerBattle = uses;
-
-  const badRemaining =
-    item.remainingUses === null ||
-    item.remainingUses === undefined ||
-    (typeof item.remainingUses === 'number' && !isFinite(item.remainingUses));
-
-  if (forceReset || badRemaining || item.remainingUses <= 0) {
-    item.remainingUses = uses;
-  }
-}
-
-function normalizeAllItemUses(itemMemory, forceReset = false) {
-  if (!Array.isArray(itemMemory)) return;
-  for (const it of itemMemory) {
-    normalizeItemUses(it, forceReset);
-  }
-}
-
-
 window.getSpecialChance = function() {
     return window.specialMode === 'brutal' ? 1.0 : 0.03;
 };
@@ -2154,6 +2109,7 @@ function setupToggleButtons() {
   const growthBtn = document.getElementById('toggleGrowthEvents');
   const skillDelBtn = document.getElementById('toggleSkillDeleteEvents');
   const itemBtn = document.getElementById('toggleItemInterrupt');
+  const autoSaveBtn = document.getElementById('toggleAutoSave');
 
   function updateButtonState(btn, state, labelOn, labelOff) {
     btn.classList.remove("on", "off");
@@ -2176,9 +2132,20 @@ function setupToggleButtons() {
     updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
   };
 
+
+if (autoSaveBtn) {
+  autoSaveBtn.onclick = () => {
+    window.autoSaveEnabled = !window.autoSaveEnabled;
+    updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
+  };
+}
+
   updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
   updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
   updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+  if (autoSaveBtn) {
+    updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
+  }
 }
 
 function cleanUpAllMixedSkills() {
@@ -3295,8 +3262,6 @@ function maybeGainItemMemory() {
     glow: glow.toFixed(2)
   };
 
-  normalizeItemUses(newItem, true);
-
   player.itemMemory.push(newItem);
   drawItemMemoryList();
 const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
@@ -3830,6 +3795,10 @@ if (isPlayer) {
 window.startNewGame = function() {
 	
 	 // window.isFirstBattle = true;
+	// 自動保存は「はじめから」で必ずOFF
+	window.autoSaveEnabled = false;
+	try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catch (_) {}
+
 	 //ガイド いるならtrueに
 	  window.isFirstBattle = false;
 		const battleBtn = document.getElementById("startBattleBtn");
@@ -4364,8 +4333,7 @@ window.getSkillEffect = function (skill, user, target, log) {
     case 'itemReuse': {
       const chance = skillData.activationRate ?? 1.0;
       if (Math.random() < chance) {
-        normalizeAllItemUses(player.itemMemory, false);
-        const usableItems = player.itemMemory.filter(item => (item._infiniteUses || item.remainingUses > 0));
+        const usableItems = player.itemMemory.filter(item => item.remainingUses > 0);
         if (usableItems.length === 0) {
           log.push(`${displayName(user.name)}の${skill.name}：しかし再利用できるアイテムがない！`);
           console.log("[ItemReuse] No usable item to activate");
@@ -4383,9 +4351,7 @@ window.getSkillEffect = function (skill, user, target, log) {
             log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
             drawItemMemoryList();
           }
-          if (!item._infiniteUses) {
-            item.remainingUses--;
-          }
+          item.remainingUses--;
           const isWithinProtectedPeriod = window.protectItemUntil && window.battleCount <= window.protectItemUntil;
           if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
             log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
@@ -5107,6 +5073,8 @@ resetMixedSkillUsage();
 // --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
+// battleCount（進捗セーブ用）も戦闘ごとに同期
+window.battleCount = window.battlesPlayed;
 window.isBossBattle = false;
 window.bossFacePath = null;
 
@@ -5174,7 +5142,6 @@ if (player.itemMemory) {
   });
 }
 if (!window.battleCount) window.battleCount = 0;
-window.// battleCount removed;
 
 document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
@@ -5463,9 +5430,34 @@ updateStats();
   // 戦闘開始直前の状態（混合スキル開始時効果等の適用後）を“基準”として保存
   // これに戻してから倍率を掛け直すことで、短期決着の戦闘を完全に無効化する。
   let __battleRetryBasePlayer, __battleRetryBaseEnemy;
+
+  // JSON.stringify は Infinity / -Infinity / NaN を null にしてしまい、
+  // 仕切り直し後に「アイテムの使用回数(usesPerBattle/remainingUses)」などが壊れて
+  // 発動しなくなる原因になります。特殊な数値を保護してクローンします。
+  function __battleRetryCloneSafe(obj){
+    try{
+      const json = JSON.stringify(obj, function(_k, v){
+        if (typeof v === 'number') {
+          if (Number.isNaN(v)) return "__NUM_NAN__";
+          if (v === Infinity) return "__NUM_INF__";
+          if (v === -Infinity) return "__NUM_NEGINF__";
+        }
+        return v;
+      });
+      return JSON.parse(json, function(_k, v){
+        if (v === "__NUM_NAN__") return NaN;
+        if (v === "__NUM_INF__") return Infinity;
+        if (v === "__NUM_NEGINF__") return -Infinity;
+        return v;
+      });
+    } catch(_e){
+      return null;
+    }
+  }
+
   try {
-    __battleRetryBasePlayer = JSON.parse(JSON.stringify(player));
-    __battleRetryBaseEnemy  = JSON.parse(JSON.stringify(enemy));
+    __battleRetryBasePlayer = __battleRetryCloneSafe(player);
+    __battleRetryBaseEnemy  = __battleRetryCloneSafe(enemy);
   } catch (_e) {
     // JSON化できない最悪ケースは「やり直し無効」に倒して戦闘継続
     __battleRetryBasePlayer = null;
@@ -5798,9 +5790,7 @@ if (item.skillLevel < 3000 && Math.random() < 0.4) {
   drawItemMemoryList();
 }
 
-    if (!item._infiniteUses) {
-            item.remainingUses--;
-          }
+    item.remainingUses--;
     triggeredItemsThisTurn.add(itemKey);
 
 const isWithinProtectedPeriod =
@@ -6639,6 +6629,9 @@ finalResEl.onclick = () => {
       (function(){var onceBtn=document.getElementById('startBattleOnceBtn'); if(onceBtn) onceBtn.disabled=true;})();
     }
   }
+
+  // ★自動保存（10戦ごと）
+  try { if (typeof window.maybeAutoLocalSave === 'function') window.maybeAutoLocalSave(); } catch (_) {}
 
   // 20戦ごとにオートバトルを停止
   try {
@@ -7886,6 +7879,36 @@ document.getElementById("battleCountSelect").addEventListener("change", (e) => {
 });
 
 
+// ==========================
+// 自動保存（10戦ごとにローカル保存）
+//  - 「はじめから」で必ずOFFに戻す（startNewGame内でリセット）
+//  - ON中はオートバトル（長押し）でも10戦ごとに保存
+// ==========================
+if (typeof window.autoSaveEnabled !== 'boolean') window.autoSaveEnabled = false;
+
+window.maybeAutoLocalSave = function () {
+  try {
+    if (!window.autoSaveEnabled) return;
+    const n = Number(window.battlesPlayed || 0);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (n % 10 !== 0) return;
+
+    if (typeof window.saveToLocalStorage === 'function') {
+      Promise.resolve(window.saveToLocalStorage()).then(() => {
+        try {
+          if (typeof showSubtitle === 'function') {
+            showSubtitle(`💾 自動保存：${n}戦ごとにローカル保存しました`, 1400);
+          }
+        } catch (_) {}
+      }).catch((e) => {
+        console.warn('auto local save failed', e);
+      });
+    }
+  } catch (e) {
+    console.warn('maybeAutoLocalSave error', e);
+  }
+};
+
 window.isLocalSaveDirty = true; 
 
 function markLocalSaveDirty() {
@@ -8097,7 +8120,6 @@ window.importSaveCode = async function (code = null) {
     //player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
     player.itemMemory = parsed.itemMemory || [];
-    normalizeAllItemUses(player.itemMemory, false);
     window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
     window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
     window.growthMultiplier = parsed.growthMultiplier || 1;
@@ -8924,3 +8946,78 @@ window.__battleSetTimeout(window.syncBattleButtonsMode, 0);
 // 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
 // ======================================================
 ;
+
+
+// ===============================
+// テキストセーブ出力 / テキストからロード
+// ===============================
+
+window.exportSaveAsTextFile = async function () {
+  try {
+    if (!player) {
+      alert('セーブできるデータがありません（ゲームを開始してから実行してください）。');
+      return;
+    }
+    if (typeof window.exportSaveCode === 'function') {
+      await window.exportSaveCode();
+      try {
+        if (typeof showSubtitle === 'function') {
+          showSubtitle('📄 セーブデータをテキスト出力しました', 1400);
+        }
+      } catch (_) {}
+    } else {
+      alert('エクスポート関数が見つかりません。');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('テキスト出力に失敗しました：' + (e && e.message ? e.message : e));
+  }
+};
+
+window.__bindTextFileLoadUI = function () {
+  try {
+    const btn = document.getElementById('loadFromTextBtn');
+    const input = document.getElementById('loadTextFileInput');
+    if (!btn || !input) return;
+
+    if (btn.__bound) return;
+    btn.__bound = true;
+
+    btn.addEventListener('click', () => {
+      try { input.click(); } catch (_) {}
+    });
+
+    input.addEventListener('change', async () => {
+      try {
+        const file = input.files && input.files[0] ? input.files[0] : null;
+        if (!file) return;
+
+        const text = (await file.text()).trim();
+        if (!text) {
+          alert('ファイルの内容が空です。');
+          return;
+        }
+
+        if (typeof window.importSaveCode !== 'function') {
+          alert('インポート関数が見つかりません。');
+          return;
+        }
+
+        await window.importSaveCode(text);
+
+      } catch (e) {
+        console.error(e);
+        alert('テキストからのロードに失敗しました：' + (e && e.message ? e.message : e));
+      } finally {
+        // 同じファイルを連続で選べるようにクリア
+        try { input.value = ''; } catch (_) {}
+      }
+    });
+  } catch (e) {
+    console.warn('bindTextFileLoadUI error', e);
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window.__bindTextFileLoadUI === 'function') window.__bindTextFileLoadUI();
+});
