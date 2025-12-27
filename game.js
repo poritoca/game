@@ -2109,6 +2109,7 @@ function setupToggleButtons() {
   const growthBtn = document.getElementById('toggleGrowthEvents');
   const skillDelBtn = document.getElementById('toggleSkillDeleteEvents');
   const itemBtn = document.getElementById('toggleItemInterrupt');
+  const autoSaveBtn = document.getElementById('toggleAutoSave');
 
   function updateButtonState(btn, state, labelOn, labelOff) {
     btn.classList.remove("on", "off");
@@ -2131,9 +2132,20 @@ function setupToggleButtons() {
     updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
   };
 
+
+if (autoSaveBtn) {
+  autoSaveBtn.onclick = () => {
+    window.autoSaveEnabled = !window.autoSaveEnabled;
+    updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
+  };
+}
+
   updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
   updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
   updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+  if (autoSaveBtn) {
+    updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
+  }
 }
 
 function cleanUpAllMixedSkills() {
@@ -3783,6 +3795,10 @@ if (isPlayer) {
 window.startNewGame = function() {
 	
 	 // window.isFirstBattle = true;
+	// 自動保存は「はじめから」で必ずOFF
+	window.autoSaveEnabled = false;
+	try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catch (_) {}
+
 	 //ガイド いるならtrueに
 	  window.isFirstBattle = false;
 		const battleBtn = document.getElementById("startBattleBtn");
@@ -5057,6 +5073,8 @@ resetMixedSkillUsage();
 // --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
+// battleCount（進捗セーブ用）も戦闘ごとに同期
+window.battleCount = window.battlesPlayed;
 window.isBossBattle = false;
 window.bossFacePath = null;
 
@@ -5124,7 +5142,6 @@ if (player.itemMemory) {
   });
 }
 if (!window.battleCount) window.battleCount = 0;
-window.// battleCount removed;
 
 document.getElementById("battleArea").classList.remove("hidden");
   document.getElementById("battleLog").classList.remove("hidden");
@@ -6588,6 +6605,9 @@ finalResEl.onclick = () => {
     }
   }
 
+  // ★自動保存（10戦ごと）
+  try { if (typeof window.maybeAutoLocalSave === 'function') window.maybeAutoLocalSave(); } catch (_) {}
+
   // 20戦ごとにオートバトルを停止
   try {
     if (typeof window.battlesPlayed === 'number' &&
@@ -7834,6 +7854,36 @@ document.getElementById("battleCountSelect").addEventListener("change", (e) => {
 });
 
 
+// ==========================
+// 自動保存（10戦ごとにローカル保存）
+//  - 「はじめから」で必ずOFFに戻す（startNewGame内でリセット）
+//  - ON中はオートバトル（長押し）でも10戦ごとに保存
+// ==========================
+if (typeof window.autoSaveEnabled !== 'boolean') window.autoSaveEnabled = false;
+
+window.maybeAutoLocalSave = function () {
+  try {
+    if (!window.autoSaveEnabled) return;
+    const n = Number(window.battlesPlayed || 0);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (n % 10 !== 0) return;
+
+    if (typeof window.saveToLocalStorage === 'function') {
+      Promise.resolve(window.saveToLocalStorage()).then(() => {
+        try {
+          if (typeof showSubtitle === 'function') {
+            showSubtitle(`💾 自動保存：${n}戦ごとにローカル保存しました`, 1400);
+          }
+        } catch (_) {}
+      }).catch((e) => {
+        console.warn('auto local save failed', e);
+      });
+    }
+  } catch (e) {
+    console.warn('maybeAutoLocalSave error', e);
+  }
+};
+
 window.isLocalSaveDirty = true; 
 
 function markLocalSaveDirty() {
@@ -8871,3 +8921,78 @@ window.__battleSetTimeout(window.syncBattleButtonsMode, 0);
 // 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
 // ======================================================
 ;
+
+
+// ===============================
+// テキストセーブ出力 / テキストからロード
+// ===============================
+
+window.exportSaveAsTextFile = async function () {
+  try {
+    if (!player) {
+      alert('セーブできるデータがありません（ゲームを開始してから実行してください）。');
+      return;
+    }
+    if (typeof window.exportSaveCode === 'function') {
+      await window.exportSaveCode();
+      try {
+        if (typeof showSubtitle === 'function') {
+          showSubtitle('📄 セーブデータをテキスト出力しました', 1400);
+        }
+      } catch (_) {}
+    } else {
+      alert('エクスポート関数が見つかりません。');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('テキスト出力に失敗しました：' + (e && e.message ? e.message : e));
+  }
+};
+
+window.__bindTextFileLoadUI = function () {
+  try {
+    const btn = document.getElementById('loadFromTextBtn');
+    const input = document.getElementById('loadTextFileInput');
+    if (!btn || !input) return;
+
+    if (btn.__bound) return;
+    btn.__bound = true;
+
+    btn.addEventListener('click', () => {
+      try { input.click(); } catch (_) {}
+    });
+
+    input.addEventListener('change', async () => {
+      try {
+        const file = input.files && input.files[0] ? input.files[0] : null;
+        if (!file) return;
+
+        const text = (await file.text()).trim();
+        if (!text) {
+          alert('ファイルの内容が空です。');
+          return;
+        }
+
+        if (typeof window.importSaveCode !== 'function') {
+          alert('インポート関数が見つかりません。');
+          return;
+        }
+
+        await window.importSaveCode(text);
+
+      } catch (e) {
+        console.error(e);
+        alert('テキストからのロードに失敗しました：' + (e && e.message ? e.message : e));
+      } finally {
+        // 同じファイルを連続で選べるようにクリア
+        try { input.value = ''; } catch (_) {}
+      }
+    });
+  } catch (e) {
+    console.warn('bindTextFileLoadUI error', e);
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window.__bindTextFileLoadUI === 'function') window.__bindTextFileLoadUI();
+});
