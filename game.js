@@ -5626,7 +5626,7 @@ updateStats();
   const __RETRY_HP_FIRST  = 10;       // 1回目の仕切り直し倍率
   const __RETRY_HP_SECOND = 20;       // 2回目の仕切り直し倍率
   const __RETRY_HP_GROWTH = 1.2;      // 3回目以降：差分の増加率
-  const __RETRY_LIMIT     = 50;       // 念のため無限ループ防止
+  const __RETRY_LIMIT     = 5;       // 念のため無限ループ防止
 
   function __calcRetryHpMultiplier(retryIndex){
     // retryIndex: 0=通常、1=1回目の仕切り直し...
