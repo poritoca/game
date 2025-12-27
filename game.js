@@ -5424,8 +5424,34 @@ updateStats();
   //      “5ターン以内はやり直し” を優先し、6ターン目に入るまでを条件にしています。
   // =========================================================
   const __EARLY_END_TURNS = 5;        // ここ以下で決着したらやり直し
-  const __RETRY_HP_STEP   = 10;       // 10倍刻み（10,20,30,...）
+  // 仕切り直し時のHP倍率（加速度的に増える）
+  // 例: 10, 20, 32, 46, 63 ...（差分が 1.2倍ずつ増えるイメージ）
+  const __RETRY_HP_FIRST  = 10;       // 1回目の仕切り直し倍率
+  const __RETRY_HP_SECOND = 20;       // 2回目の仕切り直し倍率
+  const __RETRY_HP_GROWTH = 1.2;      // 3回目以降：差分の増加率
   const __RETRY_LIMIT     = 50;       // 念のため無限ループ防止
+
+  function __calcRetryHpMultiplier(retryIndex){
+    // retryIndex: 0=通常、1=1回目の仕切り直し...
+    const idx = Math.max(0, Math.floor(Number(retryIndex || 0)));
+    if (idx <= 0) return 1;
+
+    // 1回目/2回目は固定
+    if (idx === 1) return __RETRY_HP_FIRST;
+    if (idx === 2) return __RETRY_HP_SECOND;
+
+    // 3回目以降は「差分」を加速度的に増やす
+    let prev = __RETRY_HP_FIRST;   // 10
+    let curr = __RETRY_HP_SECOND;  // 20
+    for (let i = 3; i <= idx; i++) {
+      const diff = Math.max(1, curr - prev);
+      const nextDiff = Math.max(1, Math.round(diff * __RETRY_HP_GROWTH));
+      const next = curr + nextDiff;
+      prev = curr;
+      curr = next;
+    }
+    return curr;
+  }
 
   // 戦闘開始直前の状態（混合スキル開始時効果等の適用後）を“基準”として保存
   // これに戻してから倍率を掛け直すことで、短期決着の戦闘を完全に無効化する。
@@ -5531,7 +5557,7 @@ updateStats();
       updateStats();
     }
 
-    const __hpMult = (__retryIndex === 0) ? 1 : (__retryIndex * __RETRY_HP_STEP);
+    const __hpMult = __calcRetryHpMultiplier(__retryIndex);
 
     // 戦闘開始時ログ（倍率が1以外のときのみ）
     if (__hpMult !== 1) {
@@ -6107,28 +6133,47 @@ Math.random() < adjustedFinalRate) {
         }
 
         // 低倍率寄り、たまに超高倍率（10倍は約1/10000）
-        function getBossStatMultiplier() {
-          const minM = (typeof window.BOSS_STAT_MIN_MULTIPLIER === 'number') ? window.BOSS_STAT_MIN_MULTIPLIER : 1.5;
-          const maxM = (typeof window.BOSS_STAT_MAX_MULTIPLIER === 'number') ? window.BOSS_STAT_MAX_MULTIPLIER : 10.0;
-          const pTop = (typeof window.BOSS_STAT_TOP_PROB === 'number') ? window.BOSS_STAT_TOP_PROB : (1 / 100000);
-          const exp  = (typeof window.BOSS_STAT_POWER_EXP === 'number') ? window.BOSS_STAT_POWER_EXP : 4;
+        function getBossStatMultiplierByBase(baseValue) {
+          // ボス勝利時の「成長倍率」を、元ステータスの大きさに応じて急激に抑える
+          // 例（目安）:
+          //  - base=1万    -> 約1.20倍
+          //  - base=1000万 -> 約1.03倍
+          //  - base=1億    -> 約1.01倍
+          //
+          // ※超インフレ防止のため、従来の 1.5〜10倍抽選は廃止し、
+          //   「元が大きいほど伸びにくい」倍率に変更しています。
 
-          // ごく低確率で最高倍率
-          if (Math.random() < pTop) return maxM;
+          const x = Math.max(1, Number(baseValue || 1));
+          const lg = Math.log10(x);
 
-          // それ以外は低倍率寄りの分布
-          const r = Math.random() ** exp;
-          let m = minM + r * (maxM - minM);
-          if (m >= maxM) m = maxM - 0.01;
-          return m;
+          let target;
+          if (lg <= 4) {
+            target = 1.20;
+          } else if (lg <= 7) {
+            const t = (lg - 4) / 3; // 0..1
+            target = 1.20 + (1.03 - 1.20) * t;
+          } else if (lg <= 8) {
+            const t = (lg - 7) / 1; // 0..1
+            target = 1.03 + (1.01 - 1.03) * t;
+          } else {
+            target = 1.01 - 0.003 * (lg - 8);
+            target = Math.max(1.001, target);
+          }
+
+          // ほんの少しだけランダム性（±15%）を付与（体感の揺らぎ用）
+          const add = Math.max(0, target - 1);
+          const jitter = 0.85 + Math.random() * 0.30; // 0.85..1.15
+          const m = 1 + add * jitter;
+
+          return Math.max(1.001, m);
         }
 
         const messages = [];
         chosenStats.forEach(stat => {
-          const mult = getBossStatMultiplier();
-          const base = (player.baseStats[stat] || 0) + (player.growthBonus[stat] || 0);
-          const boosted = Math.floor(base * mult);
-          const diff = boosted - base;
+          const baseVal = (player.baseStats[stat] || 0) + (player.growthBonus[stat] || 0);
+          const mult = getBossStatMultiplierByBase(baseVal);
+          const boosted = Math.floor(baseVal * mult);
+          const diff = boosted - baseVal;
           if (diff <= 0) return;
 
           player.growthBonus[stat] = (player.growthBonus[stat] || 0) + diff;
