@@ -2206,7 +2206,7 @@ function performFaceGacha() {
   }
 
   if (faceItemsOwned.length >= 100) {
-    alert("所持フェイスアイテムが上限に達しています。");
+    alert("所持魔メイクが上限に達しています。");
     return;
   }
 
@@ -2258,7 +2258,7 @@ function performFaceGacha() {
   window.__battleSetTimeout(() => {
     const result = drawRandomFace(selectedRarity);
     if (!result) {
-      alert(`${selectedRarity}ランクのフェイスアイテムが読み込めませんでした`);
+      alert(`${selectedRarity}ランクの魔メイクが読み込めませんでした`);
       return;
     }
 
@@ -2888,7 +2888,7 @@ if (toggle && content) {
 
 
 
-  // === フェイスアイテムUIの構築 ===
+  // === 魔メイクUIの構築 ===
 	
 (function injectBattleStatusCSS() {
   const style = document.createElement('style');
@@ -3662,7 +3662,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggle.addEventListener('click', () => {
       const isOpen = content.style.display === 'block';
       content.style.display = isOpen ? 'none' : 'block';
-      toggle.textContent = isOpen ? '▶ フェイスメモリーを表示' : '▼ フェイスメモリーを非表示';
+      toggle.textContent = isOpen ? '▶ 魔メイクを表示' : '▼ 魔メイクを非表示';
     });
 	
 	const deathChar = document.getElementById('deathChar');
@@ -3746,8 +3746,8 @@ let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
 
 
-// --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
-// フェイスコイン獲得確率 (勝利時)
+// --- 魔メイク機能用の定数・変数（ファイル先頭付近に追加） ---
+// 魔メイクコイン獲得確率 (勝利時)
 const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
@@ -3971,7 +3971,7 @@ window.updateStats = function () {
   const enemyImgEl = document.getElementById('enemyImg');
 
   if (window.isBossBattle && window.bossFacePath && enemyImgEl) {
-    // 強敵：フェイスガチャの画像を表示
+    // 強敵：魔メイクガチャの画像を表示
     if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
     enemyImgEl.src = window.bossFacePath;
     enemyImgEl.classList.remove('hidden');
@@ -5294,7 +5294,7 @@ window.barrierUsesLeft = 5;
 
 resetMixedSkillUsage();
 
-// --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
+// --- 20戦ごとの強敵フラグ＆魔メイク画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
 // battleCount（進捗セーブ用）も戦闘ごとに同期
@@ -6891,7 +6891,7 @@ if (finalResEl) {
   color: #ccc;
   font-style: italic;
 ">
-  今後、合計スコアによりフェイスコインボーナスがあります。<br>
+  今後、合計スコアにより魔メイクコインボーナスがあります。<br>
   <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
   その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
 
@@ -8128,7 +8128,7 @@ window.addEventListener('scroll', () => {
   if (scoreEl) scoreEl.style.opacity = '0';
   if (skillEl) skillEl.style.opacity = '0';
   if (itemEl) itemEl.style.opacity = '0';
-  if (faceEl) faceEl.style.opacity = '0'; // ← フェイスも消す
+  if (faceEl) faceEl.style.opacity = '0'; // ← 魔メイクも消す
 
   // タイマー解除
   clearTimeout(scoreTimeout);
@@ -8154,7 +8154,7 @@ window.addEventListener('scroll', () => {
     if (itemEl) itemEl.style.opacity = '1';
   }, 1500);
 
-  // フェイス：1秒後に再表示（scoreOverlayと同時）
+  // 魔メイク：1秒後に再表示（scoreOverlayと同時）
   faceTimeout = window.__battleSetTimeout(() => {
     if (faceItemEquipped && faceEl) {
       faceEl.style.opacity = '1';
@@ -8378,7 +8378,7 @@ window.exportSaveCode = async function () {
     targetBattles: window.targetBattles ?? null,
     maxScores: window.maxScores || {},
 		
-		    // ✅ フェイスアイテム情報を明示的に保存
+		    // ✅ 魔メイク情報を明示的に保存
     faceCoins: window.faceCoins || 0,
     faceItemsOwned: window.faceItemsOwned || [],
     faceItemEquipped: window.faceItemEquipped || null,
@@ -8466,7 +8466,7 @@ window.importSaveCode = async function (code = null) {
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
 
-    // ✅ フェイスアイテム情報の復元とUI更新
+    // ✅ 魔メイク情報の復元とUI更新
     window.faceCoins = parsed.faceCoins ?? 0;
     window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
     window.faceItemEquipped = parsed.faceItemEquipped ?? null;

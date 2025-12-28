@@ -212,7 +212,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		  <li>強いプレイヤーほどレアスキルを得やすくなります。</li>
 		</ul>
 		
-		<h4>💎 フェイスガチャのレア排出率UP</h4>
+		<h4>💎 魔メイクガチャのレア排出率UP</h4>
 		<ul>
 		  <li>FaceCoinガチャのレアランク（S〜B）の出現率が、現在の連勝数に応じて上昇します。</li>
 		  <li>例：Dランクの割合が減少し、S〜Aランクの出現率がわずかに上昇。</li>
@@ -339,13 +339,13 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         <strong>アイテム保護機能：</strong>所持アイテムは1つだけ保護可能です。保護されたアイテムは削除や破損の対象になりません。アイテム名をクリックすると「保護する／保護を外す／削除する」のメニューが表示されます（保護中のアイテムは削除できません）。
     </p>
 		
-		<h3>フェイスコインとガチャ</h3>
+		<h3>魔メイクコインとガチャ</h3>
 <p>
-    ゲーム中に<strong>最高スコアの合計</strong>が高くなると、<strong>フェイスコイン</strong>を獲得できるようになります。スコアが高いほどコイン入手のチャンスが増えますが、1回で獲得できるコイン数は<strong>最大10枚まで</strong>です。スコアが合計40万の場合、おおよそ<strong>3枚程度</strong>獲得できるバランスになっています（毎回ランダムです）。<br>
-    フェイスコインは<strong>フェイスアイテムのガチャ</strong>に使用できます。
+    ゲーム中に<strong>最高スコアの合計</strong>が高くなると、<strong>魔メイクコイン</strong>を獲得できるようになります。スコアが高いほどコイン入手のチャンスが増えますが、1回で獲得できるコイン数は<strong>最大10枚まで</strong>です。スコアが合計40万の場合、おおよそ<strong>3枚程度</strong>獲得できるバランスになっています（毎回ランダムです）。<br>
+    魔メイクコインは<strong>魔メイクのガチャ</strong>に使用できます。
 </p>
 <p>
-    ガチャでは<strong>ランダムにフェイスアイテム</strong>を1つ獲得します。フェイスアイテムはステータス画面に表示される装飾用のアイテムで、現在はSランク〜Dランクまでが存在します。入手したフェイスアイテムは保持され、スコアやアイテム収集の達成度にも影響を与えます。
+    ガチャでは<strong>ランダムに魔メイク</strong>を1つ獲得します。魔メイクアイテムはステータス画面に表示される装飾用のアイテムで、現在はSランク〜Dランクまでが存在します。入手した魔メイクアイテムは保持され、スコアやアイテム収集の達成度にも影響を与えます。
 </p>
 
 <h3>モードの違い</h3>
@@ -395,7 +395,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <details open>
   <summary><strong>自分のキャラクター情報（スクロール可能）</strong></summary>
 	
-<!-- フェイスメモリーUIコンテナ（全幅表示・透過背景） -->
+<!-- 魔メイクUIコンテナ（全幅表示・透過背景） -->
 <div id="faceMemoryUI" style="
   width: 100%;
 	
@@ -418,7 +418,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     text-shadow: 1px 1px 0 #000;
     transition: background 0.2s ease, transform 0.1s ease;
   ">
-    ▶ フェイスメモリーを表示
+    ▶ 魔メイクを表示
   </button>
 
   <!-- 折りたたみ可能なコンテンツ -->
@@ -435,7 +435,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			
     </div>
 
-    <!-- 所持フェイスアイテム一覧 -->
+    <!-- 所持魔メイク一覧 -->
     <div id="ownedFaceList"></div>
   </div>
 </div>
@@ -487,7 +487,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div class="status-area compact">
       <div class="char-info">
         <canvas id="enemyCanvas" width="64" height="64"></canvas>
-        <!-- 強敵用フェイス画像（通常時は非表示） -->
+        <!-- 強敵用魔メイク画像（通常時は非表示） -->
         <img id="enemyImg" class="hidden" alt="Enemy Face">
       </div>
       <div class="stats-container" id="enemyStats"></div>
