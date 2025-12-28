@@ -14,6 +14,17 @@ window.__battleSetTimeout = window.__battleSetTimeout || function __battleSetTim
   return id;
 };
 
+// =====================================================
+// UI timer wrapper (NOT canceled by __cancelBattleVisuals)
+//  - Use this for transient UI like coin toasts, subtitles, tooltips, mode banners.
+// =====================================================
+window.__uiSetTimeout = window.__uiSetTimeout || function __uiSetTimeout(fn, ms){
+  return setTimeout(fn, ms);
+};
+window.__uiClearTimeout = window.__uiClearTimeout || function __uiClearTimeout(id){
+  try{ clearTimeout(id); }catch(e){}
+};
+
 window.__cancelBattleVisuals = window.__cancelBattleVisuals || function __cancelBattleVisuals() {
   try {
     if (Array.isArray(window.__battleVisualTimers)) {
@@ -35,6 +46,24 @@ window.__cancelBattleVisuals = window.__cancelBattleVisuals || function __cancel
     const overlay = document.getElementById('battleEffectOverlay');
     if (overlay) overlay.innerHTML = '';
   } catch (_) {}
+  // __cancelBattleVisualsSafetyPopups: safety net for lingering UI popups
+  try {
+    const c = document.getElementById('customAlertContainer');
+    if (c && c.children && c.children.length) {
+      // If something is stuck, allow next UI updates to recover.
+      // (We don't forcibly clear here to avoid hiding important messages,
+      //  but we do ensure it's clickable & not blocking.)
+      c.style.pointerEvents = 'none';
+    }
+  } catch(e) {}
+  try {
+    const s = document.getElementById('subtitleOverlay');
+    if (s && s.style && s.style.display !== 'none') {
+      // Subtitles should never block interaction; ensure it's non-blocking.
+      s.style.pointerEvents = 'none';
+    }
+  } catch(e) {}
+
 };
 
 
@@ -239,7 +268,11 @@ window.showCenteredPopup = function(message, duration = 3000) {
   
 
 
-  window.__battleSetTimeout(() => {
+  
+
+  // clear previous auto-hide timer (so it never gets stuck)
+  try{ if (popup.__centeredPopupTimer) { window.__uiClearTimeout(popup.__centeredPopupTimer); popup.__centeredPopupTimer = null; } }catch(e){}
+popup.__centeredPopupTimer = window.__uiSetTimeout(() => {
     popup.style.display = "none";
   }, duration);
 };
@@ -2120,10 +2153,10 @@ function showSpecialEffectDetail(mixedSkill, event) {
   document.body.appendChild(popup);
   requestAnimationFrame(() => popup.style.opacity = "1");
 
-  window.__battleSetTimeout(() => {
+  window.__uiSetTimeout(() => {
     if (popup.parentNode) {
       popup.style.opacity = "0";
-      window.__battleSetTimeout(() => popup.remove(), 300);
+      window.__uiSetTimeout(() => popup.remove(), 300);
     }
   }, 4000);
 }
@@ -2206,7 +2239,7 @@ function performFaceGacha() {
   }
 
   if (faceItemsOwned.length >= 100) {
-    alert("所持魔メイクが上限に達しています。");
+    alert("所持フェイスアイテムが上限に達しています。");
     return;
   }
 
@@ -2258,7 +2291,7 @@ function performFaceGacha() {
   window.__battleSetTimeout(() => {
     const result = drawRandomFace(selectedRarity);
     if (!result) {
-      alert(`${selectedRarity}ランクの魔メイクが読み込めませんでした`);
+      alert(`${selectedRarity}ランクのフェイスアイテムが読み込めませんでした`);
       return;
     }
 
@@ -2278,11 +2311,17 @@ function showSubtitle(message, duration = 2000) {
   subtitleEl.style.opacity = '1';
   subtitleEl.style.transition = 'opacity 0.5s ease'; // 先に設定！
 
+  // clear previous timers to avoid stuck subtitle
+  try{
+    if (subtitleEl.__subtitleTimer1) { window.__uiClearTimeout(subtitleEl.__subtitleTimer1); subtitleEl.__subtitleTimer1 = null; }
+    if (subtitleEl.__subtitleTimer2) { window.__uiClearTimeout(subtitleEl.__subtitleTimer2); subtitleEl.__subtitleTimer2 = null; }
+  }catch(e){}
+
   // フェードアウト（duration 後）
-  window.__battleSetTimeout(() => {
+  window.__uiSetTimeout(() => {
     subtitleEl.style.opacity = '0';
     // 完全に消えた後に display を none に戻す
-    window.__battleSetTimeout(() => {
+    window.__uiSetTimeout(() => {
       subtitleEl.style.display = 'none';
     }, 500); // フェード時間と一致
   }, duration);
@@ -2888,7 +2927,7 @@ if (toggle && content) {
 
 
 
-  // === 魔メイクUIの構築 ===
+  // === フェイスアイテムUIの構築 ===
 	
 (function injectBattleStatusCSS() {
   const style = document.createElement('style');
@@ -3662,7 +3701,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggle.addEventListener('click', () => {
       const isOpen = content.style.display === 'block';
       content.style.display = isOpen ? 'none' : 'block';
-      toggle.textContent = isOpen ? '▶ 魔メイクを表示' : '▼ 魔メイクを非表示';
+      toggle.textContent = isOpen ? '▶ フェイスメモリーを表示' : '▼ フェイスメモリーを非表示';
     });
 	
 	const deathChar = document.getElementById('deathChar');
@@ -3746,8 +3785,8 @@ let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
 
 
-// --- 魔メイク機能用の定数・変数（ファイル先頭付近に追加） ---
-// 魔メイクコイン獲得確率 (勝利時)
+// --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
+// フェイスコイン獲得確率 (勝利時)
 const FACE_COIN_DROP_RATE = 0.5;
 // ガチャに必要なコイン枚数
 const FACE_GACHA_COST = 1000;
@@ -3971,7 +4010,7 @@ window.updateStats = function () {
   const enemyImgEl = document.getElementById('enemyImg');
 
   if (window.isBossBattle && window.bossFacePath && enemyImgEl) {
-    // 強敵：魔メイクガチャの画像を表示
+    // 強敵：フェイスガチャの画像を表示
     if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
     enemyImgEl.src = window.bossFacePath;
     enemyImgEl.classList.remove('hidden');
@@ -4635,6 +4674,7 @@ window.getSkillEffect = function (skill, user, target, log) {
       const hpCostRatio = skillData.hpCost || 0;
       const hpCost = Math.floor(user.maxHp * hpCostRatio);
       let recoilDamage = hpCost;
+      let preventedByEndureSelf = 0;
       if (hpCost > 0) {
         user.hp -= hpCost;
         console.log(`[Sacrifice] ${displayName(user.name)} lost ${hpCost} HP by using ${skill.name}`);
@@ -4649,11 +4689,21 @@ window.getSkillEffect = function (skill, user, target, log) {
           user.hp = 1;
           endureEffUser.preventedDamage = (endureEffUser.preventedDamage || 0) + prevented;
           recoilDamage -= prevented;
+          preventedByEndureSelf = prevented;
           console.log(`[Endure] ${displayName(user.name)} survived sacrifice with 1 HP (prevented ${prevented})`);
           log.push(`${displayName(user.name)}はHP1で踏みとどまった！`);
                   }
         }
 
+      }
+
+      // 反撃（復讐態勢）：自傷（HP消費）も「被ダメージ」として蓄積する
+      // （耐久で踏みとどまった分は preventedByEndureSelf で差し引く）
+      if (hpCost > 0) {
+        const actualSelfDamage = Math.max(0, hpCost - preventedByEndureSelf);
+        if (actualSelfDamage > 0) {
+          addCounterAccum(user, actualSelfDamage, log, `${skill.name}(自傷)`);
+        }
       }
       const effectiveDef = target.defense * (1 - (skillData.ignoreDefense || 0));
       let dmg = Math.max(0, Math.floor(user.attack * (skillData.multiplier || 1) - effectiveDef / 2));
@@ -4792,6 +4842,13 @@ window.getSkillEffect = function (skill, user, target, log) {
   }
   // ダメージ実績を記録
   user.battleStats[skill.name] = (user.battleStats[skill.name] || 0) + totalDamage;
+
+  // 反撃（復讐態勢）：被ダメージの蓄積
+  // このスキル発動で target が受けた合計ダメージを、counter 効果があれば蓄積する。
+  // （耐久/バリア等で減った分は totalDamage 側で反映済みの想定）
+  if (totalDamage > 0) {
+    addCounterAccum(target, totalDamage, log, skill.name);
+  }
   return log;
 };
 function checkReviveOnDeath(character, log) {
@@ -4898,6 +4955,34 @@ function handlePoisonBurnDamage(character, damage, log) {
     }
   }
   return;
+}
+
+// -----------------------------
+// 反撃（復讐態勢）用：被ダメージ蓄積
+// -----------------------------
+// counter 効果は「一定ターン受けたダメージのX%を蓄積し、効果終了時にまとめて反撃」
+// という仕様だが、被ダメージ時に accumulated が増えないと、期限切れでも反撃が0のままになる。
+// ここでは「ダメージが発生した瞬間」に必ず蓄積する。
+function addCounterAccum(character, damage, log, sourceLabel) {
+  try {
+    const dmg = Math.floor(Number(damage) || 0);
+    if (!character || dmg <= 0) return;
+    if (!Array.isArray(character.effects) || character.effects.length === 0) return;
+
+    // 複数付与もあり得るので、存在する counter を全て蓄積対象にする（上書き仕様にしたい場合はここを変更）
+    for (const eff of character.effects) {
+      if (!eff || eff.type !== 'counter') continue;
+      const pct = Math.max(0, Math.min(1, Number(eff.percent ?? 0.5) || 0.5));
+      const add = Math.floor(dmg * pct);
+      if (add <= 0) continue;
+      eff.accumulated = Math.floor((Number(eff.accumulated) || 0) + add);
+      // ログは大量になりやすいので通常は出さない（デバッグ時のみ console）
+      // console.log(`[Counter] ${displayName(character.name)} accumulated +${add} from ${sourceLabel || 'damage'} (total ${eff.accumulated})`);
+    }
+  } catch (e) {
+    // counter 蓄積は補助機能なので、ここで落ちないように握りつぶす
+    console.warn('[Counter] addCounterAccum error', e);
+  }
 }
 
 function restoreMissingItemUses() {
@@ -5294,7 +5379,7 @@ window.barrierUsesLeft = 5;
 
 resetMixedSkillUsage();
 
-// --- 20戦ごとの強敵フラグ＆魔メイク画像選択用カウンタ ---
+// --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
 // battleCount（進捗セーブ用）も戦闘ごとに同期
@@ -5705,52 +5790,6 @@ updateStats();
     }
   }
 
-  // 仕切り直し復元後のサニタイズ（null/参照汚染対策）
-  function __battleRetrySanitizeEntity(entity){
-    if (!entity) return;
-
-    // itemMemory の null/undefined を補正
-    if (Array.isArray(entity.itemMemory)) {
-      for (const it of entity.itemMemory) {
-        if (!it || typeof it !== 'object') continue;
-
-        // 名前パーツは文字列に寄せる（テンプレ連結で "null" 等を出さない）
-        if (it.color == null) it.color = '';
-        if (it.adjective == null) it.adjective = '';
-        if (it.noun == null) it.noun = '';
-
-        // usesPerBattle は color から復元できるなら復元
-        if (it.usesPerBattle == null) {
-          try {
-            if (Array.isArray(itemColors)) {
-              const cd = itemColors.find(c => c && c.word === it.color);
-              if (cd && cd.usesPerBattle != null) it.usesPerBattle = cd.usesPerBattle;
-            }
-          } catch(_e){}
-          if (it.usesPerBattle == null) it.usesPerBattle = 1;
-        }
-
-        // remainingUses は usesPerBattle を基準に復元
-        if (it.remainingUses == null) {
-          it.remainingUses = it.usesPerBattle;
-        }
-
-        // Infinity/NaN が JSON 経由で壊れていた場合の保険
-        if (typeof it.usesPerBattle === 'number') {
-          if (Number.isNaN(it.usesPerBattle)) it.usesPerBattle = 1;
-        }
-        if (typeof it.remainingUses === 'number') {
-          if (Number.isNaN(it.remainingUses)) it.remainingUses = it.usesPerBattle;
-        }
-        if (it.usesPerBattle === Infinity && it.remainingUses !== Infinity) {
-          it.remainingUses = Infinity;
-        }
-      }
-    }
-  }
-
-
-
   try {
     __battleRetryBasePlayer = __battleRetryCloneSafe(player);
     __battleRetryBaseEnemy  = __battleRetryCloneSafe(enemy);
@@ -5763,19 +5802,12 @@ updateStats();
   function __battleRetryRestore(dst, src){
     if (!dst || !src) return;
     try {
-      // src をそのまま流し込むと、配列/オブジェクト参照が共有され、
-      // 仕切り直し中に「基準スナップショット側」が汚染される可能性があるため、毎回クローンしてから復元する。
-      const fresh = __battleRetryCloneSafe(src) || src;
-
       for (const k in dst) {
         if (Object.prototype.hasOwnProperty.call(dst, k)) delete dst[k];
       }
-      for (const k in fresh) {
-        if (Object.prototype.hasOwnProperty.call(fresh, k)) dst[k] = fresh[k];
+      for (const k in src) {
+        if (Object.prototype.hasOwnProperty.call(src, k)) dst[k] = src[k];
       }
-
-      // 復元直後に null/undefined を補正（特に itemMemory の remainingUses 等）
-      __battleRetrySanitizeEntity(dst);
     } catch (_e) {
       // 失敗しても戦闘継続（ここでクラッシュさせない）
     }
@@ -5918,6 +5950,8 @@ updateStats();
                 ch.hp -= bombDamage;
                 log.push(`${displayName(ch.name)}に仕掛けられた爆弾が爆発！${bombDamage}ダメージ`);
                 ch.battleStats['爆弾'] = (ch.battleStats['爆弾'] || 0) + bombDamage;
+                // 反撃（復讐態勢）：継続/環境ダメージも被ダメージとして蓄積
+                addCounterAccum(ch, bombDamage, log, '爆弾');
               } else {
                 log.push(`${displayName(ch.name)}に仕掛けられた爆弾が爆発！しかしダメージはない`);
               }
@@ -5940,6 +5974,8 @@ updateStats();
             ch.hp -= dmg;
             log.push(`${displayName(ch.name)}は毒で${dmg}ダメージ`);
             ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
+            // 反撃（復讐態勢）：毒ダメージを蓄積
+            addCounterAccum(ch, dmg, log, '毒');
             handlePoisonBurnDamage(ch, dmg, log);
             // エンデュア効果：毒で死亡をHP1で踏みとどまる
             handleEndureLethal(ch, log, 'poison');
@@ -5947,6 +5983,8 @@ updateStats();
             ch.hp -= eff.damage;
             log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
             ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
+            // 反撃（復讐態勢）：火傷ダメージを蓄積
+            addCounterAccum(ch, eff.damage, log, '火傷');
             handlePoisonBurnDamage(ch, eff.damage, log);
             handleEndureLethal(ch, log, 'burn');
           } else if (eff.type === 'regen') {
@@ -6891,7 +6929,7 @@ if (finalResEl) {
   color: #ccc;
   font-style: italic;
 ">
-  今後、合計スコアにより魔メイクコインボーナスがあります。<br>
+  今後、合計スコアによりフェイスコインボーナスがあります。<br>
   <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
   その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
 
@@ -7863,6 +7901,8 @@ window.drawHPGraph = function () {
 window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff", forceClear = false) {
     const container = document.getElementById('customAlertContainer');
 
+    if (container) { container.style.display = 'block'; }
+
     // ★ forceClear = true の場合、すでに表示中のアラートをすべて削除
     if (forceClear && container) {
         while (container.firstChild) {
@@ -7897,14 +7937,14 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
     container.appendChild(alert);
 
     // フェードイン
-    window.__battleSetTimeout(() => {
+    window.__uiSetTimeout(() => {
         alert.style.opacity = '1';
     }, 10);
 
     // フェードアウト＆削除
-    window.__battleSetTimeout(() => {
+    window.__uiSetTimeout(() => {
         alert.style.opacity = '0';
-        window.__battleSetTimeout(() => {
+        window.__uiSetTimeout(() => {
             if (alert.parentElement) {
                 container.removeChild(alert);
             }
@@ -8128,7 +8168,7 @@ window.addEventListener('scroll', () => {
   if (scoreEl) scoreEl.style.opacity = '0';
   if (skillEl) skillEl.style.opacity = '0';
   if (itemEl) itemEl.style.opacity = '0';
-  if (faceEl) faceEl.style.opacity = '0'; // ← 魔メイクも消す
+  if (faceEl) faceEl.style.opacity = '0'; // ← フェイスも消す
 
   // タイマー解除
   clearTimeout(scoreTimeout);
@@ -8154,7 +8194,7 @@ window.addEventListener('scroll', () => {
     if (itemEl) itemEl.style.opacity = '1';
   }, 1500);
 
-  // 魔メイク：1秒後に再表示（scoreOverlayと同時）
+  // フェイス：1秒後に再表示（scoreOverlayと同時）
   faceTimeout = window.__battleSetTimeout(() => {
     if (faceItemEquipped && faceEl) {
       faceEl.style.opacity = '1';
@@ -8200,7 +8240,7 @@ document.getElementById("battleCountSelect").addEventListener("change", (e) => {
   overlay.style.display = "block";
   overlay.style.background = "rgba(0,0,0,0.5)";
 
-  window.__battleSetTimeout(() => {
+  window.__uiSetTimeout(() => {
     overlay.style.display = "none";
     overlay.innerHTML = "";
   }, 2000);
@@ -8378,7 +8418,7 @@ window.exportSaveCode = async function () {
     targetBattles: window.targetBattles ?? null,
     maxScores: window.maxScores || {},
 		
-		    // ✅ 魔メイク情報を明示的に保存
+		    // ✅ フェイスアイテム情報を明示的に保存
     faceCoins: window.faceCoins || 0,
     faceItemsOwned: window.faceItemsOwned || [],
     faceItemEquipped: window.faceItemEquipped || null,
@@ -8466,7 +8506,7 @@ window.importSaveCode = async function (code = null) {
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
 
-    // ✅ 魔メイク情報の復元とUI更新
+    // ✅ フェイスアイテム情報の復元とUI更新
     window.faceCoins = parsed.faceCoins ?? 0;
     window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
     window.faceItemEquipped = parsed.faceItemEquipped ?? null;
