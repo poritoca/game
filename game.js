@@ -4175,12 +4175,12 @@ window.getSkillEffect = function (skill, user, target, log) {
               log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
               console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
             } else {
-            prevented = 1 - target.hp;
-            target.hp = 1;
-            endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-            hitDmg -= prevented;
-            totalDamage -= prevented;
-            console.log(`[Endure] ${displayName(target.name)} endured a hit with 1 HP (prevented ${prevented})`);
+            const endureRes = handleEndureLethal(target, log, 'hit');
+            if (endureRes.didEndure) {
+              prevented = endureRes.prevented;
+              hitDmg -= prevented;
+              totalDamage -= prevented;
+            }
                       }
           }
 
@@ -4252,12 +4252,12 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-        dmg -= prevented;
-        totalDamage -= prevented;
-        console.log(`[Endure] ${displayName(target.name)} survived with 1 HP (prevented ${prevented})`);
+        const endureRes = handleEndureLethal(target, log, 'attack');
+        if (endureRes.didEndure) {
+          const prevented = endureRes.prevented;
+          dmg -= prevented;
+          totalDamage -= prevented;
+        }
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
               }
       }
@@ -4426,12 +4426,12 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-        dmg -= prevented;
-        totalDamage -= prevented;
-        console.log(`[Endure] ${displayName(target.name)} survived attack with 1 HP (prevented ${prevented})`);
+        const endureRes = handleEndureLethal(target, log, 'attack');
+        if (endureRes.didEndure) {
+          const prevented = endureRes.prevented;
+          dmg -= prevented;
+          totalDamage -= prevented;
+        }
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
               }
       }
@@ -4513,10 +4513,11 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-        sumDamage -= prevented;
+        const endureRes = handleEndureLethal(target, log, 'attack');
+        if (endureRes.didEndure) {
+          const prevented = endureRes.prevented;
+          sumDamage -= prevented;
+        }
         totalDamage -= prevented;
         console.log(`[Endure] ${displayName(target.name)} survived purify-counter with 1 HP (prevented ${prevented})`);
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
@@ -4568,7 +4569,7 @@ window.getSkillEffect = function (skill, user, target, log) {
 
     case 'endure': {
       const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
-      user.effects.push({ type: 'endure', remaining: duration, preventedDamage: 0, skillName: skill.name });
+      user.effects.push({ type: 'endure', remaining: duration, preventedDamage: 0, skillName: skill.name, endureCountThisTurn: 0, maxEndurePerTurn: 5 });
       console.log(`[Endure] ${displayName(user.name)} activated ${skill.name} (duration ${duration})`);
       log.push(`${displayName(user.name)}の${skill.name}：HP1で耐える耐久態勢！`);
       break;
@@ -4597,12 +4598,12 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-        dmg -= prevented;
-        totalDamage -= prevented;
-        console.log(`[Endure] ${displayName(target.name)} survived gap attack with 1 HP (prevented ${prevented})`);
+        const endureRes = handleEndureLethal(target, log, 'gap');
+            if (endureRes.didEndure) {
+              prevented = endureRes.prevented;
+              dmg -= prevented;
+              totalDamage -= prevented;
+            }
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
               }
       }
@@ -4669,12 +4670,12 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEffTarget.preventedDamage = (endureEffTarget.preventedDamage || 0) + prevented;
-        dmg -= prevented;
-        totalDamage -= prevented;
-        console.log(`[Endure] ${displayName(target.name)} survived sacrifice attack with 1 HP (prevented ${prevented})`);
+        const endureRes = handleEndureLethal(target, log, 'attack');
+        if (endureRes.didEndure) {
+          const prevented = endureRes.prevented;
+          dmg -= prevented;
+          totalDamage -= prevented;
+        }
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
               }
       }
@@ -4702,12 +4703,12 @@ window.getSkillEffect = function (skill, user, target, log) {
           log.push(`${displayName(target.name)}は不死身の構えの連続使用に失敗した！`);
           console.log(`[Endure] ${displayName(target.name)} failed due to cooldown (every 3rd use).`);
         } else {
-        const prevented = 1 - target.hp;
-        target.hp = 1;
-        endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-        dmg -= prevented;
-        totalDamage -= prevented;
-        console.log(`[Endure] ${displayName(target.name)} survived random attack with 1 HP (prevented ${prevented})`);
+        const endureRes = handleEndureLethal(target, log, 'attack');
+        if (endureRes.didEndure) {
+          const prevented = endureRes.prevented;
+          dmg -= prevented;
+          totalDamage -= prevented;
+        }
         log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
               }
       }
@@ -4840,6 +4841,32 @@ function checkReviveOnDeath(character, log) {
   return true;
 }
 
+
+function handleEndureLethal(character, log, sourceLabel) {
+  const endureEff = character.effects && character.effects.find(e => e.type === 'endure');
+  if (!endureEff || character.hp >= 1) return { didEndure: false, prevented: 0, removed: false };
+
+  // 1ターン内の踏みとどまり回数を制限（効果の持続の話）
+  if (endureEff.maxEndurePerTurn == null) endureEff.maxEndurePerTurn = 5;
+  endureEff.endureCountThisTurn = endureEff.endureCountThisTurn || 0;
+
+  if (endureEff.endureCountThisTurn >= endureEff.maxEndurePerTurn) {
+    // 限界到達：効果を完全解除（この致死ダメージは防げない）
+    character.effects = character.effects.filter(e => e !== endureEff);
+    log.push(`${displayName(character.name)}の不死身の構えは限界を迎え、解除された…`);
+    console.log(`[Endure] ${displayName(character.name)} removed after exceeding per-turn cap (${endureEff.maxEndurePerTurn}).`);
+    return { didEndure: false, prevented: 0, removed: true };
+  }
+
+  endureEff.endureCountThisTurn += 1;
+
+  const prevented = 1 - character.hp;
+  character.hp = 1;
+  endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
+  log.push(`${displayName(character.name)}はHP1で踏みとどまった！`);
+  console.log(`[Endure] ${displayName(character.name)} endured with 1 HP (prevented ${prevented})${sourceLabel ? ' via ' + sourceLabel : ''} (${endureEff.endureCountThisTurn}/${endureEff.maxEndurePerTurn})`);
+  return { didEndure: true, prevented, removed: false };
+}
 
 function handlePoisonBurnDamage(character, damage, log) {
   if (damage <= 0 || !character.mixedSkills) return;
@@ -5678,6 +5705,52 @@ updateStats();
     }
   }
 
+  // 仕切り直し復元後のサニタイズ（null/参照汚染対策）
+  function __battleRetrySanitizeEntity(entity){
+    if (!entity) return;
+
+    // itemMemory の null/undefined を補正
+    if (Array.isArray(entity.itemMemory)) {
+      for (const it of entity.itemMemory) {
+        if (!it || typeof it !== 'object') continue;
+
+        // 名前パーツは文字列に寄せる（テンプレ連結で "null" 等を出さない）
+        if (it.color == null) it.color = '';
+        if (it.adjective == null) it.adjective = '';
+        if (it.noun == null) it.noun = '';
+
+        // usesPerBattle は color から復元できるなら復元
+        if (it.usesPerBattle == null) {
+          try {
+            if (Array.isArray(itemColors)) {
+              const cd = itemColors.find(c => c && c.word === it.color);
+              if (cd && cd.usesPerBattle != null) it.usesPerBattle = cd.usesPerBattle;
+            }
+          } catch(_e){}
+          if (it.usesPerBattle == null) it.usesPerBattle = 1;
+        }
+
+        // remainingUses は usesPerBattle を基準に復元
+        if (it.remainingUses == null) {
+          it.remainingUses = it.usesPerBattle;
+        }
+
+        // Infinity/NaN が JSON 経由で壊れていた場合の保険
+        if (typeof it.usesPerBattle === 'number') {
+          if (Number.isNaN(it.usesPerBattle)) it.usesPerBattle = 1;
+        }
+        if (typeof it.remainingUses === 'number') {
+          if (Number.isNaN(it.remainingUses)) it.remainingUses = it.usesPerBattle;
+        }
+        if (it.usesPerBattle === Infinity && it.remainingUses !== Infinity) {
+          it.remainingUses = Infinity;
+        }
+      }
+    }
+  }
+
+
+
   try {
     __battleRetryBasePlayer = __battleRetryCloneSafe(player);
     __battleRetryBaseEnemy  = __battleRetryCloneSafe(enemy);
@@ -5690,12 +5763,19 @@ updateStats();
   function __battleRetryRestore(dst, src){
     if (!dst || !src) return;
     try {
+      // src をそのまま流し込むと、配列/オブジェクト参照が共有され、
+      // 仕切り直し中に「基準スナップショット側」が汚染される可能性があるため、毎回クローンしてから復元する。
+      const fresh = __battleRetryCloneSafe(src) || src;
+
       for (const k in dst) {
         if (Object.prototype.hasOwnProperty.call(dst, k)) delete dst[k];
       }
-      for (const k in src) {
-        if (Object.prototype.hasOwnProperty.call(src, k)) dst[k] = src[k];
+      for (const k in fresh) {
+        if (Object.prototype.hasOwnProperty.call(fresh, k)) dst[k] = fresh[k];
       }
+
+      // 復元直後に null/undefined を補正（特に itemMemory の remainingUses 等）
+      __battleRetrySanitizeEntity(dst);
     } catch (_e) {
       // 失敗しても戦闘継続（ここでクラッシュさせない）
     }
@@ -5798,6 +5878,13 @@ updateStats();
       updateSealedSkills(player);
       updateSealedSkills(enemy);
 
+      // 不死身の構え：ターン開始時に「このターンの踏みとどまり回数」をリセット
+      [player, enemy].forEach(ch => {
+        (ch.effects || []).forEach(eff => {
+          if (eff.type === 'endure') eff.endureCountThisTurn = 0;
+        });
+      });
+
       // 最大HP減衰（10ターン目以降、ターン開始時に適用）
       // ※この後の「残りHP%ダメージ」や継続ダメージ等の計算で、HP%が
       // 正しくなるよう先に最大HPを更新する
@@ -5836,14 +5923,7 @@ updateStats();
               }
 
               // エンデュア効果：爆発で死亡をHP1で踏みとどまる
-              const endureEff = ch.effects.find(e => e.type === 'endure');
-              if (endureEff && ch.hp < 1) {
-                const prevented = 1 - ch.hp;
-                ch.hp = 1;
-                endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-                log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
-                console.log(`[Endure] ${displayName(ch.name)} survived bomb with 1 HP (prevented ${prevented})`);
-              }
+              handleEndureLethal(ch, log, 'bomb');
             }
 
             // 爆弾はこのターンの他の継続処理（毒/火傷等）とは別枠なのでここで次へ
@@ -5862,27 +5942,13 @@ updateStats();
             ch.battleStats['毒'] = (ch.battleStats['毒'] || 0) + dmg;
             handlePoisonBurnDamage(ch, dmg, log);
             // エンデュア効果：毒で死亡をHP1で踏みとどまる
-            const endureEff = ch.effects.find(e => e.type === 'endure');
-            if (endureEff && ch.hp < 1) {
-              const prevented = 1 - ch.hp;
-              ch.hp = 1;
-              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-              log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
-              console.log(`[Endure] ${displayName(ch.name)} survived poison with 1 HP (prevented ${prevented})`);
-            }
+            handleEndureLethal(ch, log, 'poison');
           } else if (eff.type === '火傷') {
             ch.hp -= eff.damage;
             log.push(`${displayName(ch.name)}は火傷で${eff.damage}ダメージ`);
             ch.battleStats['火傷'] = (ch.battleStats['火傷'] || 0) + eff.damage;
             handlePoisonBurnDamage(ch, eff.damage, log);
-            const endureEff = ch.effects.find(e => e.type === 'endure');
-            if (endureEff && ch.hp < 1) {
-              const prevented = 1 - ch.hp;
-              ch.hp = 1;
-              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-              log.push(`${displayName(ch.name)}はHP1で踏みとどまった！`);
-              console.log(`[Endure] ${displayName(ch.name)} survived burn with 1 HP (prevented ${prevented})`);
-            }
+            handleEndureLethal(ch, log, 'burn');
           } else if (eff.type === 'regen') {
             const heal = Math.min(ch.maxHp - ch.hp, eff.heal);
             ch.hp += heal;
@@ -5975,13 +6041,9 @@ if (!chosenSkills || chosenSkills.length === 0) {
             let reflectDmg = Math.floor((actor.battleStats[sk.name] || 0) * reflectEff.percent);
             if (reflectDmg > 0) {
               actor.hp -= reflectDmg;
-              const endureEff = actor.effects.find(e => e.type === 'endure');
-              if (endureEff && actor.hp < 1) {
-                const prevented = 1 - actor.hp;
-                actor.hp = 1;
-                endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-                reflectDmg -= prevented;
-                console.log(`[Endure] ${displayName(actor.name)} endured reflect with 1 HP (prevented ${prevented})`);
+              const endureRes = handleEndureLethal(actor, log, 'reflect');
+              if (endureRes.didEndure) {
+                reflectDmg -= endureRes.prevented;
               }
               if (reflectDmg > 0) {
                 log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
@@ -6059,14 +6121,9 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
             }
             target.hp -= dmg;
             // エンデュア判定（ターゲット）
-            const endureEff = target.effects.find(e => e.type === 'endure');
-            if (endureEff && target.hp < 1) {
-              const prevented = 1 - target.hp;
-              target.hp = 1;
-              endureEff.preventedDamage = (endureEff.preventedDamage || 0) + prevented;
-              dmg -= prevented;
-              console.log(`[Endure] ${displayName(target.name)} survived normal attack with 1 HP (prevented ${prevented})`);
-              log.push(`${displayName(target.name)}はHP1で踏みとどまった！`);
+            const endureRes = handleEndureLethal(target, log, 'normal');
+            if (endureRes.didEndure) {
+              dmg -= endureRes.prevented;
             }
             log.push(`${displayName(actor.name)}の通常攻撃：${dmg}ダメージ`);
             actor.battleStats['通常攻撃'] = (actor.battleStats['通常攻撃'] || 0) + dmg;
@@ -6076,14 +6133,11 @@ if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakCha
               let reflectDmg = Math.floor(dmg * reflectEff.percent);
               if (reflectDmg > 0) {
                 actor.hp -= reflectDmg;
-                const endureEffActor = actor.effects.find(e => e.type === 'endure');
-                if (endureEffActor && actor.hp < 1) {
-                  const prevented = 1 - actor.hp;
-                  actor.hp = 1;
-                  endureEffActor.preventedDamage = (endureEffActor.preventedDamage || 0) + prevented;
-                  reflectDmg -= prevented;
-                  console.log(`[Endure] ${displayName(actor.name)} endured reflected damage with 1 HP (prevented ${prevented})`);
+                                const endureResActor = handleEndureLethal(actor, log, 'reflect');
+                if (endureResActor.didEndure) {
+                  reflectDmg -= endureResActor.prevented;
                 }
+
                 if (reflectDmg > 0) {
                   log.push(`${displayName(target.name)}の反射：${displayName(actor.name)}に${reflectDmg}ダメージ`);
                   target.battleStats['反射'] = (target.battleStats['反射'] || 0) + reflectDmg;
