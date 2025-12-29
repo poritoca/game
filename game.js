@@ -301,7 +301,7 @@ window.updateItemOverlay = function () {
   if (lines.length === 0) {
     el.style.display = 'none';
   } else {
-    el.textContent = `所持アイテム一覧\n` + lines.join('\n');
+    el.textContent = `所持魔道具一覧\n` + lines.join('\n');
     el.style.display = 'block';
   }
 };
@@ -605,7 +605,7 @@ const battleBtn = document.getElementById('startBattleBtn');
 
 if (window.specialMode === 'normal') {
   window.specialMode = 'brutal';
-  btn.textContent = '鬼畜モード（アイテム入手可能）';
+  btn.textContent = '鬼畜モード（魔道具入手可能）';
   btn.classList.remove('normal-mode');
   btn.classList.add('brutal-mode');
   battleBtn.classList.remove('normal-mode');
@@ -690,13 +690,13 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
   }
 
   
-  // ---- 敗北/再構築時に「保護中の混合スキル」を失わないよう保持 ----
+  // ---- 敗北/再構築時に「保護中の特殊スキル」を失わないよう保持 ----
   const preservedProtectedMixed = Array.isArray(player.mixedSkills)
     ? player.mixedSkills.filter(ms => ms && ms.isMixed && ms.isProtected)
     : [];
 // 初期化
   player.skills = [];
-  // 混合スキル配列を再構築（保護中のみ保持）
+  // 特殊スキル配列を再構築（保護中のみ保持）
   player.mixedSkills = preservedProtectedMixed.slice();
 
 
@@ -714,7 +714,7 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     }
   }
 
-  // 固有スキルからの明示的な混合スキル生成
+  // 固有スキルからの明示的な特殊スキル生成
   const mixCandidates = player.skills.filter(s => s.name !== uniqueSkillName);
   if (mixCandidates.length > 0) {
     const partner = mixCandidates[Math.floor(Math.random() * mixCandidates.length)];
@@ -725,7 +725,7 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
     }
   }
 
-  // 保護中の混合スキルをスキル一覧へ復元（戦闘開始時の特殊効果ログ/発動のため）
+  // 保護中の特殊スキルをスキル一覧へ復元（戦闘開始時の特殊効果ログ/発動のため）
   if (Array.isArray(player.mixedSkills) && player.mixedSkills.length > 0) {
     for (const ms of player.mixedSkills) {
       if (ms && ms.isMixed && ms.isProtected && !hasSkill(ms.name)) {
@@ -1361,17 +1361,17 @@ window.allowItemInterrupt = true;  // ← 新規追加
  * データ構造と初期設定
  ********************************/
 
-// プレイヤーオブジェクトに混合スキルリストを追加（存在しない場合のみ初期化）
+// プレイヤーオブジェクトに特殊スキルリストを追加（存在しない場合のみ初期化）
 
 
-// 混合スキル生成関数
+// 特殊スキル生成関数
 // 内包階層を再帰的に計算
 function getMixedSkillDepth(skill) {
   if (!skill.isMixed || !Array.isArray(skill.baseSkills)) return 1;
   return 1 + Math.max(...skill.baseSkills.map(getMixedSkillDepth));
 }
 
-// 混合スキル名を生成
+// 特殊スキル名を生成
 function generateSkillName(activationProb, effectValue, config, kanaPart) {
   const activationPrefixes = [...Array(40)].map((_, i) => {
     const list = ["白く","淡く","儚く","静かに","柔らかく","ほのかに","静穏な","風のように","水面のように","さざ波のように",
@@ -1552,7 +1552,7 @@ function biasedInRange(min, max, s, asInteger = false, opts = {}) {
 // 既存の createMixedSkill と置き換えてください
 function createMixedSkill(skillA, skillB) {
   const maxDepth = 5;
-  const includeMixedSkillChance = 0.3; // 混合スキルを内包する確率
+  const includeMixedSkillChance = 0.3; // 特殊スキルを内包する確率
 
   // 所持上限（既存踏襲）
   if (player && Array.isArray(player.mixedSkills) && player.mixedSkills.length >= 2) {
@@ -1624,7 +1624,7 @@ function createMixedSkill(skillA, skillB) {
   const depthB = getMixedSkillDepth(skillB);
   const newDepth = Math.max(depthA, depthB) + 1;
   if (newDepth > maxDepth) {
-    alert("これ以上複雑な混合スキルは作成できません（階層制限あり）");
+    alert("これ以上複雑な特殊スキルは作成できません（階層制限あり）");
     return null;
   }
 
@@ -1647,8 +1647,8 @@ function createMixedSkill(skillA, skillB) {
 
   const includedMixed = baseSkills.filter(s => s && s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0);
   if (includedMixed.length > 0) {
-    showCenteredPopup(`🌀 混合スキルの特殊効果が継承されました！<br>
-<span style="font-size: 10px; color: #ffcc99;">※特殊効果の書かれていない混合スキルは特殊効果無効です</span>`);
+    showCenteredPopup(`🌀 特殊スキルの特殊効果が継承されました！<br>
+<span style="font-size: 10px; color: #ffcc99;">※特殊効果の書かれていない特殊スキルは特殊効果無効です</span>`);
     window.withmix = true;
   }
 
@@ -1751,11 +1751,11 @@ function shouldInclude(skill) {
 //********************************/
 
 //function shouldInclude(skill) {
-//  return true; // すべてのスキル（混合スキル含む）を必ず採用
+//  return true; // すべてのスキル（特殊スキル含む）を必ず採用
 //}
 
 /********************************
- * スキル取得時の混合スキル生成処理
+ * スキル取得時の特殊スキル生成処理
  ********************************/
 
 
@@ -1779,7 +1779,7 @@ function onSkillAcquired(newSkill) {
       }
     } else {
       if (!hasSkill(newSkill.name)) {
-        player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+        player.skills.push(newSkill); // 特殊スキル生成失敗時のみ
       }
     }
 
@@ -1798,7 +1798,7 @@ function onSkillAcquired(newSkill) {
     }
   } else {
     if (!hasSkill(newSkill.name)) {
-      player.skills.push(newSkill); // 混合スキル生成失敗時のみ
+      player.skills.push(newSkill); // 特殊スキル生成失敗時のみ
     }
   }
 	
@@ -1813,7 +1813,7 @@ function onSkillAcquired(newSkill) {
 
 
 /********************************
- * 混合スキル：レベル補正ユーティリティ
+ * 特殊スキル：レベル補正ユーティリティ
  * - 「ほんの少しずつ伸びる」ため、対数で緩やかに増加（最大+15%）
  ********************************/
 function getMixedSkillLevelScale(level) {
@@ -1839,7 +1839,7 @@ function getScaledMixedSpecialEffectValue(skill, effect) {
 }
 
 /********************************
- * 混合スキルの発動処理
+ * 特殊スキルの発動処理
  ********************************/
 function useMixedSkill(mixedSkill, user, target, log) {
   if (!mixedSkill || !user || !target || !log) return;
@@ -1956,7 +1956,7 @@ if (typeof handler === "function") {
         }
       } catch (e) {
         console.error("[MixedSkill] getSkillEffect failed:", e);
-        log.push(`※ エラー: 混合スキル効果適用中に例外が発生しました (${e && e.message ? e.message : e})`);
+        log.push(`※ エラー: 特殊スキル効果適用中に例外が発生しました (${e && e.message ? e.message : e})`);
       }
     }
   }
@@ -1967,7 +1967,7 @@ if (typeof handler === "function") {
 
 
 /********************************
- * 混合スキル：効果一覧ポップアップ
+ * 特殊スキル：効果一覧ポップアップ
  ********************************/
 window.showMixedSkillEffectListPopup = function() {
   const popupId = "mixed-effect-list-popup";
@@ -2007,14 +2007,14 @@ window.showMixedSkillEffectListPopup = function() {
   closeBtn.addEventListener("click", () => wrap.remove());
 
   const title = document.createElement("div");
-  title.textContent = "混合スキル：レベル補正つき効果一覧";
+  title.textContent = "特殊スキル：レベル補正つき効果一覧";
   title.style.fontWeight = "700";
   title.style.marginBottom = "8px";
 
   const body = document.createElement("div");
   const skills = (window.player && Array.isArray(window.player.skills)) ? window.player.skills.filter(s => s && s.isMixed) : [];
   if (!skills.length) {
-    body.textContent = "混合スキルがありません。";
+    body.textContent = "特殊スキルがありません。";
   } else {
     let t = "";
     for (const ms of skills) {
@@ -2094,7 +2094,7 @@ function showSpecialEffectDetail(mixedSkill, event) {
       detailText += `${indent}${name}（Lv${level}）\n`;
     }
 
-    // 特殊効果（混合スキルのみ）
+    // 特殊効果（特殊スキルのみ）
     if (skill.isMixed && Array.isArray(skill.specialEffects)) {
       for (const eff of skill.specialEffects) {
         switch (eff.type) {
@@ -2161,7 +2161,7 @@ function showSpecialEffectDetail(mixedSkill, event) {
   }, 4000);
 }
 
-// 戦闘開始時に混合スキル使用状態をリセットする関数（各戦闘の最初に呼び出す）
+// 戦闘開始時に特殊スキル使用状態をリセットする関数（各戦闘の最初に呼び出す）
 function resetMixedSkillUsage() {
   if (!player || !Array.isArray(player.mixedSkills)) return;
 
@@ -2184,12 +2184,12 @@ function resetMixedSkillUsage() {
 }
 
 // ※戦闘開始処理の中で resetMixedSkillUsage() を呼び出し、前の戦闘からの使用済みフラグや特殊効果をクリアしてください。
-// （混合スキルの特殊効果は戦闘ごとの効果のため、戦闘終了時や次の戦闘開始時にリセットします）
+// （特殊スキルの特殊効果は戦闘ごとの効果のため、戦闘終了時や次の戦闘開始時にリセットします）
 
 
 
 
-function updateFaceCoinDisplay() {
+function update魔通貨Display() {
   const coinElem = document.getElementById('faceCoinCount');
   if (coinElem) coinElem.textContent = faceCoins;
 
@@ -2234,18 +2234,18 @@ function showGachaAnimation(rarity) {
 
 function performFaceGacha() {
   if (faceCoins < FACE_GACHA_COST) {
-    alert(`コインが${FACE_GACHA_COST}枚必要です！現在のコイン：${faceCoins}`);
+    alert(`魔通貨が${FACE_GACHA_COST}枚必要です！現在の魔通貨：${faceCoins}`);
     return;
   }
 
   if (faceItemsOwned.length >= 100) {
-    alert("所持フェイスアイテムが上限に達しています。");
+    alert("所持魔メイクが上限に達しています。");
     return;
   }
 
-  // コイン消費
+  // 魔通貨消費
   faceCoins -= FACE_GACHA_COST;
-  updateFaceCoinDisplay();
+  update魔通貨Display();
 
   // --- 動的に補正された確率でランク抽選 ---
   const baseProbs = {
@@ -2285,13 +2285,13 @@ function performFaceGacha() {
     }
   }
 
-  // ガチャ演出
+  // 魔メイク演出
   showGachaAnimation(selectedRarity);
 
   window.__battleSetTimeout(() => {
     const result = drawRandomFace(selectedRarity);
     if (!result) {
-      alert(`${selectedRarity}ランクのフェイスアイテムが読み込めませんでした`);
+      alert(`${selectedRarity}ランクの魔メイクが読み込めませんでした`);
       return;
     }
 
@@ -2351,7 +2351,7 @@ function setupToggleButtons() {
 
   itemBtn.onclick = () => {
     window.allowItemInterrupt = !window.allowItemInterrupt;
-    updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+    updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 停止する", "魔道具入手: 停止しない");
   };
 
 
@@ -2364,7 +2364,7 @@ if (autoSaveBtn) {
 
   updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
   updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
-  updateButtonState(itemBtn, window.allowItemInterrupt, "アイテム入手: 停止する", "アイテム入手: 停止しない");
+  updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 停止する", "魔道具入手: 停止しない");
   if (autoSaveBtn) {
     updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
   }
@@ -2376,13 +2376,13 @@ function cleanUpAllMixedSkills() {
   // ✅ null や undefined を除去してから処理開始
   player.mixedSkills = player.mixedSkills.filter(skill => skill && typeof skill === 'object');
 
-  // 保護されていない混合スキルのみを削除対象にする
+  // 保護されていない特殊スキルのみを削除対象にする
   const toRemove = player.mixedSkills.filter(skill => !skill.isProtected);
 
   // mixedSkills 配列から削除
   player.mixedSkills = player.mixedSkills.filter(skill => skill.isProtected);
 
-  // player.skills 配列から、削除対象の混合スキルを除去
+  // player.skills 配列から、削除対象の特殊スキルを除去
   player.skills = player.skills.filter(skill => {
     if (!skill || !skill.isMixed) return true;
     return !toRemove.some(s => s && s.name === skill.name);
@@ -2418,7 +2418,7 @@ function createMixedSkillProtectionUI(containerId = "protect-skill-ui") {
   container.innerHTML = "";
 
   const label = document.createElement("label");
-  label.textContent = "混合スキルを保護：";
+  label.textContent = "特殊スキルを保護：";
   container.appendChild(label);
 
   const select = document.createElement("select");
@@ -2456,10 +2456,10 @@ function createMixedSkillProtectionUI(containerId = "protect-skill-ui") {
 function cleanUpMixedSkillsExceptOne() {
   if (!player || !Array.isArray(player.mixedSkills) || player.mixedSkills.length === 0) return;
 
-  // ランダムに1つ残す混合スキルを選択
+  // ランダムに1つ残す特殊スキルを選択
   const skillToKeep = player.mixedSkills[Math.floor(Math.random() * player.mixedSkills.length)];
 
-  // 混合スキル以外を削除（player.mixedSkills）
+  // 特殊スキル以外を削除（player.mixedSkills）
   const toRemove = player.mixedSkills.filter(s => s !== skillToKeep);
   player.mixedSkills = [skillToKeep];
 
@@ -2624,7 +2624,7 @@ function decideSkillsToUse(actor, maxActivations) {
     const data = skillPool.find(s => s.name === skill.name);
     const isPassive = data?.category === 'passive';
     const isMixedCategory = data?.category === 'mixed';
-    // 混合スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
+    // 特殊スキルは通常スキルとしての効果が無い（特殊効果は戦闘開始時に別処理）ため、選択対象から除外
     if (skill.isMixed) return false;
     return !skill.sealed && !isPassive && !isMixedCategory;
   });
@@ -2909,7 +2909,7 @@ if (toggle && content) {
     toggle.addEventListener('click', () => {
       const isVisible = content.style.display !== 'none';
       content.style.display = isVisible ? 'none' : 'block';
-      toggle.textContent = isVisible ? '▶ アイテム・スキル表示／非表示' : '▼ アイテム・スキル表示／非表示';
+      toggle.textContent = isVisible ? '▶ 魔道具・スキル表示／非表示' : '▼ 魔道具・スキル表示／非表示';
     });
 }
   const eventSettingsToggleBtn = document.getElementById('eventSettingsToggle');
@@ -2927,7 +2927,7 @@ if (toggle && content) {
 
 
 
-  // === フェイスアイテムUIの構築 ===
+  // === 魔メイクUIの構築 ===
 	
 (function injectBattleStatusCSS() {
   const style = document.createElement('style');
@@ -2972,13 +2972,13 @@ if (toggle && content) {
 })();
 
 	
-// ガチャボタンイベント登録
+// 魔メイクボタンイベント登録
 const gachaBtn = document.getElementById('faceGachaBtn');
 if (gachaBtn) {
   gachaBtn.addEventListener('click', () => {
 
     window.__battleSetTimeout(() => {
-      performFaceGacha(); // 1.5秒後にガチャ処理を実行
+      performFaceGacha(); // 1.5秒後に魔メイク処理を実行
     }, 100);
   });
 }
@@ -2986,7 +2986,7 @@ if (gachaBtn) {
   // 初期表示更新（ロードや開始時）
   updateFaceUI?.();
   updatePlayerImage?.();
-  updateFaceCoinDisplay?.();
+  update魔通貨Display?.();
 });
 
 function applySafeAttack(attacker, defender, log) {
@@ -3056,15 +3056,15 @@ function onItemClick(item, index, event) {
   const title = document.getElementById("eventPopupTitle");
   const container = document.getElementById("eventPopupOptions");
 
-  title.innerHTML = `アイテム <b>${name}</b> をどうする？`;
+  title.innerHTML = `魔道具 <b>${name}</b> をどうする？`;
 
   const protectBtn = document.createElement("button");
   protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
 	protectBtn.onclick = () => {
-	  // 現在の保護中アイテム数を数える
+	  // 現在の保護中魔道具数を数える
 	  const protectedCount = player.itemMemory.filter(it => it.protected).length;
 	
-	  // まだ保護されていないアイテムを新たに保護しようとしていて、
+	  // まだ保護されていない魔道具を新たに保護しようとしていて、
 	  // すでに3つ保護済みなら拒否する
 	  if (!item.protected && protectedCount >= 3) {
 	    showCustomAlert("保護は3つまでです", 2000);
@@ -3082,7 +3082,7 @@ function onItemClick(item, index, event) {
   deleteBtn.textContent = "削除する";
   deleteBtn.onclick = () => {
     if (item.protected) {
-      showCustomAlert("このアイテムは保護されています", 2000);
+      showCustomAlert("この魔道具は保護されています", 2000);
       return;
     }
     player.itemMemory.splice(index, 1);
@@ -3119,8 +3119,8 @@ function onMixedSkillClick(skill, event) {
   const container = document.getElementById("eventPopupOptions");
   if (!popup || !title || !container) return;
 
-  const name = (skill && skill.name) ? skill.name : "混合スキル";
-  title.innerHTML = `混合スキル <b>${name}</b> をどうする？`;
+  const name = (skill && skill.name) ? skill.name : "特殊スキル";
+  title.innerHTML = `特殊スキル <b>${name}</b> をどうする？`;
 
   // 現在の保護状況（混合は1つだけ保護）
   const alreadyProtected = (player && player.mixedSkills) ? player.mixedSkills.find(s => s.isProtected) : null;
@@ -3132,7 +3132,7 @@ function onMixedSkillClick(skill, event) {
   info.style.marginBottom = "10px";
   info.innerHTML = `保護中：<b>${protectedCount}</b> / 1`;
   container.appendChild(info);
-  // NOTE: 「効果詳細」メニューは廃止（混合スキル一覧に常時表示へ）。
+  // NOTE: 「効果詳細」メニューは廃止（特殊スキル一覧に常時表示へ）。
 
   const protectBtn = document.createElement("button");
   protectBtn.textContent = skill && skill.isProtected ? "保護を外す" : "保護する";
@@ -3177,7 +3177,7 @@ function onMixedSkillClick(skill, event) {
 }
 
 
-// --- 所持アイテムリストをUIに表示・更新する関数 ---
+// --- 所持魔道具リストをUIに表示・更新する関数 ---
 function updateFaceUI() {
   const listElem = document.getElementById('ownedFaceList');
   listElem.innerHTML = ''; // 既存内容をクリア
@@ -3188,7 +3188,7 @@ function updateFaceUI() {
     container.style.alignItems = 'center';
     container.style.marginBottom = '8px';
 
-    // アイテム画像サムネイル
+    // 魔道具画像サムネイル
     const img = document.createElement('img');
     img.src = itemPath;
     img.style.width = '50px';
@@ -3232,7 +3232,7 @@ function updateFaceUI() {
       if (idx !== -1) {
         faceItemsOwned.splice(idx, 1);
       }
-      // 装備中のアイテムだったら解除
+      // 装備中の魔道具だったら解除
       if (faceItemEquipped === itemPath) {
         faceItemEquipped = null;
       }
@@ -3243,7 +3243,7 @@ function updateFaceUI() {
 
     listElem.appendChild(container);
 		
-		  // コイン数を更新（UIに反映）
+		  // 魔通貨数を更新（UIに反映）
   const coinElem = document.getElementById('faceCoinCount');
   if (coinElem) {
     coinElem.innerText = faceCoins;
@@ -3462,7 +3462,7 @@ function maybeGainItemMemory() {
   const adjective = pickItemAdjectiveWithNoun(nounData);
   if (!adjective) return;
 
-  // フィルターが1つ以上有効な場合、合致しないアイテムはスキップ
+  // フィルターが1つ以上有効な場合、合致しない魔道具はスキップ
   const anyFiltersEnabled = document.querySelectorAll('.itemFilterCB:checked').length > 0;
   const isItemFilteredOut = !shouldPauseForItem(colorData.word, adjective.word, nounData.word);
   if (anyFiltersEnabled && isItemFilteredOut) return;
@@ -3487,7 +3487,7 @@ function maybeGainItemMemory() {
   player.itemMemory.push(newItem);
   drawItemMemoryList();
 const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
-let message = `新アイテム入手！ ${itemName}（${newItem.skillName}）`;
+let message = `新魔道具入手！ ${itemName}（${newItem.skillName}）`;
 updateItemOverlay();
 
 const anyFiltersSet = document.querySelectorAll('.itemFilterCB:checked').length > 0;
@@ -3514,7 +3514,7 @@ showCustomAlert(message, 4000, "#ffa", "#000");
 
 // -------------------------
 // 15ターン僅差勝利報酬（クラッチ報酬）
-// - HP割合差が小さいほど、レア寄りのアイテムを付与
+// - HP割合差が小さいほど、レア寄りの魔道具を付与
 // - 2%差以内で発生（tier: 1=〜2%, 2=〜1%, 3=〜0.5%）
 // -------------------------
 function grantClutchRewardItem(tier, absDiffRatio, log) {
@@ -3522,7 +3522,7 @@ function grantClutchRewardItem(tier, absDiffRatio, log) {
     if (!player) return;
     if (!player.itemMemory) player.itemMemory = [];
     if (player.itemMemory.length >= 10) {
-      if (log) log.push(`【クラッチ報酬】アイテム枠が満杯のため獲得できませんでした（最大10個）`);
+      if (log) log.push(`【クラッチ報酬】魔道具枠が満杯のため獲得できませんでした（最大10個）`);
       return;
     }
     if (!Array.isArray(skillPool) || skillPool.length === 0) return;
@@ -3559,7 +3559,7 @@ function grantClutchRewardItem(tier, absDiffRatio, log) {
     const adjective = pickItemAdjectiveWithNoun(nounData);
     if (!adjective) return;
 
-    // フィルターが1つ以上有効な場合、合致しないアイテムはスキップ（既存仕様に合わせる）
+    // フィルターが1つ以上有効な場合、合致しない魔道具はスキップ（既存仕様に合わせる）
     const anyFiltersEnabled = document.querySelectorAll('.itemFilterCB:checked').length > 0;
     const isItemFilteredOut = !shouldPauseForItem(colorData.word, adjective.word, nounData.word);
     if (anyFiltersEnabled && isItemFilteredOut) {
@@ -3591,7 +3591,7 @@ function grantClutchRewardItem(tier, absDiffRatio, log) {
     const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
     const pct = (Math.max(0, absDiffRatio) * 100).toFixed(2);
     const tierLabel = (tier >= 3) ? '超僅差' : (tier === 2) ? '僅差' : '接戦';
-    if (log) log.push(`【クラッチ報酬】${tierLabel}勝利（差${pct}%）のため、レア寄りアイテムを獲得！ ${itemName}（${newItem.skillName}）`);
+    if (log) log.push(`【クラッチ報酬】${tierLabel}勝利（差${pct}%）のため、レア寄り魔道具を獲得！ ${itemName}（${newItem.skillName}）`);
   } catch (e) {
     if (log) log.push(`【クラッチ報酬】付与処理でエラー: ${e && e.message ? e.message : e}`);
   }
@@ -3599,7 +3599,7 @@ function grantClutchRewardItem(tier, absDiffRatio, log) {
 
 
 
-// ボス専用：モードに関係なく必ずアイテムを1つ与える（中程度以上のレアリティ）
+// ボス専用：モードに関係なく必ず魔道具を1つ与える（中程度以上のレアリティ）
 function grantBossRewardItem() {
   try {
     if (!player || !player.skills || player.skills.length === 0) return;
@@ -3649,7 +3649,7 @@ function grantBossRewardItem() {
       showCustomAlert(msg, 4000);
     }
     if (Array.isArray(window.log)) {
-      window.log.push(`【ボス報酬】アイテム：${itemName}（${newItem.skillName}）`);
+      window.log.push(`【ボス報酬】魔道具：${itemName}（${newItem.skillName}）`);
     }
   } catch (e) {
     console.warn('grantBossRewardItem failed', e);
@@ -3701,7 +3701,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggle.addEventListener('click', () => {
       const isOpen = content.style.display === 'block';
       content.style.display = isOpen ? 'none' : 'block';
-      toggle.textContent = isOpen ? '▶ フェイスメモリーを表示' : '▼ フェイスメモリーを非表示';
+      toggle.textContent = isOpen ? '▶ 魔メイクを表示' : '▼ 魔メイクを非表示';
     });
 	
 	const deathChar = document.getElementById('deathChar');
@@ -3785,10 +3785,10 @@ let isLoadedFromSave = false;
 let isAutoBattle = false; // ← 長押し中を表すフラグ
 
 
-// --- フェイスアイテム機能用の定数・変数（ファイル先頭付近に追加） ---
-// フェイスコイン獲得確率 (勝利時)
+// --- 魔メイク機能用の定数・変数（ファイル先頭付近に追加） ---
+// 魔通貨獲得確率 (勝利時)
 const FACE_COIN_DROP_RATE = 0.5;
-// ガチャに必要なコイン枚数
+// 魔メイクに必要な魔通貨枚数
 const FACE_GACHA_COST = 1000;
 // ランクごとの出現確率 (合計1.00になるよう調整)
 
@@ -4010,7 +4010,7 @@ window.updateStats = function () {
   const enemyImgEl = document.getElementById('enemyImg');
 
   if (window.isBossBattle && window.bossFacePath && enemyImgEl) {
-    // 強敵：フェイスガチャの画像を表示
+    // 強敵：魔メイクの画像を表示
     if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
     enemyImgEl.src = window.bossFacePath;
     enemyImgEl.classList.remove('hidden');
@@ -4066,7 +4066,7 @@ if (typeof window.maxStreak !== "undefined") {
 
 // 新しくプレイヤーを作る場合は、上書きする意図があればこのままでOK
 window.player = {};            // 新しいプレイヤーオブジェクトを準備
-    window.player.itemMemory = [];      // 所持アイテムの記録を初期化
+    window.player.itemMemory = [];      // 所持魔道具の記録を初期化
     window.player.effects = [];         // 一時的な効果をリセット
     if ('isLoadedFromSave' in window) {
         window.isLoadedFromSave = false;  // セーブデータからのロードではないことを明示
@@ -4149,7 +4149,7 @@ window.getSkillEffect = function (skill, user, target, log) {
   let totalDamage = 0;
   skill.uses = (skill.uses || 0) + 1;
   let skillData = skillPool.find(sk => sk.name === skill.name);
-  // 混合スキルは静的データがないため特別処理
+  // 特殊スキルは静的データがないため特別処理
   if (!skillData) {
     if (skill.isMixed) {
       skillData = { category: 'mixed' };  // ダミーのスキルデータでカテゴリーを指定
@@ -4572,11 +4572,11 @@ window.getSkillEffect = function (skill, user, target, log) {
       if (Math.random() < chance) {
         const usableItems = player.itemMemory.filter(item => item.remainingUses > 0);
         if (usableItems.length === 0) {
-          log.push(`${displayName(user.name)}の${skill.name}：しかし再利用できるアイテムがない！`);
+          log.push(`${displayName(user.name)}の${skill.name}：しかし再利用できる魔道具がない！`);
           console.log("[ItemReuse] No usable item to activate");
         } else {
           const item = usableItems[Math.floor(Math.random() * usableItems.length)];
-          log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が${item.skillName}を発動！`);
+          log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が${item.skillName}を発動！`);
           console.log(`[ItemReuse] Activating item: ${item.color}${item.adjective}${item.noun} -> ${item.skillName}`);
           const prevDamage = user.battleStats[item.skillName] || 0;
           const itemSkillDef = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
@@ -4585,13 +4585,13 @@ window.getSkillEffect = function (skill, user, target, log) {
           }
           if (item.skillLevel < 3000 && Math.random() < 0.4) {
             item.skillLevel++;
-            log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+            log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
             drawItemMemoryList();
           }
           item.remainingUses--;
           const isWithinProtectedPeriod = window.protectItemUntil && window.battleCount <= window.protectItemUntil;
           if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-            log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+            log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」は壊れた！`);
             player.itemMemory.splice(player.itemMemory.indexOf(item), 1);
             drawItemMemoryList();
           }
@@ -5073,10 +5073,10 @@ window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
 // バトル開始処理（1戦ごと）
 
 // ===============================
-// 混合スキル：戦闘開始時に特殊効果のみ自動付与（発動不要）
+// 特殊スキル：戦闘開始時に特殊効果のみ自動付与（発動不要）
 // - type 2: 復活（HP0になった瞬間に発動）
 // - type 3: 毒/火傷の継続ダメージ吸収（DoTダメージ後に回復）
-// ※混合スキルの「内包スキル(baseSkills)」は発動しません（仕様）
+// ※特殊スキルの「内包スキル(baseSkills)」は発動しません（仕様）
 // ===============================
 function _normProb(p, fallback = 0.35) {
   let n = Number(p);
@@ -5143,7 +5143,7 @@ function applyMixedSpecialEffectsAtBattleStart(user, opponent, log) {
           procChance,
           used: false
         });
-        if (log) log.push(`${displayName(user.name)}は【復活】を得た（混合:${ms.name} / 発動率${Math.round(procChance*100)}% / 復活${Math.round(reviveRatio*100)}%）`);
+        if (log) log.push(`${displayName(user.name)}は【復活】を得た（特殊:${ms.name} / 発動率${Math.round(procChance*100)}% / 復活${Math.round(reviveRatio*100)}%）`);
       }
 
       // type 3: 毒/火傷吸収（DoTダメージの一部を回復）
@@ -5157,7 +5157,7 @@ function applyMixedSpecialEffectsAtBattleStart(user, opponent, log) {
           procChance,
           used: false
         });
-        if (log) log.push(`${displayName(user.name)}は【毒/火傷吸収】を得た（混合:${ms.name} / 発動率${Math.round(procChance*100)}% / 吸収${Math.round(absorbRatio*100)}%）`);
+        if (log) log.push(`${displayName(user.name)}は【毒/火傷吸収】を得た（特殊:${ms.name} / 発動率${Math.round(procChance*100)}% / 吸収${Math.round(absorbRatio*100)}%）`);
       }
 
       // type 4-7: ステータス倍率バフ（所持時に適用）→ 発動率でオン/オフ（1戦につき1回判定）
@@ -5199,7 +5199,7 @@ function applyMixedSpecialEffectsAtBattleStart(user, opponent, log) {
 
 
 // ===============================
-// 混合スキル：毎ターン開始時の「敵の残りHP%追加ダメージ」
+// 特殊スキル：毎ターン開始時の「敵の残りHP%追加ダメージ」
 // - 仕様変更：戦闘開始時ではなく、各ターン開始時に毎回チャンス判定
 // - 継続ダメージ（毒/火傷など）の処理より前に実行する
 // - 基準は「相手の現在HP（残りHP）」
@@ -5279,7 +5279,7 @@ function tryReviveOnDeath(ch, log) {
   const candidates = ch.effects.filter(e => e && e.type === 'revive_mixed_start' && !e.used && (e.battleId === battleId));
   if (!candidates.length) return false;
 
-  // 複数の混合スキルがある時でも全てに発動チャンス
+  // 複数の特殊スキルがある時でも全てに発動チャンス
   const procs = [];
   for (const eff of candidates) {
     const proc = _normProb(eff.procChance, 1.0);
@@ -5368,7 +5368,7 @@ window.__battleVisualTracking = true;
 		//戦闘ログはここに入れる
 	window.log = [];
 
-    // 方針B：混合スキル開始時効果（revive_mixed_start / dotAbsorb_mixed_start）を使用
+    // 方針B：特殊スキル開始時効果（revive_mixed_start / dotAbsorb_mixed_start）を使用
     window._policyBMixedStart = true;
 
     if (window.specialMode === 'brutal') {
@@ -5379,7 +5379,7 @@ window.barrierUsesLeft = 5;
 
 resetMixedSkillUsage();
 
-// --- 20戦ごとの強敵フラグ＆フェイス画像選択用カウンタ ---
+// --- 20戦ごとの強敵フラグ＆魔メイク画像選択用カウンタ ---
 if (typeof window.battlesPlayed !== 'number') window.battlesPlayed = 0;
 window.battlesPlayed += 1;
 // battleCount（進捗セーブ用）も戦闘ごとに同期
@@ -5425,7 +5425,7 @@ if (player.baseStats && player.growthBonus) {
 }
 
 
-// 戦闘開始時の混合スキル状態リセット
+// 戦闘開始時の特殊スキル状態リセット
 for (const mSkill of player.mixedSkills || []) {
   if (!mSkill || typeof mSkill !== 'object') continue;
 
@@ -5584,7 +5584,7 @@ do {
 
 
 
-// 混合スキルの戦闘開始時特殊効果を付与（必ずログを出す）
+// 特殊スキルの戦闘開始時特殊効果を付与（必ずログを出す）
 // 元の名前から安全なカタカナ部分を抽出
 const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
 
@@ -5628,9 +5628,9 @@ let atk, def, spd, hpMax;
 
 if (window.specialMode === 'brutal') {
   // 鬼畜モード：プレイヤー基準のランダム帯（強化版 1.2〜1.8倍）
-  // ※重要：混合スキルの「所持しているだけで常時発動するステータスUP（type4-7）」で
+  // ※重要：特殊スキルの「所持しているだけで常時発動するステータスUP（type4-7）」で
   //   プレイヤーの attack/defense/speed/maxHp が戦闘開始時に上書きされるため、
-  //   鬼畜モードの敵生成は「混合スキルによるステータスアップ前」の値（= baseStats + growthBonus）を基準にする。
+  //   鬼畜モードの敵生成は「特殊スキルによるステータスアップ前」の値（= baseStats + growthBonus）を基準にする。
   const statMultiplierMin = 1.2;
   const statMultiplierMax = 1.8;
   const randInRange = () => (statMultiplierMin + Math.random() * (statMultiplierMax - statMultiplierMin));
@@ -5714,14 +5714,14 @@ log.push(
   `  └ 成長倍率(指数): 1.05^${streakIndex} = ${growthFactor.toFixed(3)}`
 );
 
-// --- 混合スキル：戦闘開始時の特殊効果（残りHP%ダメージ/復活/吸収/バフ） ---
+// --- 特殊スキル：戦闘開始時の特殊効果（残りHP%ダメージ/復活/吸収/バフ） ---
 // ※敵の最終ステータス（倍率適用後）を確定してから実行する（HP%ダメージの基準ズレ防止）
 applyMixedSpecialEffectsAtBattleStart(player, enemy, log);
 applyMixedSpecialEffectsAtBattleStart(enemy, player, log);
 
 				 
 // --- 5) 後処理 ---
-// ※混合スキル開始時効果(revive/dotAbsorb等)を保持するため、ここでは effects を全消去しない
+// ※特殊スキル開始時効果(revive/dotAbsorb等)を保持するため、ここでは effects を全消去しない
 updateStats();
 
   // =========================================================
@@ -5762,12 +5762,12 @@ updateStats();
     return curr;
   }
 
-  // 戦闘開始直前の状態（混合スキル開始時効果等の適用後）を“基準”として保存
+  // 戦闘開始直前の状態（特殊スキル開始時効果等の適用後）を“基準”として保存
   // これに戻してから倍率を掛け直すことで、短期決着の戦闘を完全に無効化する。
   let __battleRetryBasePlayer, __battleRetryBaseEnemy;
 
   // JSON.stringify は Infinity / -Infinity / NaN を null にしてしまい、
-  // 仕切り直し後に「アイテムの使用回数(usesPerBattle/remainingUses)」などが壊れて
+  // 仕切り直し後に「魔道具の使用回数(usesPerBattle/remainingUses)」などが壊れて
   // 発動しなくなる原因になります。特殊な数値を保護してクローンします。
   function __battleRetryCloneSafe(obj){
     try{
@@ -5924,7 +5924,7 @@ updateStats();
       applyMaxHpDecayAtTurnStart(enemy,  __battleStartMaxHp_enemy,  log, turn);
       updateStats();
 
-      // 混合スキル：毎ターン開始時（継続ダメージより前）に残りHP%追加ダメージ判定
+      // 特殊スキル：毎ターン開始時（継続ダメージより前）に残りHP%追加ダメージ判定
       applyMixedHpPercentDamageAtTurnStart(player, enemy, log, turn);
       applyMixedHpPercentDamageAtTurnStart(enemy, player, log, turn);
 
@@ -6044,7 +6044,7 @@ updateStats();
           chosenSkills = decideSkillsToUse(actor, skillSimulCount);
         
         
-        // 混合スキルは通常スキルとして無意味なので、通常スキルが引けない場合はスキル発動なし
+        // 特殊スキルは通常スキルとして無意味なので、通常スキルが引けない場合はスキル発動なし
         if (!chosenSkills || chosenSkills.length === 0) {
           log.push(`${displayName(actor.name)}は適切な通常スキルを選べなかったため、スキル発動なしでターンを終える`);
           continue;
@@ -6092,7 +6092,7 @@ if (!chosenSkills || chosenSkills.length === 0) {
             }
           }
         }
-// プレイヤーのアイテムメモリー発動（1ターンに1度のみ）
+// プレイヤーの魔道具メモリー発動（1ターンに1度のみ）
 let triggeredItemsThisTurn = new Set();
 
 for (let i = player.itemMemory.length - 1; i >= 0; i--) {
@@ -6107,13 +6107,13 @@ for (let i = player.itemMemory.length - 1; i >= 0; i--) {
 
   const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
   if (skill) {
-    log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
+    log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
 
 getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
 
 if (item.skillLevel < 3000 && Math.random() < 0.4) {
   item.skillLevel++;
-  log.push(`>>> アイテムの ${item.skillName} が Lv${item.skillLevel} に成長！`);
+  log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
   drawItemMemoryList();
 }
 
@@ -6124,7 +6124,7 @@ const isWithinProtectedPeriod =
   window.protectItemUntil && window.battleCount <= window.protectItemUntil;
 
 if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-  log.push(`>>> アイテム「${item.color}${item.adjective}${item.noun}」は壊れた！`);
+  log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」は壊れた！`);
   player.itemMemory.splice(i, 1);
   drawItemMemoryList();
 }
@@ -6194,7 +6194,7 @@ if (player.hp <= 0) {
   // ① 混合開始時効果（revive_mixed_start）
   const revivedMixedStart = tryReviveOnDeath(player, window.log);
 
-  // ② 旧方式（互換：混合スキルの specialEffects 直読み等）
+  // ② 旧方式（互換：特殊スキルの specialEffects 直読み等）
   const revivedLegacy = revivedMixedStart ? true : checkReviveOnDeath(player, window.log);
 
   if (!revivedLegacy) {
@@ -6331,7 +6331,7 @@ const playerWon = player.hp > 0 && (
 );
 
 // -------------------------
-// クラッチ報酬：HP割合差が小さい「僅差勝利」ほどレア寄りアイテムを付与
+// クラッチ報酬：HP割合差が小さい「僅差勝利」ほどレア寄り魔道具を付与
 // - 2%差以内のみ
 // - 0.5%以内: tier3 / 1%以内: tier2 / 2%以内: tier1
 // -------------------------
@@ -6418,7 +6418,7 @@ Math.random() < adjustedFinalRate) {
       sessionMaxStreak = currentStreak;
     }
 
-    // ★ 20戦ごとのボス勝利時：アイテム or ステータス成長
+    // ★ 20戦ごとのボス勝利時：魔道具 or ステータス成長
     if (window.isBossBattle) {
       const bossRoll = Math.random(); // 0〜1
 			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.75;
@@ -6520,7 +6520,7 @@ Math.random() < adjustedFinalRate) {
           log.push('【ボス報酬】' + messages.join(' / '));
         }
       } else {
-        // ---- 90%：ボス専用の確定アイテム報酬（モードに関係なく1個以上） ----
+        // ---- 90%：ボス専用の確定魔道具報酬（モードに関係なく1個以上） ----
         currentStreak += 1;
         if (typeof grantBossRewardItem === 'function') {
           grantBossRewardItem();
@@ -6596,7 +6596,7 @@ if (window.maxScores && typeof window.maxScores === 'object') {
 // ドロップ確率チェック
 // ドロップ確率チェック（鬼畜モード限定）
 if (window.specialMode === 'brutal' && Math.random() < FACE_COIN_DROP_RATE) {
-  // スコアが高いほど平均コイン数が増える（最大10枚）
+  // スコアが高いほど平均魔通貨数が増える（最大10枚）
   const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2);
   const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1);
 
@@ -6648,14 +6648,14 @@ syncSkillsUI();
 
 }
 
-	// --- 超低確率で FaceCoin 入手イベント ---
+	// --- 超低確率で 魔通貨 入手イベント ---
 	const coinChance = enemy.rarity / 1000;
 	if (Math.random() < coinChance) {
 	  const coinGain = Math.floor(Math.random() * 200); // 最大500
 	  window.faceCoins = (window.faceCoins || 0) + coinGain;
 	
 
-	  showCenteredPopup(`[低確率] FaceCoinを${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
+	  showCenteredPopup(`[低確率] 魔通貨を${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
 	
 	  const coinElem = document.getElementById('faceCoinCount');
 	  if (coinElem) coinElem.innerText = window.faceCoins;
@@ -6865,7 +6865,7 @@ updateRemainingBattleDisplay();
       const finalDef = player.defense || 0;
       const finalSpd = player.speed || 0;
       const finalHP = player.maxHp || 0;
-      // 所持アイテムの総レアリティを計算（ドロップ率の逆数の合計）
+      // 所持魔道具の総レアリティを計算（ドロップ率の逆数の合計）
       let totalRarity = 0;
       if (player.itemMemory && player.itemMemory.length > 0) {
         for (const item of player.itemMemory) {
@@ -6917,7 +6917,7 @@ if (finalResEl) {
      防御力: ${finalDef}<br>
      素早さ: ${finalSpd}<br>
      最大HP: ${finalHP}</p>
-  <p>アイテム総レアリティ: ${rarityStr}</p>
+  <p>魔道具総レアリティ: ${rarityStr}</p>
 </div>
 
 <div class="final-score-value">合計スコア: ${totalScore}</div>
@@ -6929,7 +6929,7 @@ if (finalResEl) {
   color: #ccc;
   font-style: italic;
 ">
-  今後、合計スコアによりフェイスコインボーナスがあります。<br>
+  今後、合計スコアにより魔通貨ボーナスがあります。<br>
   <span style="color: #ffcc00; font-weight: bold;">必ずセーブボタンから保存</span>をしてください。<br>
   その後、セーブデータから再開したい場合は画面一番下からタイトルに戻って、セーブデータファイルを選択後、つづきからを選んでください。
 
@@ -7230,7 +7230,7 @@ window.updateSpecialModeButton = function () {
   const battleBtn = document.getElementById('startBattleBtn');
 
   if (window.specialMode === 'brutal') {
-    btn.textContent = '鬼畜モード（アイテム入手可能）';
+    btn.textContent = '鬼畜モード（魔道具入手可能）';
     btn.classList.remove('normal-mode');
     btn.classList.add('brutal-mode');
     battleBtn.classList.remove('normal-mode');
@@ -8168,7 +8168,7 @@ window.addEventListener('scroll', () => {
   if (scoreEl) scoreEl.style.opacity = '0';
   if (skillEl) skillEl.style.opacity = '0';
   if (itemEl) itemEl.style.opacity = '0';
-  if (faceEl) faceEl.style.opacity = '0'; // ← フェイスも消す
+  if (faceEl) faceEl.style.opacity = '0'; // ← 魔メイクも消す
 
   // タイマー解除
   clearTimeout(scoreTimeout);
@@ -8188,13 +8188,13 @@ window.addEventListener('scroll', () => {
     if (skillEl) skillEl.style.opacity = '1';
   }, 1500);
 
-  // アイテム：1.5秒後に再表示
+  // 魔道具：1.5秒後に再表示
   itemTimeout = window.__battleSetTimeout(() => {
     updateItemOverlay();
     if (itemEl) itemEl.style.opacity = '1';
   }, 1500);
 
-  // フェイス：1秒後に再表示（scoreOverlayと同時）
+  // 魔メイク：1秒後に再表示（scoreOverlayと同時）
   faceTimeout = window.__battleSetTimeout(() => {
     if (faceItemEquipped && faceEl) {
       faceEl.style.opacity = '1';
@@ -8395,7 +8395,7 @@ window.exportSaveCode = async function () {
   window.itemFilterStates = buildItemFilterStates();
   player.initialAndSlotSkills = window.initialAndSlotSkills || [];
 
-  // ✅ 混合スキル情報も保存（保護状態含む）
+  // ✅ 特殊スキル情報も保存（保護状態含む）
   player.mixedSkills = player.mixedSkills || [];
 
   const payload = {
@@ -8418,7 +8418,7 @@ window.exportSaveCode = async function () {
     targetBattles: window.targetBattles ?? null,
     maxScores: window.maxScores || {},
 		
-		    // ✅ フェイスアイテム情報を明示的に保存
+		    // ✅ 魔メイク情報を明示的に保存
     faceCoins: window.faceCoins || 0,
     faceItemsOwned: window.faceItemsOwned || [],
     faceItemEquipped: window.faceItemEquipped || null,
@@ -8478,7 +8478,7 @@ window.importSaveCode = async function (code = null) {
     const parsed = JSON.parse(raw);
     player = parsed.player;
 
-    // ✅ 混合スキル情報の復元（保護状態を正規化）
+    // ✅ 特殊スキル情報の復元（保護状態を正規化）
     player.mixedSkills = Array.isArray(parsed.mixedSkills)
       ? parsed.mixedSkills.map(s => {
           if (s.protected) s.isProtected = true;
@@ -8506,7 +8506,7 @@ window.importSaveCode = async function (code = null) {
     const rebirth = (parsed.rebirthCount || 0) + 1;
     localStorage.setItem('rebirthCount', rebirth);
 
-    // ✅ フェイスアイテム情報の復元とUI更新
+    // ✅ 魔メイク情報の復元とUI更新
     window.faceCoins = parsed.faceCoins ?? 0;
     window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
     window.faceItemEquipped = parsed.faceItemEquipped ?? null;
@@ -8561,7 +8561,7 @@ window.importSaveCode = async function (code = null) {
       if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
       startBattle();
 
-      // ✅ 混合スキルリストを再描画
+      // ✅ 特殊スキルリストを再描画
       if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
 
     }, 500);
