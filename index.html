@@ -131,7 +131,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   z-index: 1000;
   cursor: pointer;
 ">
-  🔔 更新情報：自動戦闘時、勢いよく育つようになりました！
+  🔔 更新情報：不具合を修正しました。
 </div>
 		
 		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
@@ -190,14 +190,87 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
     <h3>ボス戦について</h3>
     <p>
-        一定回数ごとに<strong>ボス戦</strong>が発生します（初期設定では <strong>BOSS_BATTLE_INTERVAL = 50</strong> なので、50戦ごとにボス戦になります）。<br>
-        ボスは通常の敵よりも強く、内部的に「ボス専用の追加倍率」がステータスに掛かります。倍率の範囲は
-        <code>BOSS_ENEMY_MIN_MULTIPLIER</code>〜<code>BOSS_ENEMY_MAX_MULTIPLIER</code> で管理されており、<br>
-        その中でも低い倍率が出やすくなるように <code>BOSS_ENEMY_POWER_EXP</code> で分布が調整されています。
-    </p>
-    <p>
-        ボス戦に勝利すると、通常の勝利報酬に加えて<strong>特別な報酬（ステータスの大幅成長や魔道具）</strong>が発生することがあります。<br>
-        これらの挙動は将来的に調整される可能性がありますが、基本的には「周回を重ねるほど、ボスからの報酬でキャラが大きく成長していく」設計になっています。
+        一定回数ごとに<strong>ボス戦</strong>が発生します。
+    <details class="guide-fold" open>
+      <summary>ボス戦の概要（動的表示）</summary>
+      <div class="guide-fold-body">
+        <ul class="guide-list">
+          <li>ボス戦の発生間隔：<strong><span id="guideBossInterval2">-</span>戦ごと</strong></li>
+          <li>ボス強化倍率（通常モード）：<code><span id="guideBossMulNormal">-</span></code></li>
+          <li>ボス強化倍率（鬼畜モード）：<code><span id="guideBossMulBrutal">-</span></code></li>
+          <li>ボスの見た目レアリティ（連勝数で変化）：<span id="guideBossFaceRarityRule">-</span></li>
+        </ul>
+        <div class="subnote">※上記は <code>game.js</code> の実装値をそのまま表示しています（調整したらここも自動で変わります）。</div>
+      </div>
+    </details>
+
+    <details class="guide-fold">
+      <summary>ボス報酬（通常/鬼畜の確率・候補）</summary>
+      <div class="guide-fold-body">
+        <p class="guide-paragraph">
+          ボスに勝つと、<strong>魔道具（ボス戦利品）が1つ</strong>手に入ることがあります。手に入らない場合、<strong>ステータス成長ボーナス</strong>が抽選されます。
+        </p>
+
+        <table class="guide-table">
+          <thead>
+            <tr><th>内容</th><th>通常モード</th><th>鬼畜モード</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>追加ステータス成長ボーナスの発生率</td>
+              <td><span id="guideBossStatRateNormal">-</span></td>
+              <td><span id="guideBossStatRateBrutal">-</span></td>
+            </tr>
+            <tr>
+              <td>ボス戦利品（魔道具）</td>
+              <td colspan="2">勝利時に<strong>最大1つ</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4 class="guide-h4">ボス戦利品の「修飾語（形容詞）」の絞り込み</h4>
+        <p class="guide-paragraph">
+          ボス戦利品は「中程度以上のレア寄り」を狙うため、形容詞は <code>dropRate ≤ <span id="guideBossAdjThreshold">-</span></code> の候補から選ばれます（実装どおり）。
+        </p>
+        <div class="guide-two-col">
+          <div>
+            <div class="guide-subtitle">ボス戦利品で選ばれる形容詞</div>
+            <div id="guideBossAdjAllowed" class="guide-pillbox">-</div>
+          </div>
+          <div>
+            <div class="guide-subtitle">ボス戦利品では選ばれにくい（除外される）形容詞</div>
+            <div id="guideBossAdjExcluded" class="guide-pillbox">-</div>
+          </div>
+        </div>
+        <div class="subnote">※色（例：虹色の）や名詞（例：箱）はボス戦利品でも通常どおり抽選されます。</div>
+      </div>
+    </details>
+
+    <details class="guide-fold">
+      <summary>新スキル習得率（動的表示）</summary>
+      <div class="guide-fold-body">
+        <p class="guide-paragraph">
+          勝利後に、敵が持っていたスキルのうち未習得のものを「習得」できる抽選が行われます。確率はモードによって変わります。
+        </p>
+
+        <table class="guide-table">
+          <thead>
+            <tr><th>項目</th><th>表示</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>現在のモード</td><td><span id="guideModeNow">-</span></td></tr>
+            <tr><td>現在の連勝数</td><td><span id="guideStreakNow">-</span></td></tr>
+            <tr><td>（参考）現在の敵レアリティ係数</td><td><span id="guideEnemyRarityNow">-</span></td></tr>
+            <tr><td>現在の計算結果（この条件なら）</td><td><strong><span id="guideSkillGainNow">-</span></strong></td></tr>
+            <tr><td>計算式（実装どおり）</td><td><code id="guideSkillGainFormula">-</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="subnote">
+          ※鬼畜モードは固定値、通常モードは <code>敵レアリティ × 連勝数</code> に応じて上がる設計です（実装値を表示）。
+        </div>
+      </div>
+    </details>
     </p>
 
 		
@@ -207,7 +280,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		
 		<h4>🔹 特殊スキルの性能上昇</h4>
 		<ul>
-		  <li>特殊スキルの <strong>発動率</strong> や <strong>特殊効果の効果値</strong> に、最大連勝数に応じたボーナス補正が加わります。</li>
+		  <li>特殊スキルの <strong>発動率</strong> や <strong>特殊効果の効果値</strong> に、スキルレベルに応じたボーナス補正が加わります。</li>
 		  <li>補正値は最大で <strong>+10%</strong> 程度。</li>
 		  <li>強いプレイヤーほどレアスキルを得やすくなります。</li>
 		</ul>
@@ -336,7 +409,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </ul>
     <p>
         プレイヤーが同じスキルを所持していれば、そのレベルが魔道具発動時に反映されます。魔道具でスキルが発動するごとに、該当スキルのレベルが成長する可能性もあります。<br>
-        <strong>魔道具保護機能：</strong>所持魔道具は1つだけ保護可能です。保護された魔道具は削除や破損の対象になりません。魔道具名をクリックすると「保護する／保護を外す／削除する」のメニューが表示されます（保護中の魔道具は削除できません）。
+        <strong>魔道具保護機能：</strong>所持魔道具は<strong>最大3つまで</strong>保護可能です。保護された魔道具は削除や破損の対象になりません。魔道具名をタップ（クリック）すると「保護する／保護を外す／削除する」のメニューが表示されます（保護中の魔道具は削除できません）。
     </p>
 		
 		<h3>魔通貨と魔メイク</h3>
@@ -383,10 +456,25 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         <li><strong>スキル構成の再構築：</strong>増えたスキルの取捨選択が重要です。不要なスキルはスキル削除機能（残り使用回数に注意）で整理し、強力なスキルがより発動しやすい構成を目指しましょう。</li>
         <li><strong>連勝による敵の強化：</strong>敵は連勝を重ねるごとに強くなるため、油断せずキャラクターを強化し続ける必要があります。連勝が進むほど成長イベントで得られるステータス上昇量も増加するため、この機会に戦力を底上げしましょう。特に鬼畜モードでは敵の強化幅が大きい分、勝利時に得られる魔道具の活用が攻略の鍵となります。</li>
         <li><strong>スキルメモリーの活用：</strong>スキルメモリー内のスキル順序を工夫して、狙ったスキルが発動しやすいようにしましょう。</li>
-    </ul>
+    </ul>    <h3>データ一覧（折りたたみ）</h3>
 
-    <h3>魔道具構成要素の数値一覧</h3>
-    <div id="itemElementList"></div>
+    <details class="guide-details">
+      <summary><b>🧰 魔道具の説明・数値一覧（色 / 形容詞 / 名詞）</b></summary>
+      <div class="subnote">※中の数値は、ゲーム内の設定値から自動生成しています。</div>
+      <div id="itemElementList"></div>
+    </details>
+
+    <details class="guide-details">
+      <summary><b>📚 スキル効果一覧（簡易説明）</b></summary>
+      <div class="subnote">※一覧は <code>skills.js</code> の定義から自動生成しています。</div>
+      <div id="skillEffectList"></div>
+    </details>
+
+    <details class="guide-details">
+      <summary><b>📐 スキル効果値一覧（パラメータ）</b></summary>
+      <div class="subnote">※「倍率・確率・継続ターン」などの生データです。実際のダメージ/回復量は ATK/DEF/スキルLv 等で変動します。</div>
+      <div id="skillValueList"></div>
+    </details>
 </div>
     </div>
 

@@ -3047,3 +3047,124 @@ canvas {
 @media (max-width: 420px){
   #battleLog .turn-advbar{ height: 16px; margin: 6px 8px 10px; }
 }
+
+/* =========================
+   Quick Guide: collapsible data lists
+   ========================= */
+.guide-details {
+  margin: 10px 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  background: rgba(20,20,25,0.25);
+}
+
+.guide-details > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 14px;
+  color: #eaf6ff;
+}
+
+.guide-details > summary::-webkit-details-marker { display: none; }
+
+.guide-details > summary::before {
+  content: "▶ ";
+  opacity: 0.75;
+}
+
+.guide-details[open] > summary::before { content: "▼ "; }
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.guide-table th, .guide-table td {
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+.guide-table th {
+  background: rgba(255,255,255,0.06);
+  color: #eaf6ff;
+}
+
+.guide-table td {
+  color: rgba(255,255,255,0.92);
+}
+
+.guide-kv {
+  display: inline-block;
+  padding: 2px 6px;
+  margin: 2px 4px 2px 0;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.25);
+  font-size: 11px;
+}
+
+
+/* ===== Quick Guide extra sections (Boss / Rates) ===== */
+.guide-fold { 
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: 10px 0;
+  background: rgba(0,0,0,0.18);
+}
+
+.guide-fold > summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+  outline: none;
+}
+
+.guide-fold > summary::-webkit-details-marker { display: none; }
+.guide-fold > summary::before { content: "▶ "; }
+.guide-fold[open] > summary::before { content: "▼ "; }
+
+.guide-fold-body { margin-top: 8px; }
+
+.guide-list { margin: 6px 0 8px 18px; padding: 0; }
+.guide-list li { margin: 4px 0; }
+
+.guide-paragraph { margin: 6px 0 10px; line-height: 1.55; }
+
+.guide-h4 { margin: 10px 0 6px; font-size: 13px; }
+
+.guide-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 700px) {
+  .guide-two-col { grid-template-columns: 1fr; }
+}
+
+.guide-subtitle {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 6px;
+}
+
+.guide-pillbox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guide-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  font-size: 12px;
+}
