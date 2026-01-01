@@ -3168,3 +3168,55 @@ canvas {
   background: rgba(255,255,255,0.06);
   font-size: 12px;
 }
+
+/* ===== MagicMake detail UI ===== */
+.magicmake-btn{
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  color: #e9f6ff;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.28);
+}
+.magicmake-btn:active{ transform: translateY(1px); }
+.magicmake-btn.danger{
+  border-color: rgba(255,80,80,0.25);
+  background: rgba(255,80,80,0.10);
+}
+.magicmake-detail{
+  margin-top: 6px;
+  border: 1px solid rgba(0,255,255,0.18);
+  background: rgba(0,0,0,0.28);
+  border-radius: 12px;
+  padding: 10px 10px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.magicmake-detail-wrap{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.magicmake-radar{
+  border-radius: 12px;
+  background: radial-gradient(circle at 30% 20%, rgba(0,255,255,0.14), rgba(0,0,0,0.10));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.magicmake-detail-stats{
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.magicmake-detail-row{
+  padding: 2px 0;
+  letter-spacing: 0.2px;
+}
+.magicmake-detail-row.up{ color: rgba(120,255,255,0.95); }
+.magicmake-detail-row.down{ color: rgba(255,160,160,0.92); }
+.magicmake-detail-sep{
+  height: 1px;
+  background: rgba(255,255,255,0.10);
+  margin: 6px 0;
+}

@@ -2385,6 +2385,232 @@ function showGachaAnimation(rarity) {
 }
 
 
+
+// =====================================================
+// 魔メイク（Face）: 成長率ボーナス/ドロップ倍率/保護数ボーナス
+//  - faceItemsOwned は「画像パス文字列」のまま保持
+//  - ボーナスは faceItemBonusMap[path] に保持し、セーブにも含める
+// =====================================================
+window.faceItemBonusMap = window.faceItemBonusMap || {}; // { [path]: { rarity, growthRates, dropRateMultiplier, protectSkillAdd, protectItemAdd } }
+
+function __getRarityFromFacePath(path) {
+	// expected: face/<RARITY>/<filename>
+	try {
+		const m = String(path || '').match(/face\/(S|A|B|C|D)\//);
+		return (m && m[1]) ? m[1] : 'D';
+	} catch (e) { return 'D'; }
+}
+
+function __randSigned(amount) {
+	// amount: e.g. 0.05 => 1±0.05
+	const sign = (Math.random() < 0.5) ? -1 : 1;
+	return 1 + sign * (Math.random() * amount);
+}
+
+function __genGrowthRatesByRarity(rarity) {
+	// レアほど「最低値」も「期待値」も高い、完全片側分布
+	// すべて 1.000 以上を保証
+	const cfg = {
+		D: { min: 0.02, max: 0.1 },  // 1.02〜1.06
+		C: { min: 0.08, max: 0.25 },  // 1.06〜1.12
+		B: { min: 0.2, max: 0.4 },  // 1.10〜1.18
+		A: { min: 0.3, max: 0.7 },  // 1.16〜1.70
+		S: { min: 0.5, max: 0.99 },  // 1.24〜1.99
+	}[rarity] || { min: 0.02, max: 0.06 };
+
+	// 高めに寄るように軽くバイアス
+	const roll = () => {
+		const r = Math.pow(Math.random(), 0.85); // <1 で高め寄り
+		return Number((1 + cfg.min + r * (cfg.max - cfg.min)).toFixed(3));
+	};
+
+	return {
+		attack:  roll(),
+		defense: roll(),
+		speed:   roll(),
+		maxHp:   roll(),
+	};
+}
+function __maybeExtraDropMultiplier(rarity) {
+	// 1.0〜1.5 未満、低い倍率が圧倒的につきやすい（r^3で偏らせる）
+	const p = { D: 0.001, C: 0.004, B: 0.010, A: 0.020, S: 0.040 }[rarity] ?? 0.001;
+	if (Math.random() >= p) return 1;
+	const v = 1 + Math.pow(Math.random(), 3) * 0.49; // <= 1.49
+	return Number(v.toFixed(3));
+}
+
+function __maybeProtectAdds(rarity) {
+	// ごく稀に +1、超稀に +2。スキル/アイテムは独立で両方増える可能性あり。
+	const baseP = { D: 0.008, C: 0.025, B: 0.06, A: 0.12, S: 0.25 }[rarity] ?? 0.0008;
+	const rollAdd = () => {
+		if (Math.random() >= baseP) return 0;
+		// +2 はさらに超稀
+		return (Math.random() < 0.12) ? 2 : 1;
+	};
+	return {
+		protectSkillAdd: rollAdd(),
+		protectItemAdd: rollAdd()
+	};
+}
+
+function __ensureFaceBonus(path) {
+	if (!path) return null;
+	if (window.faceItemBonusMap && window.faceItemBonusMap[path]) return window.faceItemBonusMap[path];
+	const rarity = __getRarityFromFacePath(path);
+	const growthRates = __genGrowthRatesByRarity(rarity); // ★ 100% 付与
+	const dropRateMultiplier = __maybeExtraDropMultiplier(rarity);
+	const { protectSkillAdd, protectItemAdd } = __maybeProtectAdds(rarity);
+
+	const obj = { rarity, growthRates, dropRateMultiplier, protectSkillAdd, protectItemAdd };
+	window.faceItemBonusMap[path] = obj;
+	return obj;
+}
+
+function __getEquippedFaceBonus() {
+	if (!window.faceItemEquipped) return null;
+	return __ensureFaceBonus(window.faceItemEquipped);
+}
+
+// 詳細描画（updateFaceUI から呼ばれる）
+window.renderMagicMakeDetails = function renderMagicMakeDetails(path, panel) {
+	try {
+		if (!panel) return;
+		panel.innerHTML = '';
+		const bonus = __ensureFaceBonus(path);
+		if (!bonus) { panel.textContent = 'この魔メイクには詳細効果がありません。'; return; }
+
+		const wrap = document.createElement('div');
+		wrap.className = 'magicmake-detail-wrap';
+
+		const canvas = document.createElement('canvas');
+		canvas.width = 92; canvas.height = 92;
+		canvas.className = 'magicmake-radar';
+		wrap.appendChild(canvas);
+
+		const stats = document.createElement('div');
+		stats.className = 'magicmake-detail-stats';
+
+		const gr = bonus.growthRates || {};
+		const rows = [
+			['ATK', Number(gr.attack) || 1],
+			['DEF', Number(gr.defense) || 1],
+			['SPD', Number(gr.speed) || 1],
+			['HP',  Number(gr.maxHp) || 1],
+		];
+
+		rows.forEach(([label, v]) => {
+			const row = document.createElement('div');
+			row.className = 'magicmake-detail-row ' + (v >= 1 ? 'up' : 'down');
+			row.textContent = `${label} ×${v.toFixed(2)}`;
+			stats.appendChild(row);
+		});
+
+		// drop bonus
+		if (bonus.dropRateMultiplier && Number(bonus.dropRateMultiplier) > 1) {
+			const sep = document.createElement('div');
+			sep.className = 'magicmake-detail-sep';
+			stats.appendChild(sep);
+
+			const row = document.createElement('div');
+			row.className = 'magicmake-detail-row up';
+			row.textContent = `ドロップ率 ×${Number(bonus.dropRateMultiplier).toFixed(2)}`;
+			stats.appendChild(row);
+		}
+
+		// protect bonuses
+		if ((bonus.protectSkillAdd && bonus.protectSkillAdd > 0) || (bonus.protectItemAdd && bonus.protectItemAdd > 0)) {
+			const sep = document.createElement('div');
+			sep.className = 'magicmake-detail-sep';
+			stats.appendChild(sep);
+
+			if (bonus.protectSkillAdd > 0) {
+				const row = document.createElement('div');
+				row.className = 'magicmake-detail-row up';
+				row.textContent = `特殊スキル保護 +${bonus.protectSkillAdd}`;
+				stats.appendChild(row);
+			}
+			if (bonus.protectItemAdd > 0) {
+				const row = document.createElement('div');
+				row.className = 'magicmake-detail-row up';
+				row.textContent = `アイテム保護 +${bonus.protectItemAdd}`;
+				stats.appendChild(row);
+			}
+		}
+
+		wrap.appendChild(stats);
+		panel.appendChild(wrap);
+
+		__drawMagicMakeRadar(canvas, rows.map(r => r[1]));
+	} catch (e) {
+		try { console.error(e); } catch(_) {}
+		if (panel) panel.textContent = '詳細の描画に失敗しました。';
+	}
+};
+
+function __drawMagicMakeRadar(canvas, values) {
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return;
+
+	const w = canvas.width, h = canvas.height;
+	ctx.clearRect(0, 0, w, h);
+
+	// === 表示スケール設定 ===
+	const MIN = 0.5;   // 表示下限
+	const MAX = 2.0;   // 表示上限
+	const CENTER = 1.0;
+
+	const clamp = (v) =>
+		Math.max(MIN, Math.min(MAX, Number(v) || CENTER));
+
+	const vals = (Array.isArray(values) ? values : [1, 1, 1, 1]).map(clamp);
+
+	const cx = w / 2, cy = h / 2;
+	const r = Math.min(w, h) * 0.40;
+
+	// === ガイド円（1.0 を中心に見せる）===
+	ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+	ctx.lineWidth = 1;
+
+	[0.5, 1.0, 1.5, 2.0].forEach(v => {
+		const rr = r * ((v - MIN) / (MAX - MIN));
+		ctx.beginPath();
+		ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+		ctx.stroke();
+	});
+
+	// === 軸 ===
+	ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+	for (let i = 0; i < 4; i++) {
+		const a = -Math.PI / 2 + i * (Math.PI / 2);
+		ctx.beginPath();
+		ctx.moveTo(cx, cy);
+		ctx.lineTo(
+			cx + Math.cos(a) * r,
+			cy + Math.sin(a) * r
+		);
+		ctx.stroke();
+	}
+
+	// === ポリゴン ===
+	ctx.strokeStyle = 'rgba(0,255,255,0.85)';
+	ctx.fillStyle = 'rgba(0,255,255,0.22)';
+	ctx.lineWidth = 1.4;
+
+	ctx.beginPath();
+	for (let i = 0; i < 4; i++) {
+		const a = -Math.PI / 2 + i * (Math.PI / 2);
+		const norm = (vals[i] - MIN) / (MAX - MIN);
+		const rr = r * norm;
+		const x = cx + Math.cos(a) * rr;
+		const y = cy + Math.sin(a) * rr;
+		if (i === 0) ctx.moveTo(x, y);
+		else ctx.lineTo(x, y);
+	}
+	ctx.closePath();
+	ctx.fill();
+	ctx.stroke();
+}
+
 function performFaceGacha() {
 	if (faceCoins < FACE_GACHA_COST) {
 		alert(`魔通貨が${FACE_GACHA_COST}枚必要です！現在の魔通貨：${faceCoins}`);
@@ -2402,11 +2628,11 @@ function performFaceGacha() {
 
 	// --- 動的に補正された確率でランク抽選 ---
 	const baseProbs = {
-		S: 0.001,
-		A: 0.004,
-		B: 0.045,
-		C: 0.05,
-		D: 0.90
+	  S: 0.0012,  // +0.0002（ほぼ誤差レベルだが夢がある）
+	  A: 0.0048,  // +0.0008
+	  B: 0.055,   // +0.010
+	  C: 0.06,    // +0.010
+	  D: 0.879    // -0.021
 	};
 
 	const streak = window.currentStreak || 0;
@@ -2450,6 +2676,7 @@ function performFaceGacha() {
 
 		const { path, name } = result;
 		faceItemsOwned.push(path);
+		__ensureFaceBonus(path);
 		updateFaceUI();
 	}, 1400);
 }
@@ -3346,84 +3573,159 @@ function onMixedSkillClick(skill, event) {
 
 
 // --- 所持魔道具リストをUIに表示・更新する関数 ---
+
 function updateFaceUI() {
 	const listElem = document.getElementById('ownedFaceList');
+	if (!listElem) return;
+
 	listElem.innerHTML = ''; // 既存内容をクリア
+	if (!Array.isArray(faceItemsOwned)) faceItemsOwned = [];
+
+	// 1つ開いたら他は閉じる：どのパスを開いているか
+	window.__magicMakeOpenDetailPath = window.__magicMakeOpenDetailPath || null;
 
 	faceItemsOwned.forEach(itemPath => {
+		// 100%: 必ずボーナスを用意
+		const bonus = __ensureFaceBonus(itemPath);
+		const rarity = bonus?.rarity || __getRarityFromFacePath(itemPath);
+
 		const container = document.createElement('div');
 		container.style.display = 'flex';
-		container.style.alignItems = 'center';
-		container.style.marginBottom = '8px';
+		container.style.flexDirection = 'column';
+		container.style.gap = '6px';
+		container.style.marginBottom = '10px';
+		container.style.padding = '10px';
+		container.style.borderRadius = '14px';
+		container.style.border = '1px solid rgba(255,255,255,0.12)';
+		container.style.background = 'rgba(0,0,0,0.18)';
+		container.style.backdropFilter = 'blur(6px)';
+		container.style.webkitBackdropFilter = 'blur(6px)';
+
+		const top = document.createElement('div');
+		top.style.display = 'flex';
+		top.style.alignItems = 'center';
+		top.style.gap = '10px';
 
 		// 魔道具画像サムネイル
 		const img = document.createElement('img');
 		img.src = itemPath;
-		img.style.width = '50px';
-		img.style.height = '50px';
-		img.style.marginRight = '10px';
+		img.style.width = '52px';
+		img.style.height = '52px';
+		img.style.borderRadius = '12px';
+		img.style.objectFit = 'cover';
+
 		// 装備中なら枠を強調
 		if (faceItemEquipped === itemPath) {
-			img.style.border = '2px solid gold';
+			img.style.border = '2px solid rgba(255,215,0,0.95)';
+			img.style.boxShadow = '0 0 16px rgba(255,215,0,0.30)';
 		} else {
-			img.style.border = '2px solid transparent';
+			img.style.border = '1px solid rgba(255,255,255,0.18)';
+			img.style.boxShadow = '0 0 12px rgba(0,0,0,0.35)';
 		}
-		container.appendChild(img);
+		top.appendChild(img);
+
+		// 名前＋簡易ラベル
+		const meta = document.createElement('div');
+		meta.style.flex = '1';
+
+		const nameLine = document.createElement('div');
+		nameLine.style.fontWeight = '700';
+		nameLine.style.letterSpacing = '0.3px';
+		const shortName = itemPath.split('/').pop();
+		nameLine.textContent = `${shortName} [${rarity}]`;
+		meta.appendChild(nameLine);
+
+		const sub = document.createElement('div');
+		sub.style.opacity = '0.85';
+		sub.style.fontSize = '12px';
+		sub.textContent = '成長率つき';
+		meta.appendChild(sub);
+		top.appendChild(meta);
+
+		container.appendChild(top);
+
+		// ボタン列
+		const btnRow = document.createElement('div');
+		btnRow.style.display = 'flex';
+		btnRow.style.gap = '8px';
 
 		// 装備/解除ボタン
 		const equipBtn = document.createElement('button');
+		equipBtn.className = 'magicmake-btn';
 		equipBtn.innerText = (faceItemEquipped === itemPath) ? '解除' : '装備';
-		equipBtn.style.marginRight = '5px';
 		equipBtn.addEventListener('click', () => {
 			if (faceItemEquipped === itemPath) {
 				faceItemEquipped = null;
+				document.getElementById('faceItemDisplayImg')?.remove();
+				document.getElementById('faceItemGlowBg')?.remove();
 			} else {
 				// 他の装備を解除（背景・画像を消去）
 				document.getElementById('faceItemDisplayImg')?.remove();
 				document.getElementById('faceItemGlowBg')?.remove();
-
 				faceItemEquipped = itemPath;
 			}
-
 			updateFaceUI();
 			updatePlayerImage();
-
 		});
-		container.appendChild(equipBtn);
+		btnRow.appendChild(equipBtn);
+
+		// 詳細ボタン（アコーディオン）
+		const detailBtn = document.createElement('button');
+		detailBtn.className = 'magicmake-btn';
+		detailBtn.innerText = (window.__magicMakeOpenDetailPath === itemPath) ? '詳細▲' : '詳細▼';
+		detailBtn.addEventListener('click', () => {
+			window.__magicMakeOpenDetailPath = (window.__magicMakeOpenDetailPath === itemPath) ? null : itemPath;
+			updateFaceUI();
+		});
+		btnRow.appendChild(detailBtn);
 
 		// 削除ボタン
 		const deleteBtn = document.createElement('button');
+		deleteBtn.className = 'magicmake-btn danger';
 		deleteBtn.innerText = '削除';
 		deleteBtn.addEventListener('click', () => {
-			// 所持リストから削除
 			const idx = faceItemsOwned.indexOf(itemPath);
-			if (idx !== -1) {
-				faceItemsOwned.splice(idx, 1);
-			}
-			// 装備中の魔道具だったら解除
+			if (idx !== -1) faceItemsOwned.splice(idx, 1);
 			if (faceItemEquipped === itemPath) {
 				faceItemEquipped = null;
+				document.getElementById('faceItemDisplayImg')?.remove();
+				document.getElementById('faceItemGlowBg')?.remove();
 			}
+			// bonus mapも削除
+			if (window.faceItemBonusMap && window.faceItemBonusMap[itemPath]) delete window.faceItemBonusMap[itemPath];
+
 			updateFaceUI();
 			updatePlayerImage();
 		});
-		container.appendChild(deleteBtn);
+		btnRow.appendChild(deleteBtn);
+
+		container.appendChild(btnRow);
+
+		// 詳細パネル
+		const detailPanel = document.createElement('div');
+		detailPanel.className = 'magicmake-detail';
+		detailPanel.style.display = (window.__magicMakeOpenDetailPath === itemPath) ? 'block' : 'none';
+		if (detailPanel.style.display === 'block') {
+			const fn = (window && typeof window.renderMagicMakeDetails === 'function') ? window.renderMagicMakeDetails : null;
+			if (!fn) {
+				detailPanel.textContent = '詳細描画関数が見つかりません。';
+			} else {
+				fn(itemPath, detailPanel);
+			}
+		}
+		container.appendChild(detailPanel);
 
 		listElem.appendChild(container);
-
-		// 魔通貨数を更新（UIに反映）
-		const coinElem = document.getElementById('faceCoinCount');
-		if (coinElem) {
-			coinElem.innerText = faceCoins;
-		}
-
-		const gachaBtn = document.getElementById('faceGachaBtn');
-		if (gachaBtn) {
-			gachaBtn.disabled = faceCoins < FACE_GACHA_COST;
-		}
-
 	});
+
+	// 魔通貨数を更新（UIに反映）
+	const coinElem = document.getElementById('faceCoinCount');
+	if (coinElem) coinElem.innerText = faceCoins;
+
+	const gachaBtn = document.getElementById('faceGachaBtn');
+	if (gachaBtn) gachaBtn.disabled = faceCoins < FACE_GACHA_COST;
 }
+
 
 
 
@@ -4031,26 +4333,36 @@ window.getNextGrowthMultiplier = function() {
 };
 
 // 成長選択時
-window.chooseGrowth = function(stat) {
 
+window.chooseGrowth = function(stat) {
 	const baseAmount = Math.floor(enemy[stat] * 0.08);
 	const growthAmount = baseAmount * window.growthMultiplier;
+
+	// 装備中の魔メイク成長率（未装備なら1）
+	let mmMul = 1;
+	try {
+		const b = __getEquippedFaceBonus();
+		if (b && b.growthRates && typeof b.growthRates[stat] === 'number') {
+			mmMul = b.growthRates[stat];
+		}
+	} catch (e) { mmMul = 1; }
+
+	const finalGrowth = Math.max(0, Math.floor(growthAmount * mmMul));
+
 	if (!player.growthBonus) {
 		player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 	}
-	player.growthBonus[stat] += growthAmount;
+	player.growthBonus[stat] += finalGrowth;
 	player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
-	const message = `成長: ${stat} +${growthAmount}（倍率x${window.growthMultiplier}）`;
-	showCustomAlert(message, 2000); // ← 追加：カスタムアラート表示
-
-	// const logEl = document.getElementById('battleLog');
-	//  logEl.textContent += `\n成長: ${stat} が 敵の${stat}の8%（+${growthAmount}, ボーナス倍率x${window.growthMultiplier}）上昇\n`;
+	const message = `成長: ${stat} +${finalGrowth}（倍率x${window.growthMultiplier} ×魔メイクx${Number(mmMul).toFixed(2)}）`;
+	showCustomAlert(message, 2000);
 
 	window.growthMultiplier = 1; // リセット
-	window.growthSkipCount = 0; // 連続スキップ回数もリセット
+	window.growthSkipCount = 0;  // 連続スキップ回数もリセット
 	isWaitingGrowth = false;
 };
+;
 
 window.skipGrowth = function() {
 	window.growthSkipCount = (window.growthSkipCount || 0) + 1;
@@ -8750,6 +9062,7 @@ window.saveToLocalStorage = async function() {
 		faceCoins: window.faceCoins || 0,
 		faceItemsOwned: window.faceItemsOwned || [],
 		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemBonusMap: window.faceItemBonusMap || {},
 	};
 
 	const raw = JSON.stringify(payload);
@@ -8812,6 +9125,7 @@ window.exportSaveCode = async function() {
 		faceCoins: window.faceCoins || 0,
 		faceItemsOwned: window.faceItemsOwned || [],
 		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemBonusMap: window.faceItemBonusMap || {},
 	};
 
 	const raw = JSON.stringify(payload);
@@ -8903,6 +9217,9 @@ window.importSaveCode = async function(code = null) {
 		window.faceCoins = parsed.faceCoins ?? 0;
 		window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
 		window.faceItemEquipped = parsed.faceItemEquipped ?? null;
+		window.faceItemBonusMap = (parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
+		// 念のため：所持分は必ずボーナスを用意
+		try { (window.faceItemsOwned || []).forEach(p => __ensureFaceBonus(p)); } catch(e) {}
 
 		const coinElem = document.getElementById('faceCoinCount');
 		if (coinElem) coinElem.innerText = window.faceCoins;
