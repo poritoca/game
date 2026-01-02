@@ -2431,27 +2431,35 @@ function __genGrowthRatesByRarity(rarity) {
 		maxHp:   roll(),
 	};
 }
+
 function __maybeExtraDropMultiplier(rarity) {
-	// 1.0〜1.5 未満、低い倍率が圧倒的につきやすい（r^3で偏らせる）
-	const p = { D: 0.001, C: 0.004, B: 0.010, A: 0.020, S: 0.040 }[rarity] ?? 0.001;
+	// 1.0〜1.5 未満、低い倍率がつきやすい（r^3で偏らせる）
+	// ★全体的に付与確率アップ（D/Cも現実的に出る）
+	const p = { D: 0.006, C: 0.015, B: 0.030, A: 0.060, S: 0.120 }[rarity] ?? 0.006;
+
 	if (Math.random() >= p) return 1;
-	const v = 1 + Math.pow(Math.random(), 3) * 0.49; // <= 1.49
+
+	const v = 1 + Math.pow(Math.random(), 3) * 0.49; // <= 1.49（低め寄りは維持）
 	return Number(v.toFixed(3));
 }
 
 function __maybeProtectAdds(rarity) {
-	// ごく稀に +1、超稀に +2。スキル/アイテムは独立で両方増える可能性あり。
-	const baseP = { D: 0.008, C: 0.025, B: 0.06, A: 0.12, S: 0.25 }[rarity] ?? 0.0008;
+	// ★全体的に付与確率アップ（低ランク救済）
+	// 例：Dでも0.8%→2.0%くらいで現実的に出る
+	const baseP = { D: 0.020, C: 0.045, B: 0.080, A: 0.140, S: 0.220 }[rarity] ?? 0.020;
+
 	const rollAdd = () => {
 		if (Math.random() >= baseP) return 0;
-		// +2 はさらに超稀
+		// +2 は「超稀」のまま。ただし少し出やすくしたいなら 0.12→0.15 など
 		return (Math.random() < 0.12) ? 2 : 1;
 	};
+
 	return {
 		protectSkillAdd: rollAdd(),
 		protectItemAdd: rollAdd()
 	};
 }
+
 
 function __ensureFaceBonus(path) {
 	if (!path) return null;
@@ -2470,6 +2478,34 @@ function __getEquippedFaceBonus() {
 	if (!window.faceItemEquipped) return null;
 	return __ensureFaceBonus(window.faceItemEquipped);
 }
+
+
+// ================================
+// 保護枠（特殊スキル/アイテム）の上限計算
+//  - デフォルトは「特殊スキル: 1」「魔道具: 3」
+//  - 魔メイクの詳細効果（protectSkillAdd / protectItemAdd）が付与されていれば上限を増やす
+// ================================
+window.getSpecialSkillProtectLimit = function getSpecialSkillProtectLimit() {
+	const base = 1;
+	let add = 0;
+	try {
+		const bonus = (typeof __getEquippedFaceBonus === 'function') ? __getEquippedFaceBonus() : null;
+		if (bonus && typeof bonus.protectSkillAdd === 'number') add = bonus.protectSkillAdd;
+	} catch (e) {}
+	const v = base + add;
+	return (v >= 1) ? v : 1;
+};
+
+window.getItemProtectLimit = function getItemProtectLimit() {
+	const base = 3;
+	let add = 0;
+	try {
+		const bonus = (typeof __getEquippedFaceBonus === 'function') ? __getEquippedFaceBonus() : null;
+		if (bonus && typeof bonus.protectItemAdd === 'number') add = bonus.protectItemAdd;
+	} catch (e) {}
+	const v = base + add;
+	return (v >= 0) ? v : 0;
+};
 
 // 詳細描画（updateFaceUI から呼ばれる）
 window.renderMagicMakeDetails = function renderMagicMakeDetails(path, panel) {
@@ -3453,23 +3489,39 @@ function onItemClick(item, index, event) {
 
 	title.innerHTML = `魔道具 <b>${name}</b> をどうする？`;
 
+	// 現在の保護状況（上限は魔メイク効果で増える場合あり）
+	const itemProtectLimit = (typeof window.getItemProtectLimit === 'function') ? window.getItemProtectLimit() : 3;
+	const itemProtectedCount = (player && Array.isArray(player.itemMemory)) ? player.itemMemory.filter(it => it && it.protected).length : 0;
+	const itemProtectInfo = document.createElement("div");
+	itemProtectInfo.style.fontSize = "12px";
+	itemProtectInfo.style.opacity = "0.9";
+	itemProtectInfo.style.marginBottom = "10px";
+	itemProtectInfo.innerHTML = `保護中：<b>${itemProtectedCount}</b> / ${itemProtectLimit}`;
+	container.appendChild(itemProtectInfo);
+
+
 	const protectBtn = document.createElement("button");
 	protectBtn.textContent = item.protected ? "保護を外す" : "保護する";
 	protectBtn.onclick = () => {
-		// 現在の保護中魔道具数を数える
-		const protectedCount = player.itemMemory.filter(it => it.protected).length;
+				// 現在の保護中魔道具数を数える
+		const currentProtected = (player && Array.isArray(player.itemMemory)) ? player.itemMemory.filter(it => it && it.protected).length : 0;
+		const limit = (typeof window.getItemProtectLimit === 'function') ? window.getItemProtectLimit() : 3;
 
-		// まだ保護されていない魔道具を新たに保護しようとしていて、
-		// すでに3つ保護済みなら拒否する
-		if (!item.protected && protectedCount >= 3) {
-			showCustomAlert("保護は3つまでです", 2000);
+		// これから保護を付ける場合のみ、上限チェック
+		if (!item.protected && currentProtected >= limit) {
+			const msg = `魔道具の保護は最大 ${limit} 個までです。`;
+			if (typeof showAlertMessage === 'function') {
+				showAlertMessage(msg);
+			} else {
+				alert(msg);
+			}
 			return;
 		}
 
-		// トグルして再描画
 		item.protected = !item.protected;
 		clearEventPopup();
 		drawItemMemoryList();
+
 	};
 	container.appendChild(protectBtn);
 
@@ -3517,39 +3569,54 @@ function onMixedSkillClick(skill, event) {
 	const name = (skill && skill.name) ? skill.name : "特殊スキル";
 	title.innerHTML = `特殊スキル <b>${name}</b> をどうする？`;
 
-	// 現在の保護状況（混合は1つだけ保護）
-	const alreadyProtected = (player && player.mixedSkills) ? player.mixedSkills.find(s => s.isProtected) : null;
-	const protectedCount = alreadyProtected ? 1 : 0;
+	// 現在の保護状況（上限は魔メイク効果で増える場合あり）
+	const protectLimit = (typeof window.getSpecialSkillProtectLimit === 'function') ? window.getSpecialSkillProtectLimit() : 1;
+	const protectedCount = (player && Array.isArray(player.mixedSkills)) ? player.mixedSkills.filter(s => s && s.isProtected).length : 0;
 
 	const info = document.createElement("div");
 	info.style.fontSize = "12px";
 	info.style.opacity = "0.9";
 	info.style.marginBottom = "10px";
-	info.innerHTML = `保護中：<b>${protectedCount}</b> / 1`;
+	info.innerHTML = `保護中：<b>${protectedCount}</b> / ${protectLimit}`;
 	container.appendChild(info);
-	// NOTE: 「効果詳細」メニューは廃止（特殊スキル一覧に常時表示へ）。
+// NOTE: 「効果詳細」メニューは廃止（特殊スキル一覧に常時表示へ）。
 
 	const protectBtn = document.createElement("button");
 	protectBtn.textContent = skill && skill.isProtected ? "保護を外す" : "保護する";
 	protectBtn.onclick = () => {
-		const currentProtected = (player && player.mixedSkills) ? player.mixedSkills.find(s => s.isProtected) : null;
+		const limit = (typeof window.getSpecialSkillProtectLimit === 'function') ? window.getSpecialSkillProtectLimit() : 1;
+		const protectedList = (player && Array.isArray(player.mixedSkills)) ? player.mixedSkills.filter(s => s && s.isProtected) : [];
 
-		// 解除
-		if (skill && skill.isProtected) {
-			skill.isProtected = false;
+		if (!skill) {
 			clearEventPopup();
-			if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+			try { updateMixedSkillProtectionUI && updateMixedSkillProtectionUI(); } catch (e) {}
 			return;
 		}
 
-		// 新規保護（上限1）: すでに保護があるなら移し替え
-		if (currentProtected && currentProtected !== skill) {
-			currentProtected.isProtected = false;
+		// 解除
+		if (skill.isProtected) {
+			skill.isProtected = false;
+			showCustomAlert("保護を解除しました", 1200);
+			clearEventPopup();
+			try { updateMixedSkillProtectionUI && updateMixedSkillProtectionUI(); } catch (e) {}
+			return;
 		}
-		if (skill) skill.isProtected = true;
 
+		// 追加保護（上限チェック）
+		if (protectedList.length >= limit) {
+			// 上限1の場合は「移し替え」を許可（旧挙動互換）
+			if (limit === 1 && protectedList[0] && protectedList[0] !== skill) {
+				protectedList[0].isProtected = false;
+			} else {
+				showCustomAlert(`保護は${limit}つまでです`, 2000);
+				return;
+			}
+		}
+
+		skill.isProtected = true;
+		showCustomAlert("保護しました", 1200);
 		clearEventPopup();
-		if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
+		try { updateMixedSkillProtectionUI && updateMixedSkillProtectionUI(); } catch (e) {}
 	};
 	container.appendChild(protectBtn);
 
@@ -3635,11 +3702,49 @@ function updateFaceUI() {
 		nameLine.textContent = `${shortName} [${rarity}]`;
 		meta.appendChild(nameLine);
 
-		const sub = document.createElement('div');
-		sub.style.opacity = '0.85';
-		sub.style.fontSize = '12px';
-		sub.textContent = '成長率つき';
-		meta.appendChild(sub);
+		// --- ボーナスタグ表示（成長率 / ドロ率 / 保護数） ---
+		const bonusWrap = document.createElement('div');
+		bonusWrap.style.display = 'flex';
+		bonusWrap.style.flexWrap = 'wrap';
+		bonusWrap.style.gap = '4px';
+		bonusWrap.style.marginTop = '4px';
+		bonusWrap.style.fontSize = '12px';
+
+		function addTag(text, bg) {
+			const t = document.createElement('span');
+			t.textContent = text;
+			t.style.padding = '2px 6px';
+			t.style.borderRadius = '6px';
+			t.style.background = bg;
+			t.style.color = '#000';
+			t.style.fontWeight = 'bold';
+			t.style.opacity = '0.9';
+			bonusWrap.appendChild(t);
+		}
+
+		// 成長率（魔メイクは100%付与）
+		if (bonus && bonus.growthRates) {
+			addTag('成長率+', '#9be7ff'); // 水色
+		}
+
+		// ドロップ率（倍率が 1 を超える場合のみ）
+		if (bonus && Number(bonus.dropRateMultiplier || 1) > 1) {
+			addTag(`ドロ率×${Number(bonus.dropRateMultiplier).toFixed(3)}`, '#ffe28a'); // 金色
+		}
+
+		// 特殊スキル保護
+		if (bonus && Number(bonus.protectSkillAdd || 0) > 0) {
+			addTag(`スキ保+${bonus.protectSkillAdd}`, '#ffb3d9'); // ピンク
+		}
+
+		// アイテム保護
+		if (bonus && Number(bonus.protectItemAdd || 0) > 0) {
+			addTag(`アイ保+${bonus.protectItemAdd}`, '#baffc9'); // ミント
+		}
+
+		if (bonusWrap.children.length > 0) {
+			meta.appendChild(bonusWrap);
+		}
 		top.appendChild(meta);
 
 		container.appendChild(top);
@@ -4272,7 +4377,7 @@ const FACE_COIN_DROP_RATE = 0.5;
 const FACE_GACHA_COST = 1000;
 // ランクごとの出現確率 (合計1.00になるよう調整)
 
-window.faceCoins = 1000;
+window.faceCoins = 20000;
 window.faceItemsOwned = []; // 例: ['face/S/face1.png', ...]
 window.faceItemEquipped = null; // 例: 'face/A/face3.png'
 window.lastChosenSkillNames = []; // 戦闘ごとの抽選結果
