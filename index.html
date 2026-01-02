@@ -107,7 +107,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="titleImage" style="text-align: center; margin-bottom: 20px;">
   <img src="dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
 </div>
-<!-- 更新情報オーバーレイ -->
+<!-- 更新情報オーバーレイ
 <div id="updateNotice" style="
   position: fixed;
   top: 30%;
@@ -133,6 +133,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 ">
   🔔 更新情報：不具合を修正しました。
 </div>
+ -->
 		
 		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
 <input type="text" id="inputStr" placeholder="はじめから時のみ名前を入力:" />
@@ -155,9 +156,29 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <!--   <button id="loadGameBtn">つづきから</button> -->
 		
 
-<button id="loadLocalBtn" onclick="loadFromLocalStorage()">ローカルからロード</button>
-<button id="loadLocalProgressBtn" onclick="loadProgressFromLocalStorageCompat()">中断データからロード（戦闘数進捗含む）</button>
-<button id="loadFromTextBtn">テキストからロード</button>
+<button id="continueBtn" class="continue-btn" type="button">つづきから</button>
+
+<div id="loadPanel" class="load-panel is-collapsed" aria-hidden="true">
+  <div class="load-panel-inner">
+    <div class="load-panel-grid" role="group" aria-label="ロード方法を選択">
+      <button id="loadLocalBtn" class="load-tile" onclick="loadFromLocalStorage()" type="button">
+        <span class="tile-title">ローカル</span>
+        <span class="tile-sub">端末に保存したデータ</span>
+      </button>
+
+      <button id="loadLocalProgressBtn" class="load-tile" onclick="loadProgressFromLocalStorageCompat()" type="button">
+        <span class="tile-title">中断</span>
+        <span class="tile-sub">戦闘数進捗も含む</span>
+      </button>
+
+      <button id="loadFromTextBtn" class="load-tile load-tile-wide" type="button">
+        <span class="tile-title">テキスト</span>
+        <span class="tile-sub">保存テキスト/ファイル</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="loadTextFileInput" accept=".txt" style="display:none" />
 
   <!--    <div id="loadSection">
@@ -169,14 +190,20 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   </div>
 
   <!-- ゲーム画面 -->
-<div id="gameScreen" class="hidden" style="margin: 20px 0;">
-    <!-- クイックガイド -->
-    <div class="quick-guide-wrapper">
-			
+	<div id="gameScreen" class="hidden" style="margin: 20px 0;">
+		<!-- 上部：4つの折りたたみを2列パネルに集約（同時に1つだけ開く） -->
+			<div class="top-fold-panel" role="group" aria-label="表示切替">
+				<button class="top-fold-btn" type="button" data-kind="guide" onclick="toggleTopFold('guide')">【遊び方】</button>
+				<button class="top-fold-btn" type="button" data-kind="char" onclick="toggleTopFold('char')">【キャラクター情報】</button>
+				<button class="top-fold-btn" type="button" data-kind="log" onclick="toggleTopFold('log')">【戦闘ログ】</button>
+				<button class="top-fold-btn" type="button" data-kind="memory" onclick="toggleTopFold('memory')">【魔道具・スキル】</button>
+				<button class="top-fold-btn" type="button" data-kind="event" onclick="toggleTopFold('event')">【イベント&入手設定】</button>
+				<button class="top-fold-btn" type="button" data-kind="settings" onclick="toggleTopFold('settings')">【設定】</button>
+			</div>
 
-			
-<button class="quick-guide-toggle" onclick="toggleQuickGuide()">【遊び方を表示／非表示】</button>
-      <div id="quickGuideContent" class="quick-guide-content hidden">
+		<!-- クイックガイド -->
+		<div class="quick-guide-wrapper">
+			<div id="quickGuideContent" class="quick-guide-content hidden">
 
     <h3>このゲームの目的</h3>
     <p>
@@ -320,15 +347,13 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		<h3>特殊スキルについて</h3>
 		
 		<p>
-		  特殊スキルとは、固有スキルや通常スキルを複数組み合わせて、最大3つまで生成される強力なスキルです。<br>
-		  通常のスキルと異なり、<strong>1つの特殊スキルは1戦につき1回のみ発動可能</strong>です。<br>
-		  ただし<strong>複数の特殊スキルを所持している場合は、それぞれ1回ずつ使用可能</strong>です。
+		  特殊スキルとは、特殊効果を発動する強力なスキルです。<br>
+
+		  <strong>複数の特殊スキルを所持している場合は、それぞれ特殊効果を発動可能</strong>です。
 		</p>
 		
 		<p>
-		  特殊スキルは戦闘中に発動すると、構成されている複数のスキルを連続で自動発動します。<br>
-		  また、特殊スキルには様々な「特殊効果」がランダムで付与されており、発動時に追加効果が発生します。<br>
-		  内包されている各スキルの威力や効果は、特殊スキル自体の<strong>レベルに依存</strong>するため、<strong>同じ構成でもレベルが高いほど強力になります</strong>。
+			特殊スキルの「特殊効果」はランダムで付与されており、確率で発動時に効果が発生します。<br>
 		</p>
 		
 		<p>
@@ -480,6 +505,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
     <!-- バトルエリア -->
 <div id="battleArea" class="hidden">
+	<div id="charInfoFold" class="quick-guide-content hidden">
 <details open>
   <summary><strong>自分のキャラクター情報（スクロール可能）</strong></summary>
 	
@@ -582,11 +608,11 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </div>
   </details>
 </div>
+</div>
 
       <!-- 戦闘ログ -->
-      <div class="quick-guide-wrapper">
-        <button class="quick-guide-toggle" onclick="toggleQuickGuideLog()">【戦闘ログを表示／非表示】</button>
-        <div id="quickGuideLog" class="quick-guide-content">
+		<div class="quick-guide-wrapper">
+			<div id="quickGuideLog" class="quick-guide-content hidden">
           
           <div id="battleLogControls" class="battle-log-controls">
             <div class="battle-log-speed">
@@ -630,8 +656,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 <!-- 折りたたみ可能なスキル・魔道具メモリーセクション -->
 <div id="memoryToggleContainer">
-  <h3 id="memoryToggle" style="cursor: pointer;">▶ 魔道具・スキル表示／非表示</h3>
-  <div id="memoryContent" style="display: none; margin-top: 10px;">
+<div id="memoryContent" class="hidden" style="margin-top: 10px;">
 
 		
 <!-- 特殊スキル -->
@@ -680,8 +705,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		
 
 <div id="eventSettingsToggleContainer">
-  <h3 id="eventSettingsToggle" style="cursor: pointer;">▶ イベント＆入手設定を表示／非表示</h3>
-  <div id="eventSettingsContent" style="display: none; margin-top: 10px;">
+<div id="eventSettingsContent" class="hidden" style="margin-top: 10px;">
 
     <h4>イベント設定</h4>
     <div id="autoStopControls">
@@ -708,8 +732,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 
 
-    <!-- セーブ出力 -->
-    <h3>出力</h3>
+    <!-- 設定（折りたたみ） -->
+	<div id="settingsFold" class="quick-guide-content hidden">
+  <div class="panel-grid">
+
 		      <button id="downloadLogsBtn">バトルログ出力</button>
      <!--   <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
@@ -736,6 +762,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 ">
   タイトルに戻る
 </button>
+  </div>
+</div>
 
     </div>
 
@@ -806,9 +834,15 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 <script>
 	
-document.getElementById("updateNotice").addEventListener("click", function() {
-  this.style.display = "none";
-});
+// updateNotice は構成によって存在しない場合があるため、ある時だけバインドする
+(function(){
+  var _updateNotice = document.getElementById("updateNotice");
+  if (_updateNotice) {
+    _updateNotice.addEventListener("click", function() {
+      this.style.display = "none";
+    });
+  }
+})();
 
 // ======================================================
 // 単発バトル：一時表示トースト（重複完全抑止・位置をさらに下へ）

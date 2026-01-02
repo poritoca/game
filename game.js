@@ -1,3 +1,14 @@
+
+// =====================================================
+// Fold helper (for inline onclick handlers)
+// =====================================================
+window.toggleFoldById = window.toggleFoldById || function(id){
+	try{
+		const el = document.getElementById(id);
+		if(!el) return;
+		el.classList.toggle('hidden');
+	}catch(e){}
+};
 // =====================================================
 // Global battle-visual timer wrapper (defined at file start)
 //  - We globally replaced setTimeout -> window.__battleSetTimeout in this file.
@@ -521,6 +532,51 @@ window.toggleQuickGuideLog = function() {
 	const content = document.getElementById("quickGuideLog");
 	content.classList.toggle("hidden");
 };
+
+	// 上部4パネル：排他開閉（同時に1つだけ開く）
+	window.toggleTopFold = function(kind){
+		try{
+			const map = {
+				guide: 'quickGuideContent',
+				char: 'charInfoFold',
+				log: 'quickGuideLog',
+				memory: 'memoryContent',
+				event: 'eventSettingsContent',
+				settings: 'settingsFold'
+			};
+			const targetId = map[kind];
+			if (!targetId) return;
+			const ids = Object.values(map);
+			const targetEl = document.getElementById(targetId);
+			if (!targetEl) return;
+
+			const willOpen = targetEl.classList.contains('hidden');
+			// まず全て閉じる
+			for (const id of ids) {
+				const el = document.getElementById(id);
+				if (el) el.classList.add('hidden');
+			}
+			// 押したものが「開く」意図の時だけ開く
+			if (willOpen) {
+				targetEl.classList.remove('hidden');
+				// ガイドは開いたタイミングで動的生成も走らせる
+				if (kind === 'guide') {
+					try { window.populateItemElementList && window.populateItemElementList(); } catch (e) {}
+					try { window.populateSkillGuideLists && window.populateSkillGuideLists(); } catch (e) {}
+					try { window.populateQuickGuideDynamic && window.populateQuickGuideDynamic(); } catch (e) {}
+				}
+			}
+
+			// ボタンの見た目（is-open）を同期
+			try{
+				const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
+				btns.forEach(btn => {
+					const k = btn.getAttribute('data-kind');
+					btn.classList.toggle('is-open', willOpen && k === kind);
+				});
+			} catch(_) {}
+		}catch(e){}
+	};
 
 window.toggleQuickGuide = function() {
 	const content = document.getElementById("quickGuideContent");
@@ -6089,14 +6145,27 @@ window.startBattle = function() {
     }
   ];
 
-		// 重み付きランダム選択
-		const totalWeight = growthOptions.reduce((sum, opt) => sum + opt.weight, 0);
-		let rand = Math.random() * totalWeight;
-		let selected = growthOptions.find(opt => {
-			if (rand < opt.weight) return true;
-			rand -= opt.weight;
-			return false;
+		// 重み付きランダム選択（安全版：weight=0 / NaN でも落ちない）
+		const safeGrowthOptions = growthOptions.map(opt => {
+			const w = Math.max(0, Number(opt.weight) || 0);
+			return { ...opt, weight: w };
 		});
+		const totalWeight = safeGrowthOptions.reduce((sum, opt) => sum + opt.weight, 0);
+		let selected = null;
+		if (totalWeight > 0) {
+			let rand = Math.random() * totalWeight;
+			selected = safeGrowthOptions.find(opt => {
+				if (rand < opt.weight) return true;
+				rand -= opt.weight;
+				return false;
+			}) || safeGrowthOptions[safeGrowthOptions.length - 1];
+		} else {
+			// 全weightが0の場合：skip以外を優先して1つ選ぶ（なければ先頭）
+			selected = safeGrowthOptions.find(opt => opt && opt.value && opt.value !== 'skip') || safeGrowthOptions[0];
+		}
+		if (!selected) {
+			selected = { label: '（自動選択）', value: 'skip', weight: 0 };
+		}
 
 		const selectedValue = selected.value;
 
@@ -6269,7 +6338,7 @@ window.startBattle = function() {
 
 	// --- 2) 連勝補正・モード補正（通常と同じ指数に統一） ---
 	const streakIndex = currentStreak + 1;
-	const growthFactor = Math.pow(1.05, streakIndex); // 指数補正
+	const growthFactor = Math.pow(1.1, streakIndex); // 指数補正
 	const rarityFactor = enemy.rarity; // レアリティ倍率
 	const modeFactor = growthFactor; // 鬼畜も通常と同じ指数
 
@@ -6310,7 +6379,7 @@ window.startBattle = function() {
 		`敵のステータス倍率: ${enemyMultiplier.toFixed(3)}倍\n` +
 		`  ├ 基礎ステータス: ${atk}/${def}/${spd}/${hpMax}\n` +
 		`  ├ レアリティ倍率: ${rarityFactor.toFixed(3)}\n` +
-		`  └ 成長倍率(指数): 1.05^${streakIndex} = ${growthFactor.toFixed(3)}`
+		`  └ 成長倍率(指数): 1.1^${streakIndex} = ${growthFactor.toFixed(3)}`
 	);
 
 	// --- 特殊スキル：戦闘開始時の特殊効果（残りHP%ダメージ/復活/吸収/バフ） ---
@@ -6901,44 +6970,62 @@ window.startBattle = function() {
 	}
 
 	// -------------------------
-	// 15ターン終了時の勝敗（両者生存なら残りHP割合で判定）
+	// 15ターン終了時の勝敗（両者生存なら「優劣バー(青/赤の長さ)」で判定）
+	//  - 優劣バーは「残りHP割合(pRem/eRem) を合計で正規化」した 100%積み上げ
+	//  - 同率はプレイヤー勝ち
 	// -------------------------
 	let __endedByTurnLimit = false;
-	let __hpRatioPlayer = null;
-	let __hpRatioEnemy = null;
-	let __hpRatioDiff = null;
+	let __hpRatioPlayer = null;   // 自HP/自MAX
+	let __hpRatioEnemy = null;    // 敵HP/敵MAX
+	let __hpSharePlayer = null;   // 優劣バーの青(自)の長さ(0..1)
+	let __hpShareEnemy = null;    // 優劣バーの赤(敵)の長さ(0..1)
+	let __hpShareDiff = null;     // (青-赤)
 
 	if (player.hp > 0 && enemy.hp > 0 && typeof __MAX_TURNS === 'number' && turn > __MAX_TURNS) {
 		__endedByTurnLimit = true;
+
 		const pMax = Math.max(1, (player.maxHp || player.hp || 1));
 		const eMax = Math.max(1, (enemy.maxHp || enemy.hp || 1));
+
+		// 残りHP割合（ツールチップ/表示用）
 		__hpRatioPlayer = Math.max(0, player.hp) / pMax;
-		__hpRatioEnemy = Math.max(0, enemy.hp) / eMax;
-		__hpRatioDiff = __hpRatioPlayer - __hpRatioEnemy;
+		__hpRatioEnemy  = Math.max(0, enemy.hp) / eMax;
+
+		// 優劣バー(100%積み上げ)のロジックと同一：pRem/eRem を合計で正規化
+		const pRem = Math.max(0, __hpRatioPlayer);
+		const eRem = Math.max(0, __hpRatioEnemy);
+		const sum = pRem + eRem;
+
+		__hpSharePlayer = (sum > 0) ? (pRem / sum) : 0.5;
+		__hpShareEnemy  = (sum > 0) ? (eRem / sum) : 0.5;
+		__hpShareDiff   = __hpSharePlayer - __hpShareEnemy;
 
 		const pPct = (__hpRatioPlayer * 100).toFixed(1);
 		const ePct = (__hpRatioEnemy * 100).toFixed(1);
-		const diffPct = (Math.abs(__hpRatioDiff) * 100).toFixed(2);
-		const sign = (__hpRatioDiff >= 0) ? '+' : '-';
-		const verdict = (__hpRatioDiff >= 0) ? '勝利' : '敗北';
 
-		log.push(`
-【${__MAX_TURNS}ターン終了：HP割合判定】自HP ${pPct}% / 敵HP ${ePct}%（差 ${sign}${diffPct}%）→ ${verdict}`);
+		const pBar = (__hpSharePlayer * 100).toFixed(2);
+		const eBar = (__hpShareEnemy * 100).toFixed(2);
+		const diffBar = (Math.abs(__hpShareDiff) * 100).toFixed(2);
+		const sign = (__hpShareDiff >= 0) ? '+' : '-';
+		const verdict = (__hpShareDiff >= 0) ? '勝利' : '敗北';
+
+		log.push(`\n【${__MAX_TURNS}ターン終了：優劣バー判定】青(自) ${pBar}% / 赤(敵) ${eBar}%（差 ${sign}${diffBar}%）→ ${verdict}\n（参考：自HP ${pPct}% / 敵HP ${ePct}%）`);
 	}
 
 	const playerWon = player.hp > 0 && (
 		enemy.hp <= 0 ||
 		(!__endedByTurnLimit && player.hp > enemy.hp) ||
-		(__endedByTurnLimit && __hpRatioDiff >= 0)
+		(__endedByTurnLimit && __hpShareDiff >= 0)
 	);
 
 	// -------------------------
-	// クラッチ報酬：HP割合差が小さい「僅差勝利」ほどレア寄り魔道具を付与
-	// - 2%差以内のみ
+	// -------------------------
+	// クラッチ報酬：優劣バー差が小さい「僅差勝利」ほどレア寄り魔道具を付与
+	// - 2%差以内のみ（バー長差）
 	// - 0.5%以内: tier3 / 1%以内: tier2 / 2%以内: tier1
 	// -------------------------
-	if (playerWon && __endedByTurnLimit && typeof __hpRatioDiff === 'number') {
-		const absDiff = Math.abs(__hpRatioDiff);
+	if (playerWon && __endedByTurnLimit && typeof __hpShareDiff === 'number') {
+		const absDiff = Math.abs(__hpShareDiff);
 		if (absDiff <= 0.02) {
 			let tier = 1;
 			if (absDiff <= 0.005) tier = 3;
@@ -7423,6 +7510,7 @@ window.startBattle = function() {
 		// 表示切り替え
 		if (gameScreen) gameScreen.classList.add('hidden');
 		if (titleScreen) titleScreen.classList.remove('hidden');
+		try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_e) {}
 		if (finalResults) finalResults.style.display = 'none';
 		if (battleArea) battleArea.classList.add('hidden');
 		if (remainDisplay) remainDisplay.style.display = 'none';
@@ -10315,4 +10403,63 @@ window.__bindTextFileLoadUI = function() {
 
 document.addEventListener('DOMContentLoaded', () => {
 	if (typeof window.__bindTextFileLoadUI === 'function') window.__bindTextFileLoadUI();
+});
+
+
+// =====================================================
+// Title Screen: "つづきから" -> compact load panel (animated swap)
+// =====================================================
+window.resetTitleLoadPanel = window.resetTitleLoadPanel || function() {
+	try {
+		const btn = document.getElementById('continueBtn');
+		const panel = document.getElementById('loadPanel');
+		if (btn) {
+			btn.style.display = '';
+			btn.classList.remove('is-swapping');
+		}
+		if (panel) {
+			panel.classList.add('is-collapsed');
+			panel.classList.remove('is-open');
+			panel.setAttribute('aria-hidden', 'true');
+		}
+	} catch (e) {}
+};
+
+window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() {
+	try {
+		const btn = document.getElementById('continueBtn');
+		const panel = document.getElementById('loadPanel');
+		if (!btn || !panel) return;
+
+		if (btn.__bound) return;
+		btn.__bound = true;
+
+		const openPanel = () => {
+			try {
+				// swap animation: fade/blur out the single button, then reveal panel
+				btn.classList.add('is-swapping');
+
+				// Let CSS transition run, then hide the button & open panel
+				const ms = 240;
+				window.__uiSetTimeout(() => {
+					try { btn.style.display = 'none'; } catch (_) {}
+					panel.classList.remove('is-collapsed');
+					panel.classList.add('is-open');
+					panel.setAttribute('aria-hidden', 'false');
+				}, ms);
+			} catch (e) {}
+		};
+
+		btn.addEventListener('click', openPanel);
+
+		// Default state: collapsed
+		window.resetTitleLoadPanel();
+	} catch (e) {}
+};
+
+// Bind on DOMContentLoaded (alongside existing title UI bindings)
+window.addEventListener('DOMContentLoaded', () => {
+	try {
+		if (typeof window.__initTitleContinuePanel === 'function') window.__initTitleContinuePanel();
+	} catch (e) {}
 });

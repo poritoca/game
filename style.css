@@ -24,6 +24,61 @@ body {
   -webkit-touch-callout: none !important;
 }
 
+/* タイトル画面表示中はゲーム画面を強制的に隠す（JS側の一瞬の表示漏れ対策） */
+#titleScreen:not(.hidden) ~ #gameScreen {
+  display: none !important;
+}
+
+/* ===============================
+   上部：4ボタン 2列パネル
+   =============================== */
+.top-fold-panel{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+  margin: 0 0 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.top-fold-btn{
+  width: 100%;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.55);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+  transition: transform 120ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.top-fold-btn:hover{
+  border-color: rgba(255,255,255,0.28);
+  box-shadow: 0 14px 26px rgba(0,0,0,0.42);
+}
+
+.top-fold-btn:active{
+  transform: translateY(1px) scale(0.99);
+}
+
+.top-fold-btn.is-open{
+  border-color: rgba(96,165,250,0.65);
+  box-shadow: 0 0 0 2px rgba(96,165,250,0.20), 0 16px 30px rgba(0,0,0,0.50);
+}
+
+@media (max-width: 520px){
+  .top-fold-panel{ gap: 10px; padding: 14px; }
+  .top-fold-btn{ padding: 13px 10px; border-radius: 15px; }
+}
+
 h1 {
   font-size: 1.5em;
   text-align: center;
@@ -3219,4 +3274,244 @@ canvas {
   height: 1px;
   background: rgba(255,255,255,0.10);
   margin: 6px 0;
+}
+
+/* ===== Fold + Panel layout (added) ===== */
+.panel-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 420px){
+  .panel-grid{ gap: 8px; }
+}
+.panel-grid button{
+  width: 100%;
+  border-radius: 14px;
+  padding: 12px 10px;
+  background: linear-gradient(145deg, rgba(58,63,94,0.95), rgba(20,24,46,0.95));
+  box-shadow: 0 8px 18px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.panel-grid button:hover{
+  transform: translateY(-2px);
+}
+.panel-grid button:active{
+  transform: translateY(1px);
+}
+
+
+
+/* =====================================================
+   Title Screen: "つづきから" -> Load Panel (iPhone Safari friendly)
+   ===================================================== */
+#continueBtn.continue-btn {
+  width: 100%;
+  margin-top: 3px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  background: linear-gradient(145deg, rgba(255, 215, 0, 0.18), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.28);
+  box-shadow:
+    0 10px 22px rgba(0,0,0,0.35),
+    0 0 18px rgba(255, 215, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  position: relative;
+  overflow: hidden;
+}
+
+#continueBtn.continue-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255,255,255,0.0), rgba(255,255,255,0.22), rgba(255,255,255,0.0));
+  transform: translateX(-140%) skewX(-18deg);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+#continueBtn.continue-btn:active {
+  transform: scale(0.985);
+}
+
+#continueBtn.continue-btn.is-swapping {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(6px) scale(0.98);
+  transition: opacity 220ms ease, transform 220ms ease, filter 220ms ease;
+}
+
+.load-panel {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(145deg, rgba(20,20,26,0.55), rgba(0,0,0,0.35));
+  box-shadow:
+    0 12px 26px rgba(0,0,0,0.35),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  overflow: hidden;
+  transform-origin: top center;
+  will-change: max-height, opacity, transform, filter;
+  transition:
+    max-height 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 260ms ease;
+}
+
+.load-panel .load-panel-inner {
+  padding: 10px;
+}
+
+.load-panel.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(-8px) scale(0.98);
+  pointer-events: none;
+}
+
+.load-panel.is-open {
+  max-height: 220px; /* compact for iPhone; enough for 2 rows */
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.load-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.load-tile {
+  width: 100%;
+  margin: 0;
+  padding: 12px 10px;
+  border-radius: 12px;
+  text-align: left;
+  line-height: 1.25;
+
+  background: linear-gradient(145deg, rgba(70, 74, 110, 0.35), rgba(20, 23, 40, 0.55));
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    0 10px 18px rgba(0,0,0,0.28),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.load-tile:active {
+  transform: scale(0.985);
+}
+
+.load-tile .tile-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+}
+
+.load-tile .tile-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.72);
+  opacity: 0.95;
+}
+
+.load-tile-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 420px) {
+  .load-panel.is-open { max-height: 240px; }
+  .load-tile .tile-title { font-size: 12px; }
+  .load-tile .tile-sub { font-size: 9px; }
+}
+
+/* Prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #continueBtn.continue-btn.is-swapping,
+  .load-panel {
+    transition: none !important;
+  }
+}
+
+/* ===========================
+   Start New Game ボタン
+   Continue ボタン寄せデザイン
+   =========================== */
+
+#startNewGameBtn {
+  /* サイズ・レイアウト */
+  width: 100%;
+  max-width: 360px;
+  margin: 10px auto;
+  padding: 10px 14px;
+
+  /* フォント */
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+
+  /* 色・背景 */
+  color: #e8f1ff;
+  background: linear-gradient(
+    180deg,
+    rgba(80, 130, 255, 0.25),
+    rgba(30, 60, 120, 0.35)
+  );
+
+  /* 枠・角丸 */
+  border-radius: 14px;
+  border: 1px solid rgba(120, 160, 255, 0.45);
+
+  /* ガラス感 */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  /* 影 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 6px 16px rgba(0, 0, 0, 0.45);
+
+  /* アニメーション */
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease;
+
+  cursor: pointer;
+}
+
+/* ホバー */
+#startNewGameBtn:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(100, 160, 255, 0.35),
+    rgba(50, 90, 160, 0.45)
+  );
+}
+
+/* 押下時 */
+#startNewGameBtn:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 3px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* 無効時（ゲーム中など） */
+#startNewGameBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: grayscale(0.4);
 }
