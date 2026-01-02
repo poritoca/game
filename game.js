@@ -523,6 +523,31 @@ window.clearEventPopup = function(keepGrowthBar = false) {
 	// NOTE: 旧UIの「左上バー（growthbar-ui）」は廃止。
 	// keepGrowthBar は互換のため残すが、常に完全に閉じる。
 
+
+	// reset layout modes (growth-compact etc.)
+	try{
+		popup.classList.remove('growth-compact-ui');
+		popup.classList.remove('growthbar-ui');
+		popup.classList.remove('expanded');
+		popup.classList.remove('selection-lock');
+		popup.classList.remove('has-options');
+		if (popup.dataset) {
+			delete popup.dataset.uiMode;
+		}
+		// reset inline positioning/sizing
+		popup.style.top = '';
+		popup.style.left = '';
+		popup.style.right = '';
+		popup.style.bottom = '';
+		popup.style.transform = '';
+		popup.style.width = '';
+		popup.style.maxWidth = '';
+		popup.style.height = '';
+		popup.style.maxHeight = '';
+		popup.style.padding = '';
+		popup.style.overflow = '';
+	}catch(e){}
+
 	// default: fully hide
 	popup.style.display = 'none';
 	popup.style.visibility = 'hidden';
@@ -2829,7 +2854,7 @@ function setupToggleButtons() {
 
 	itemBtn.onclick = () => {
 		window.allowItemInterrupt = !window.allowItemInterrupt;
-		updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 停止する", "魔道具入手: 停止しない");
+		updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 進行を停止する", "魔道具入手: 進行を停止しない");
 	};
 
 
@@ -2842,7 +2867,7 @@ function setupToggleButtons() {
 
 	updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
 	updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
-	updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 停止する", "魔道具入手: 停止しない");
+	updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 進行を停止する", "魔道具入手: 進行を停止しない");
 	if (autoSaveBtn) {
 		updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");
 	}
@@ -6139,7 +6164,7 @@ window.startBattle = function() {
 			{ label: "速度を上げる", value: 'speed', weight: normalWeight },
 			{ label: "HPを上げる", value: 'maxHp', weight: normalWeight },
 			{
-				label: `今回は選ばない（次回成長値x${window.getNextGrowthMultiplier()}）`,
+				label: `次回成長x${window.getNextGrowthMultiplier()}`,
 				value: 'skip',
 				weight: skipWeight
     }
@@ -7082,7 +7107,7 @@ window.startBattle = function() {
 			{ label: "防御を上げる", value: 'defense' },
 			{ label: "速度を上げる", value: 'speed' },
 			{ label: "HPを上げる", value: 'maxHp' },
-			{ label: `今回は選ばない（次回成長値x${window.getNextGrowthMultiplier()}）`, value: 'skip' }
+			{ label: `次回成長x${window.getNextGrowthMultiplier()}`, value: 'skip' }
   ], (chosen) => {
 			if (chosen === 'skip') {
 				window.skipGrowth();
@@ -8167,7 +8192,7 @@ window.__clearEventPopupLegacy = function() {
 
 // 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
-	// 前回の内容をクリア（旧「左上バーUI」は廃止したため、常に通常ポップアップで表示）
+	// 前回の内容をクリア（旧「左上バーUI」は廃止したため、常に eventPopup を使用）
 	clearEventPopup(false);
 
 	const popup = document.getElementById('eventPopup');
@@ -8176,26 +8201,95 @@ window.showEventOptions = function(title, options, onSelect) {
 
 	if (!popup || !titleEl || !optionsEl) return;
 
-	// 常に通常ポップアップ（中央）
-	popup.dataset.uiMode = 'default';
-	popup.classList.remove('growthbar-ui');
-	popup.classList.remove('expanded');
+	// --- UI mode switch ---
+	const isGrowthCompact = (String(title || '') === '成長選択');
+
+	// reset layout-related classes/styles to avoid inheriting other modes
+	try {
+		popup.classList.remove('growthbar-ui');
+		popup.classList.remove('expanded');
+		popup.classList.remove('selection-lock');
+		popup.classList.remove('has-options');
+		popup.classList.remove('growth-compact-ui');
+		if (popup.dataset) popup.dataset.uiMode = 'default';
+		// reset positioning that other modes may set
+		popup.style.width = '';
+		popup.style.maxWidth = '';
+		popup.style.height = '';
+		popup.style.maxHeight = '';
+		popup.style.padding = '';
+		popup.style.overflow = '';
+		popup.style.right = '';
+		popup.style.bottom = '';
+	} catch (e) {}
+
 	popup.style.display = 'block';
 	popup.style.visibility = 'visible';
 	popup.style.position = 'fixed';
-	popup.style.top = '50%';
-	popup.style.left = '50%';
-	popup.style.transform = 'translate(-50%, -50%)';
 
+	if (isGrowthCompact) {
+		// ✅ Compact growth selector: right-middle dock
+		if (popup.dataset) popup.dataset.uiMode = 'growth-compact';
+		popup.classList.add('growth-compact-ui');
+
+		popup.style.top = '50%';
+		popup.style.left = 'auto';
+		popup.style.right = '12px';
+		popup.style.transform = 'translateY(-50%)';
+	} else {
+		// default: centered
+		popup.style.top = '50%';
+		popup.style.left = '50%';
+		popup.style.transform = 'translate(-50%, -50%)';
+	}
+
+	// title
 	titleEl.textContent = title;
 
 	// options clear
 	while (optionsEl.firstChild) optionsEl.removeChild(optionsEl.firstChild);
 
+	// --- icon helper (growth compact only) ---
+	function growthIconFor(opt) {
+		const label = String(opt && opt.label ? opt.label : '');
+		const value = String(opt && opt.value ? opt.value : '');
+		// label-based
+		if (label.includes('攻') || label.toLowerCase().includes('atk')) return '⚔️';
+		if (label.includes('防') || label.toLowerCase().includes('def')) return '🛡️';
+		if (label.includes('速') || label.toLowerCase().includes('spd')) return '💨';
+		if (label.includes('体') || label.toLowerCase().includes('hp')) return '❤️';
+		if (label.includes('魔') || label.toLowerCase().includes('mp')) return '🔮';
+		if (label.includes('何') || label.includes('上げない') || label.includes('スキップ') || label.includes('見送')) return '⏭️';
+		// value-based fallback
+		if (value.includes('atk') || value.includes('attack')) return '⚔️';
+		if (value.includes('def')) return '🛡️';
+		if (value.includes('spd') || value.includes('speed')) return '💨';
+		if (value.includes('hp')) return '❤️';
+		if (value.includes('mp')) return '🔮';
+		if (value.includes('skip') || value.includes('none')) return '⏭️';
+		return '✨';
+	}
+
 	// ボタン生成
 	options.forEach(opt => {
 		const btn = document.createElement('button');
-		btn.textContent = opt.label;
+
+		if (isGrowthCompact) {
+			btn.className = 'event-opt-icon';
+			const icon = growthIconFor(opt);
+			// label short
+			let shortLabel = String(opt.label || '');
+			shortLabel = shortLabel
+				.replace(/(を|に|へ).*/g, '')  // "攻撃を上げる" -> "攻撃"
+				.replace(/上げる|増やす|強化|成長/g, '')
+				.trim();
+			if (!shortLabel) shortLabel = String(opt.label || '').trim();
+
+			btn.innerHTML = `<span class="icon">${icon}</span><span class="label">${shortLabel}</span>`;
+			btn.setAttribute('title', String(opt.label || ''));
+		} else {
+			btn.textContent = opt.label;
+		}
 
 		btn.onclick = () => {
 			try {
@@ -8207,9 +8301,8 @@ window.showEventOptions = function(title, options, onSelect) {
 
 		optionsEl.appendChild(btn);
 	});
-
-	// 位置は fixed 中央で統一（スクロールの影響を受けない）
 };
+
 
 // --- Growth bar: auto-pick visual (expand briefly, then collapse) ---
 window.showGrowthAutoBar = function(message) {
