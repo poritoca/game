@@ -6855,8 +6855,11 @@ window.startBattle = function() {
 		// -------------------------
 		const __turnsElapsed = Math.max(0, (typeof turn === 'number' ? (turn - 1) : 0));
 		const __endedByHp = (player.hp <= 0 || enemy.hp <= 0);
+		const __playerDefeated = (player.hp <= 0);
 
-		if (__endedByHp && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
+		// 仕様変更：5ターン以内に「プレイヤーが倒れた」場合のみ、短期決着ダイジェスト→仕切り直し
+		//          5ターン以内に勝利した場合は、そのままこの戦闘結果を採用して終了する
+		if (__playerDefeated && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
 			// リトライ上限を超える場合は、この結果を採用（＝ログは消さない）
 			if ((__retryIndex + 1) > __RETRY_LIMIT) {
 				log.push(`【短期決着補正】リトライ回数が上限（${__RETRY_LIMIT}回）に達したため、この結果を採用します。`);
@@ -6882,10 +6885,10 @@ window.startBattle = function() {
 				}
 
 				// ダイジェスト1行を追加（この行だけが残る）
-				log.push(`【短期決着ダイジェスト】#${__nextRetryIndex}：${__turnsElapsed}ターンで${__winnerText} → 無効化（次戦HP倍率 x${__nextHpMult}）`);
+				log.push(`【短期敗北ダイジェスト】#${__nextRetryIndex}：${__turnsElapsed}ターンで${__winnerText} → 無効化（次戦HP倍率 x${__nextHpMult}）`);
 			} catch (_e) {
 				// 万一ダイジェスト生成に失敗しても、リトライ自体は継続（ログは残す）
-				log.push(`【短期決着ダイジェスト】${__turnsElapsed}ターン以内に決着 → 無効化（次戦へ）`);
+				log.push(`【短期敗北ダイジェスト】${__turnsElapsed}ターン以内に決着 → 無効化（次戦へ）`);
 			}
 
 			// 次の周回へ（基準状態に戻して、HP倍率を上げて再戦）
