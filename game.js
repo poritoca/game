@@ -230,6 +230,12 @@ window.showAllGlobalVariables = function() {
 
 window.updateScoreOverlay = function() {
 	const overlay = document.getElementById('scoreOverlay');
+	// Guard: never show overlays during long-press auto battle
+	if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+		try { overlay.style.display = 'none'; } catch(e){}
+		return;
+	}
+
 	if (!overlay || !window.maxScores) return;
 
 	let html = '';
@@ -295,6 +301,12 @@ window.showCenteredPopup = function(message, duration = 3000) {
 
 window.updateSkillOverlay = function() {
 	const el = document.getElementById('skillOverlay');
+	// Guard: never show overlays during long-press auto battle
+	if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+		try { el.style.display = 'none'; } catch(e){}
+		return;
+	}
+
 	if (!el || !player || !Array.isArray(player.skills)) return;
 
 	const lines = player.skills.map(s => `${s.name} Lv${s.level}`);
@@ -307,6 +319,12 @@ window.updateSkillOverlay = function() {
 };
 window.updateItemOverlay = function() {
 	const el = document.getElementById('itemOverlay');
+	// Guard: never show overlays during long-press auto battle
+	if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+		try { el.style.display = 'none'; } catch(e){}
+		return;
+	}
+
 	if (!el || !player || !Array.isArray(player.itemMemory)) return;
 
 	const lines = player.itemMemory.map(i => {
