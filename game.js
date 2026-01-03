@@ -1117,6 +1117,37 @@ window.__initBattleControlDock = window.__initBattleControlDock || function() {
 		dock.id = 'battleOverlayDock';
 		dock.classList.add('dock-left');
 
+		// ---------------------------------------------------------
+		// Mini bar follow + auto-minimize on scroll
+		// ---------------------------------------------------------
+		window.__isBattleDockMinimized = window.__isBattleDockMinimized || function() {
+			try { return (localStorage.getItem(window.__battleDockMinKey) === '1'); }
+			catch (_) { return false; }
+		};
+
+		window.__updateBattleDockMiniBarFollow = window.__updateBattleDockMiniBarFollow || function() {
+			try {
+				const miniBar = document.getElementById('battleDockMiniBar');
+				if (!miniBar) return;
+
+				// Only reposition when visible (minimized state)
+				const isVisible = (miniBar.style.display !== 'none' && miniBar.offsetParent !== null);
+				if (!isVisible) return;
+
+				const vv = window.visualViewport || null;
+				const viewportH = vv ? vv.height : window.innerHeight;
+				const offsetTop = vv ? vv.offsetTop : 0; // iOS address bar / keyboard
+				const barH = miniBar.offsetHeight || 16;
+				const bottomGap = 14;
+
+				const top = (window.scrollY + offsetTop + viewportH - bottomGap - barH);
+				miniBar.style.top = Math.max(0, Math.round(top)) + 'px';
+			} catch (e) {
+				console.warn('[BattleDock] mini bar follow failed', e);
+			}
+		};
+
+
 // Minimize controls (bottom-center)
 const minBtn = document.createElement('button');
 minBtn.type = 'button';
@@ -1184,6 +1215,46 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 	} catch (e) {
 		console.warn('[BattleDock] init failed', e);
 	}
+
+		// Auto-minimize on any scroll/touch scroll (except while auto-battle is running)
+		if (!window.__battleDockScrollAutoMinHooked) {
+			window.__battleDockScrollAutoMinHooked = true;
+
+			const tryAutoMinimize = () => {
+				try {
+					// Only on game screen
+					const titleScreen = document.getElementById('titleScreen');
+					const gameScreen = document.getElementById('gameScreen');
+					const isTitleVisible = !!(titleScreen && !titleScreen.classList.contains('hidden'));
+					const isGameVisible  = !!(gameScreen && !gameScreen.classList.contains('hidden'));
+					if (isTitleVisible || !isGameVisible) return;
+
+					// Guard: during long-press auto battle, never auto-minimize
+					const autoRunning = (typeof isAutoBattle !== 'undefined') && !!isAutoBattle;
+					if (autoRunning) return;
+
+					// If already minimized, keep following the scroll
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+						return;
+					}
+
+					// Otherwise minimize immediately on first scroll
+					window.__setBattleDockMinimized && window.__setBattleDockMinimized(true);
+					window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+				} catch (_) {}
+			};
+
+			window.addEventListener('scroll', tryAutoMinimize, { passive: true });
+			window.addEventListener('touchmove', tryAutoMinimize, { passive: true });
+			window.addEventListener('resize', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
+
+			// visualViewport (iOS)
+			if (window.visualViewport) {
+				window.visualViewport.addEventListener('scroll', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
+				window.visualViewport.addEventListener('resize', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
+			}
+		}
 };
 
 window.__refreshBattleControlDock = window.__refreshBattleControlDock || function() {
@@ -1215,7 +1286,25 @@ try {
 	minimized = (localStorage.getItem(window.__battleDockMinKey) === '1');
 } catch (_) {}
 
+
+		// Keep mode color binding in sync even while minimized
+		const __bdMode = (window.__getBattleDockMode && window.__getBattleDockMode()) || 'normal';
+		const __bdIsBrutal = (__bdMode === 'brutal');
+		if (dock) {
+			dock.classList.toggle('mode-normal', !__bdIsBrutal);
+			dock.classList.toggle('mode-brutal', __bdIsBrutal);
+		}
+		if (minBtn) {
+			minBtn.classList.toggle('mode-normal', !__bdIsBrutal);
+			minBtn.classList.toggle('mode-brutal', __bdIsBrutal);
+		}
+		if (miniBar) {
+			miniBar.classList.toggle('mode-normal', !__bdIsBrutal);
+			miniBar.classList.toggle('mode-brutal', __bdIsBrutal);
+		}
+
 if (minimized) {
+			try { window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(); } catch (_) {}
 	dock.style.display = 'none';
 	if (minBtn) minBtn.style.display = 'none';
 	if (miniBar) miniBar.style.display = 'block';

@@ -3763,9 +3763,9 @@ canvas {
 }
 
 #battleDockMiniBar{
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 14px;
+  top: 0; /* updated via JS to follow scroll */
   transform: translateX(-50%);
   z-index: 10051;
   display: none;
