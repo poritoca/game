@@ -1051,6 +1051,204 @@ function __applyBattleLogControlsUI() {
 	});
 }
 
+
+// =====================================================
+// Battle Controls: Floating Dock Overlay (left/right toggle)
+// - Shows only on game screen (hidden on title)
+// - Ensures initial render immediately after switching screens (no scroll needed)
+// =====================================================
+window.__battleDockSideKey = window.__battleDockSideKey || 'battleDockSide';
+window.__battleDockMinKey = window.__battleDockMinKey || 'battleDockMinimized';
+
+window.__setBattleDockSide = window.__setBattleDockSide || function(side) {
+	try {
+		const s = (side === 'right') ? 'right' : 'left';
+		try { localStorage.setItem(window.__battleDockSideKey, s); } catch (_) {}
+		window.__refreshBattleControlDock && window.__refreshBattleControlDock();
+	} catch (e) {
+		console.warn('[BattleDock] set side failed', e);
+	}
+};
+
+window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(minimized) {
+	try {
+		const v = minimized ? '1' : '0';
+		try { localStorage.setItem(window.__battleDockMinKey, v); } catch (_) {}
+		window.__refreshBattleControlDock && window.__refreshBattleControlDock();
+	} catch (e) {
+		console.warn('[BattleDock] set minimized failed', e);
+	}
+};
+
+
+window.__initBattleControlDock = window.__initBattleControlDock || function() {
+	try {
+		if (document.getElementById('battleOverlayDock')) return;
+
+		const dock = document.createElement('div');
+		dock.id = 'battleOverlayDock';
+		dock.classList.add('dock-left');
+
+// Minimize controls (bottom-center)
+const minBtn = document.createElement('button');
+minBtn.type = 'button';
+minBtn.id = 'battleDockMinimizeBtn';
+minBtn.textContent = '最小化';
+minBtn.addEventListener('click', () => window.__setBattleDockMinimized(true));
+
+const miniBar = document.createElement('button');
+miniBar.type = 'button';
+miniBar.id = 'battleDockMiniBar';
+miniBar.setAttribute('aria-label', '最小化バー（クリックで復帰）');
+miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
+
+		// Side toggle row
+		const toggleRow = document.createElement('div');
+		toggleRow.className = 'dockToggleRow';
+
+		const leftBtn = document.createElement('button');
+		leftBtn.type = 'button';
+		leftBtn.className = 'dockSideBtn';
+		leftBtn.textContent = '← 左';
+		leftBtn.addEventListener('click', () => window.__setBattleDockSide('left'));
+
+		const rightBtn = document.createElement('button');
+		rightBtn.type = 'button';
+		rightBtn.className = 'dockSideBtn';
+		rightBtn.textContent = '右 →';
+		rightBtn.addEventListener('click', () => window.__setBattleDockSide('right'));
+
+		toggleRow.appendChild(leftBtn);
+		toggleRow.appendChild(rightBtn);
+
+		// Content area (actual buttons moved here)
+		const content = document.createElement('div');
+		content.className = 'dockContent';
+
+		dock.appendChild(toggleRow);
+		dock.appendChild(content);
+
+		document.body.appendChild(dock);
+
+		document.body.appendChild(minBtn);
+		document.body.appendChild(miniBar);
+
+		// Observe screen switch so the dock appears immediately on game screen
+		const gameScreen = document.getElementById('gameScreen');
+		if (gameScreen && !gameScreen.__battleDockObserved) {
+			gameScreen.__battleDockObserved = true;
+			const obs = new MutationObserver(() => {
+				try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
+			});
+			obs.observe(gameScreen, { attributes: true, attributeFilter: ['class', 'style'] });
+		}
+
+		// Also refresh on visibility changes for title screen
+		const titleScreen = document.getElementById('titleScreen');
+		if (titleScreen && !titleScreen.__battleDockObserved) {
+			titleScreen.__battleDockObserved = true;
+			const obs2 = new MutationObserver(() => {
+				try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
+			});
+			obs2.observe(titleScreen, { attributes: true, attributeFilter: ['class', 'style'] });
+		}
+
+	} catch (e) {
+		console.warn('[BattleDock] init failed', e);
+	}
+};
+
+window.__refreshBattleControlDock = window.__refreshBattleControlDock || function() {
+	try {
+		const dock = document.getElementById('battleOverlayDock');
+		if (!dock) return;
+
+		const minBtn = document.getElementById('battleDockMinimizeBtn');
+		const miniBar = document.getElementById('battleDockMiniBar');
+
+		const titleScreen = document.getElementById('titleScreen');
+		const gameScreen = document.getElementById('gameScreen');
+
+		const isTitleVisible = !!(titleScreen && !titleScreen.classList.contains('hidden'));
+		const isGameVisible  = !!(gameScreen && !gameScreen.classList.contains('hidden'));
+
+		// Title screen: always hide
+		if (isTitleVisible || !isGameVisible) {
+			dock.style.display = 'none';
+			if (minBtn) minBtn.style.display = 'none';
+			if (miniBar) miniBar.style.display = 'none';
+			return;
+		}
+
+
+// Apply minimized state (persisted)
+let minimized = false;
+try {
+	minimized = (localStorage.getItem(window.__battleDockMinKey) === '1');
+} catch (_) {}
+
+if (minimized) {
+	dock.style.display = 'none';
+	if (minBtn) minBtn.style.display = 'none';
+	if (miniBar) miniBar.style.display = 'block';
+	return;
+} else {
+	if (miniBar) miniBar.style.display = 'none';
+	if (minBtn) minBtn.style.display = 'block';
+}
+
+// Apply side (persisted)
+		let side = 'left';
+		try {
+			side = localStorage.getItem(window.__battleDockSideKey) || 'left';
+		} catch (_) {}
+		side = (side === 'right') ? 'right' : 'left';
+
+		dock.classList.toggle('dock-left', side === 'left');
+		dock.classList.toggle('dock-right', side === 'right');
+
+		// Toggle UI active state
+		const btns = dock.querySelectorAll('.dockSideBtn');
+		if (btns && btns.length >= 2) {
+			btns[0].classList.toggle('is-active', side === 'left');
+			btns[1].classList.toggle('is-active', side === 'right');
+		}
+
+		// Move buttons into dock (keep IDs/listeners intact)
+		const content = dock.querySelector('.dockContent') || dock;
+		const modeBtn = document.getElementById('specialModeButton');
+		const battleBtn = document.getElementById('startBattleBtn');
+
+		if (modeBtn && !dock.contains(modeBtn)) content.appendChild(modeBtn);
+		if (battleBtn && !dock.contains(battleBtn)) content.appendChild(battleBtn);
+
+		// Show now (no scroll required)
+		dock.style.display = 'flex';
+		// Force paint on iOS after screen switch
+		requestAnimationFrame(() => {
+			try { dock.style.opacity = '1'; } catch (_) {}
+		});
+	} catch (e) {
+		console.warn('[BattleDock] refresh failed', e);
+	}
+};
+
+// Safe bootstrap
+window.__ensureBattleDockReady = window.__ensureBattleDockReady || function() {
+	try {
+		window.__initBattleControlDock && window.__initBattleControlDock();
+		window.__refreshBattleControlDock && window.__refreshBattleControlDock();
+		// extra refresh after a short delay (fade-in timing)
+		(window.__battleSetTimeout || window.setTimeout)(() => {
+			try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
+		}, 60);
+		(window.__battleSetTimeout || window.setTimeout)(() => {
+			try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
+		}, 260);
+	} catch (e) {}
+};
+
+
 document.addEventListener('DOMContentLoaded', () => {
 	__loadBattleLogSpeedSettings();
 	__applyBattleLogControlsUI();
@@ -4758,6 +4956,7 @@ window.startNewGame = function() {
 		titleScreen.classList.add('hidden');
 		gameScreen.classList.remove('hidden');
 		gameScreen.classList.add('fade-in');
+			try { window.__ensureBattleDockReady && window.__ensureBattleDockReady(); } catch (e) {}
 
 		// ゲーム画面の初期設定
 		statusLogged = false;
@@ -7745,6 +7944,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	if (typeof updateScoreOverlay === 'function') {
 		updateScoreOverlay();
 	}
+
+	try { window.__ensureBattleDockReady && window.__ensureBattleDockReady(); } catch (e) {}
 
 	const returnBtn = document.getElementById('returnToTitleBtnInGame');
 	if (returnBtn) {

@@ -3520,64 +3520,54 @@ canvas {
 /* =========================================================
    Growth selection compact UI (right-middle dock)
    - activated when showEventOptions("成長選択", ...) is used
-   - 要望: 縦横コンパクト + 1列(縦リスト) + 右中央にドック表示
    ========================================================= */
 #eventPopup.growth-compact-ui{
   position: fixed !important;
   top: 50% !important;
-  right: 10px !important;
+  right: 12px !important;
   left: auto !important;
   transform: translateY(-50%) !important;
 
-  width: min(170px, 44vw);
-  max-width: 170px;
-  padding: 8px 8px 8px !important;
+  width: min(210px, 46vw);
+  max-width: 210px;
+  padding: 10px 10px 8px !important;
 
-  border-radius: 14px !important;
+  border-radius: 16px !important;
   border: 1px solid rgba(255,255,255,0.14) !important;
-  background: rgba(18,18,22,0.66) !important;
+  background: rgba(18,18,22,0.68) !important;
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 14px 34px rgba(0,0,0,0.35);
 }
 
-/* タイトルは極小（邪魔なら display:none に切替可） */
 #eventPopup.growth-compact-ui #eventPopupTitle{
-  margin: 0 0 6px 0;
-  font-size: 10px;
+  margin: 0 0 8px 0;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.04em;
-  opacity: 0.70;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  opacity: 0.78;
 }
 
 #eventPopup.growth-compact-ui #eventPopupOptions{
   margin-top: 0 !important;
-  display: flex;
-  flex-direction: column; /* ← 1列 */
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-/* 1列ボタン（横方向もコンパクトに） */
 #eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon{
   width: 100%;
-  height: 34px;
-  padding: 6px 8px;
-  border-radius: 12px;
+  height: 54px;
+  padding: 6px 6px;
+  border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.92);
   cursor: pointer;
-
-  box-shadow: 0 10px 18px rgba(0,0,0,0.16);
-
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-
+  box-shadow: 0 10px 22px rgba(0,0,0,0.18);
+  display: grid;
+  place-items: center;
+  gap: 4px;
   line-height: 1.0;
 }
 
@@ -3586,43 +3576,19 @@ canvas {
 }
 
 #eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon .icon{
-  width: 18px;
-  flex: 0 0 18px;
-  text-align: center;
-  font-size: 15px;
+  font-size: 18px;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
 }
 
 #eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon .label{
-  flex: 1 1 auto;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
-  opacity: 0.90;
-  text-align: left;
+  opacity: 0.9;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
-
-/* Make the compact popup not block too much on very small screens */
-@media (max-width: 420px){
-  #eventPopup.growth-compact-ui{
-    width: min(156px, 52vw);
-    max-width: 156px;
-    right: 8px !important;
-    padding: 7px 7px 7px !important;
-  }
-  #eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon{
-    height: 32px;
-    padding: 6px 7px;
-    border-radius: 11px;
-  }
-  #eventPopup.growth-compact-ui #eventPopupTitle{
-    font-size: 9px;
-  }
-}
-
 
 /* Make the compact popup not block too much on very small screens */
 @media (max-width: 420px){
@@ -3635,24 +3601,143 @@ canvas {
   }
 }
 
+
+
 /* =========================================================
-   Growth selection compact UI (right-middle dock)
+   Battle Controls Floating Dock (left/right toggle)
+   - shown on game screen only (JS controls display)
    ========================================================= */
-#eventPopup.growth-compact-ui{
-  position: fixed !important;
-  top: 50% !important;
-  right: 10px !important;
-  left: auto !important;
-  transform: translateY(-50%) !important;
-
-  width: 100px !important;        /* ← ★ここだけ変更 */
-  max-width: 100px !important;    /* ← ★ここだけ変更 */
-  padding: 8px !important;
-
-  border-radius: 14px !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  background: rgba(18,18,22,0.66) !important;
+#battleOverlayDock{
+  position: fixed;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  z-index: 10050;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(18,18,22,0.66);
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.35);
+  box-shadow: 0 12px 34px rgba(0,0,0,0.36);
 }
+
+#battleOverlayDock.dock-left{
+  left: 10px;
+  right: auto;
+}
+
+#battleOverlayDock.dock-right{
+  right: 10px;
+  left: auto;
+}
+
+#battleOverlayDock .dockToggleRow{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#battleOverlayDock .dockSideBtn{
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgba(245,245,255,0.92);
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 22px rgba(0,0,0,0.18);
+}
+
+#battleOverlayDock .dockSideBtn:active{
+  transform: translateY(1px);
+}
+
+#battleOverlayDock .dockSideBtn.is-active{
+  border-color: rgba(255,255,255,0.28);
+  background: linear-gradient(180deg, rgba(180,220,255,0.22), rgba(255,255,255,0.08));
+}
+
+#battleOverlayDock .dockContent{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+
+
+/* =========================================================
+   Battle control dock - minimize controls
+   ========================================================= */
+#battleDockMinimizeBtn{
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 10051;
+  display: none;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.92);
+  background: rgba(18,18,22,0.66);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+}
+
+#battleDockMinimizeBtn:active{
+  transform: translateX(-50%) scale(0.98);
+}
+
+#battleDockMiniBar{
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 10051;
+  display: none;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  width: 120px;
+  height: 14px;
+  padding: 0;
+  background: rgba(18,18,22,0.66);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+}
+
+#battleDockMiniBar::after{
+  content: '';
+  display: block;
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+  margin: 0 auto;
+  margin-top: 5px;
+  background: rgba(255,255,255,0.48);
+}
+
+#battleDockMiniBar:active{
+  transform: translateX(-50%) scale(0.98);
+}
+/* In dock, keep the two main buttons compact */
+#battleOverlayDock #specialModeButton,
+#battleOverlayDock #startBattleBtn{
+  width: 170px;
+  max-width: min(44vw, 220px);
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
