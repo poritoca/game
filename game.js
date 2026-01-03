@@ -801,6 +801,19 @@ window.toggleSpecialMode = function() {
 		battleBtn.classList.add('normal-mode');
 	}
 };
+// Ensure BattleDock color updates immediately when mode is toggled
+try{
+	if (!window.__battleDockWrappedToggleSpecialMode && typeof window.toggleSpecialMode === 'function'){
+		window.__battleDockWrappedToggleSpecialMode = true;
+		const __origToggleSpecialMode = window.toggleSpecialMode;
+		window.toggleSpecialMode = function(){
+			const r = __origToggleSpecialMode.apply(this, arguments);
+			try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+			return r;
+		};
+	}
+}catch(_){}
+
 
 const skillDeleteButton = document.getElementById('skillDeleteButton');
 
@@ -1070,6 +1083,21 @@ window.__setBattleDockSide = window.__setBattleDockSide || function(side) {
 	}
 };
 
+
+window.__getBattleDockMode = window.__getBattleDockMode || function(){
+	try{
+		// Prefer the canonical flag used in this project
+		if (window.specialMode === 'brutal') return 'brutal';
+		if (window.specialMode === 'normal') return 'normal';
+		// Fallbacks: infer from button class/text
+		const b = document.getElementById('specialModeButton');
+		if (b && b.classList && b.classList.contains('brutal-mode')) return 'brutal';
+		return 'normal';
+	}catch(_){
+		return 'normal';
+	}
+};
+
 window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(minimized) {
 	try {
 		const v = minimized ? '1' : '0';
@@ -1206,6 +1234,20 @@ if (minimized) {
 
 		dock.classList.toggle('dock-left', side === 'left');
 		dock.classList.toggle('dock-right', side === 'right');
+		// Apply mode color (normal / brutal)
+		const mode = (window.__getBattleDockMode && window.__getBattleDockMode()) || 'normal';
+		const isBrutal = (mode === 'brutal');
+		dock.classList.toggle('mode-normal', !isBrutal);
+		dock.classList.toggle('mode-brutal', isBrutal);
+		if (miniBar) {
+			miniBar.classList.toggle('mode-normal', !isBrutal);
+			miniBar.classList.toggle('mode-brutal', isBrutal);
+		}
+		if (minBtn) {
+			minBtn.classList.toggle('mode-normal', !isBrutal);
+			minBtn.classList.toggle('mode-brutal', isBrutal);
+		}
+
 
 		// Toggle UI active state
 		const btns = dock.querySelectorAll('.dockSideBtn');
