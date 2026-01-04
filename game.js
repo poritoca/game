@@ -7645,7 +7645,7 @@ window.startBattle = function() {
 			victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
 		}
 
-		showCustomAlert(victoryMessage, 800);
+		showCustomAlert(victoryMessage, 1200);
 
 		log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -7824,7 +7824,7 @@ window.startBattle = function() {
 	
 	${resetMessage}` +
 			`${growthMsg}` + // ← ここで成長説明を表示
-			`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`, null, { autoDismissMs: 200, fadeOutMs: 160, hideOk: true }
+			`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`, null, { autoDismissMs: 1500, fadeOutMs: 400, hideOk: true }
 		);
 
 		//showSubtitle(
