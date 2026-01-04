@@ -1415,6 +1415,33 @@ try {
 } catch (e) {}
 
 
+
+const battleCountSelect = document.getElementById("battleCountSelect");
+const battleCountSelectB = document.getElementById("battleCountSelectB");
+
+// 同期関数
+function syncBattleCount(from, to) {
+  if (!from || !to) return;
+  to.value = from.value;
+}
+
+// A → B
+battleCountSelect.addEventListener("change", () => {
+  syncBattleCount(battleCountSelect, battleCountSelectB);
+});
+
+// B → A
+battleCountSelectB.addEventListener("change", () => {
+  syncBattleCount(battleCountSelectB, battleCountSelect);
+});
+
+// 初期状態も同期（念のため）
+syncBattleCount(battleCountSelect, battleCountSelectB);
+
+
+
+
+
 function displayBattleLogWithoutAsync(log) {
 	if (isBattleLogRunning && battleLogTimerId !== null) {
 		clearTimeout(battleLogTimerId);

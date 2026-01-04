@@ -159,8 +159,27 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <button id="continueBtn" class="continue-btn" type="button">つづきから</button>
 
 <div id="loadPanel" class="load-panel is-collapsed" aria-hidden="true">
+	
+
   <div class="load-panel-inner">
+		
+		
+		
+		<small>（戦闘数を選択後、以下から選択）</small>
+		
+<select id="battleCountSelectB" class="rainbow-select">
+  <option value="100">100</option>
+  <option value="200" selected>200</option>
+  <option value="500">500</option>
+  <option value="1000">1000</option>
+  <option value="5000">5000</option>
+  <option value="10000">10000</option>
+  <option value="unlimited">無制限</option>
+</select>
+
+<div id="battleEffectOverlay"></div>
     <div class="load-panel-grid" role="group" aria-label="ロード方法を選択">
+			
       <button id="loadLocalBtn" class="load-tile" onclick="loadFromLocalStorage()" type="button">
         <span class="tile-title">ローカル</span>
         <span class="tile-sub">端末に保存したデータ</span>
