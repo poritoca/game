@@ -1718,7 +1718,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	const returnBtn = document.getElementById('returnToTitleBtnInGame');
 	if (returnBtn) {
 		returnBtn.addEventListener('click', () => {
-			if (confirm("本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）")) {
+			const isTimeAttack = !!(window.__timeLimitState && (window.__timeLimitState.active || window.__timeLimitState.expired));
+			const msg = isTimeAttack
+				? "制限時間での挑戦がリセットされますがよろしいですか？\n（未保存の進行状況も失われます）"
+				: "本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）";
+			if (confirm(msg)) {
+				try{ if (typeof window.__clearTimeLimitRuntime === 'function') window.__clearTimeLimitRuntime(true); }catch(_){}
 				location.reload();
 			}
 		});
@@ -1956,6 +1961,26 @@ window.loadGame = async function() {
 	const hasFile = fileInput && fileInput.files.length > 0;
 	const hasText = input.length > 0;
 
+	// --- Ensure we fully enter game screen (hide title) and re-dock the battle UI immediately ---
+	const __enterGameScreen = () => {
+		try {
+			const titleScreen = document.getElementById('titleScreen');
+			const gameScreen = document.getElementById('gameScreen');
+			if (titleScreen) {
+				titleScreen.classList.add('hidden');
+				try { titleScreen.classList.remove('fade-out'); } catch (_) {}
+			}
+			if (gameScreen) {
+				gameScreen.classList.remove('hidden');
+				try { gameScreen.classList.add('fade-in'); } catch (_) {}
+			}
+			try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_) {}
+			try { window.__ensureBattleDockReady && window.__ensureBattleDockReady(); } catch (_) {}
+			// Time limit UI might need to be reattached to the dock after re-dock
+			try { window.__applyTimeLimitUI && window.__applyTimeLimitUI(); } catch (_) {}
+		} catch (e) {}
+	};
+
 	if (!hasFile && !hasText) {
 		alert('セーブデータが入力されていません。');
 		location.reload();
@@ -1970,6 +1995,7 @@ window.loadGame = async function() {
 			const content = e.target.result.trim();
 			document.getElementById('saveData').value = content;
 			await window.importSaveCode();
+			try { __enterGameScreen(); } catch (_) {}
 			updateRemainingBattleDisplay(); // ★表示更新
 		};
 		reader.readAsText(file);
@@ -1978,6 +2004,7 @@ window.loadGame = async function() {
 
 	if (input.includes('.')) {
 		await window.importSaveCode();
+		try { __enterGameScreen(); } catch (_) {}
 		updateRemainingBattleDisplay(); // ★表示更新
 		return;
 	}
@@ -1999,7 +2026,7 @@ window.loadGame = async function() {
 		} while (!hasOffensiveSkill(enemy));
 
 		updateStats();
-		document.getElementById('gameScreen').classList.remove('hidden');
+		try { __enterGameScreen(); } catch (_) {}
 		document.getElementById("battleArea").classList.add("hidden");
 
 		// ★表示更新

@@ -3100,7 +3100,7 @@ canvas {
 
 /* mobile: slightly taller for readability */
 @media (max-width: 420px){
-  #battleLog .turn-advbar{ height: 16px; margin: 6px 8px 10px; }
+  #battleLog .turn-advbar{ height: 22px; margin: 6px 8px 10px; }
 }
 
 /* =========================
@@ -3550,7 +3550,7 @@ canvas {
 
 /* Drag handle (grab here to move the panel) */
 #eventPopup.growth-compact-ui .growth-drag-handle{
-  height: 16px;
+  height: 22px;
   margin: -2px 0 6px 0;
   border-radius: 999px;
   cursor: grab;
@@ -3893,7 +3893,11 @@ body.battle-dock-dragging{
   border-color: color-mix(in srgb, var(--battleDock-main) 32%, rgba(255,255,255,0.18));
   border-radius: 999px;
   width: 128px;
-  height: 16px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   padding: 0;
   background: linear-gradient(90deg,
     rgba(18,18,22,0.78) 0%,
@@ -3907,6 +3911,17 @@ body.battle-dock-dragging{
 }
 
 
+
+#battleDockMiniBar .miniBarLabel{
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.55);
+  text-shadow: 0 1px 8px rgba(0,0,0,0.55);
+  padding: 0 6px;
+  pointer-events: none;
+  user-select: none;
+}
 /* Mini bar follow modes */
 #battleDockMiniBar.follow-viewport{
   position: fixed !important;
@@ -3964,14 +3979,17 @@ body.battle-dock-dragging{
 
 #battleDockMiniBar::after{
   content: '';
-  display: block;
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
   width: 54px;
-  height: 4px;
+  height: 3px;
   border-radius: 999px;
-  margin: 0 auto;
-  margin-top: 5px;
-  background: rgba(255,255,255,0.48);
+  background: rgba(255,255,255,0.42);
+  pointer-events: none;
 }
+
 
 #battleDockMiniBar:active{
   transform: translateX(-50%) scale(0.98);

@@ -1046,6 +1046,8 @@ window.saveToLocalStorage = async function() {
 		faceItemsOwned: window.faceItemsOwned || [],
 		faceItemEquipped: window.faceItemEquipped || null,
 		faceItemBonusMap: window.faceItemBonusMap || {},
+		// 制限時間（タイムアタック）状態
+		timeLimitState: (typeof window.__serializeTimeLimitState === 'function') ? window.__serializeTimeLimitState() : null,
 	};
 
 	const raw = JSON.stringify(payload);
@@ -1220,6 +1222,18 @@ window.importSaveCode = async function(code = null) {
 		if (typeof setupItemFilters === 'function') setupItemFilters();
 		if (typeof setupToggleButtons === 'function') setupToggleButtons();
 		if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
+
+		// ==========================
+		// 制限時間（タイムアタック）状態の復元
+		//  - ローカル保存対象
+		//  - つづきから選択直後（import直後）から途中再開
+		// ==========================
+		try{
+			if (typeof window.__restoreTimeLimitStateFromSave === 'function') {
+				window.__restoreTimeLimitStateFromSave(parsed.timeLimitState || null);
+			}
+		}catch(_){}
+
 
 		do {
 			enemy = makeCharacter('敵' + Math.random());
@@ -2250,3 +2264,354 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (typeof window.__initTitleContinuePanel === 'function') window.__initTitleContinuePanel();
 	} catch (e) {}
 });
+
+
+// =========================================================
+// Time limit challenge (飲み会タイムアタック)
+// - Title screen select (#timeLimitSelect): unlimited / 10/20/30/60 minutes
+// - Only when non-unlimited: show timer row inside BattleDock (line break)
+// - Persist in local save and resume on "つづきから" load
+// =========================================================
+(function(){
+	try{
+		// State
+		if (!window.__timeLimitState) {
+			window.__timeLimitState = {
+				active: false,
+				expired: false,
+				totalSec: 0,
+				endAt: null,   // epoch ms
+			};
+		}
+
+		window.__formatTimeMMSS = window.__formatTimeMMSS || function(sec){
+			try{
+				sec = Math.max(0, Math.floor(Number(sec)||0));
+				const m = Math.floor(sec / 60);
+				const s = sec % 60;
+				const mm = String(m).padStart(2,'0');
+				const ss = String(s).padStart(2,'0');
+				return `${mm}:${ss}`;
+			}catch(_){
+				return '00:00';
+			}
+		};
+
+		window.__serializeTimeLimitState = window.__serializeTimeLimitState || function(){
+			try{
+				const st = window.__timeLimitState || {};
+				const out = {
+					active: !!st.active,
+					expired: !!st.expired,
+					totalSec: Number(st.totalSec || 0),
+					endAt: (st.endAt == null ? null : Number(st.endAt))
+				};
+				// Sanity
+				if (!Number.isFinite(out.totalSec) || out.totalSec < 0) out.totalSec = 0;
+				if (out.endAt != null && !Number.isFinite(out.endAt)) out.endAt = null;
+				return out;
+			}catch(_){
+				return null;
+			}
+		};
+
+		window.__clearTimeLimitRuntime = window.__clearTimeLimitRuntime || function(silent){
+			try{
+				if (window.__timeLimitInterval) {
+					clearInterval(window.__timeLimitInterval);
+					window.__timeLimitInterval = null;
+				}
+			}catch(_){}
+			try{
+				window.__timeLimitState = {
+					active: false,
+					expired: false,
+					totalSec: 0,
+					endAt: null
+				};
+			}catch(_){}
+			try{ window.__applyTimeLimitUI && window.__applyTimeLimitUI(); }catch(_){}
+			if (!silent) {
+				try{ if (typeof showSubtitle === 'function') showSubtitle('制限時間：無制限', 900); }catch(_){}
+			}
+		};
+
+		window.__ensureTimeLimitDockRow = window.__ensureTimeLimitDockRow || function(){
+			try{
+				const dock = document.getElementById('battleOverlayDock');
+				if (!dock) return null;
+
+				const battleBtn = document.getElementById('startBattleBtn');
+				let parent = null;
+
+				// Prefer to insert right after the battle button (line break effect)
+				if (battleBtn && battleBtn.parentElement) {
+					parent = battleBtn.parentElement;
+					// if the battleBtn isn't inside dock, fallback to dockContent
+					if (!dock.contains(parent)) parent = null;
+				}
+				if (!parent) parent = dock.querySelector('.dockContent') || dock;
+
+				let row = document.getElementById('battleTimeLimitRow');
+				if (!row) {
+					row = document.createElement('div');
+					row.id = 'battleTimeLimitRow';
+					row.className = 'dockTimerRow';
+
+					// insert after battle button if possible
+					if (battleBtn && battleBtn.parentElement && dock.contains(battleBtn.parentElement)) {
+						const after = battleBtn.nextSibling;
+						if (after) battleBtn.parentElement.insertBefore(row, after);
+						else battleBtn.parentElement.appendChild(row);
+					} else {
+						parent.appendChild(row);
+					}
+				}
+				return row;
+			}catch(_){
+				return null;
+			}
+		};
+
+		window.__applyTimeLimitUI = window.__applyTimeLimitUI || function(){
+			try{
+				const st = window.__timeLimitState || {};
+				const row = window.__ensureTimeLimitDockRow ? window.__ensureTimeLimitDockRow() : null;
+				const battleBtn = document.getElementById('startBattleBtn');
+
+				// When no dock yet, just update the battle button visibility
+				if (st.expired) {
+					if (battleBtn) {
+						battleBtn.style.display = 'none';
+						try{ battleBtn.classList.add('hidden'); }catch(_){}
+					}
+					if (row) {
+						row.classList.add('is-active');
+						row.innerHTML = `<span class="dockTimerExpired">制限時間終了</span>`;
+					}
+					return;
+				}
+
+				if (!st.active || !st.endAt || st.totalSec <= 0) {
+					// Unlimited / inactive
+					if (battleBtn) {
+						battleBtn.style.display = '';
+						try{ battleBtn.classList.remove('hidden'); }catch(_){}
+					}
+					if (row) {
+						row.classList.remove('is-active');
+						row.innerHTML = '';
+					}
+					return;
+				}
+
+				// Active
+				if (battleBtn) {
+					battleBtn.style.display = '';
+					try{ battleBtn.classList.remove('hidden'); }catch(_){}
+				}
+				if (row) {
+					row.classList.add('is-active');
+					// Inner skeleton (timer + bar)
+					row.innerHTML = `
+						<span class="dockTimerLabel">⏳</span>
+						<span id="battleTimeLimitTimer" class="dockTimerValue">00:00</span>
+						<div class="dockTimerBar" aria-hidden="true">
+							<div id="battleTimeLimitBarInner" class="dockTimerBarInner"></div>
+						</div>
+					`;
+				}
+			}catch(_){}
+		};
+
+		window.__onTimeLimitExpired = window.__onTimeLimitExpired || function(){
+			try{
+				if (window.__timeLimitInterval) {
+					clearInterval(window.__timeLimitInterval);
+					window.__timeLimitInterval = null;
+				}
+			}catch(_){}
+			try{
+				if (!window.__timeLimitState) window.__timeLimitState = {};
+				window.__timeLimitState.active = false;
+				window.__timeLimitState.expired = true;
+			}catch(_){}
+			try{ window.__applyTimeLimitUI && window.__applyTimeLimitUI(); }catch(_){}
+			try{
+				if (typeof showSubtitle === 'function') {
+					showSubtitle('⏰ 制限時間終了', 1600);
+				}
+			}catch(_){}
+		};
+
+		window.__tickTimeLimit = window.__tickTimeLimit || function(){
+			try{
+				const st = window.__timeLimitState || {};
+				if (!st.active || !st.endAt || st.totalSec <= 0) return;
+
+				const msLeft = Number(st.endAt) - Date.now();
+				const secLeft = Math.ceil(msLeft / 1000);
+
+				if (secLeft <= 0) {
+					window.__onTimeLimitExpired && window.__onTimeLimitExpired();
+					return;
+				}
+
+				// Update UI
+				const timerEl = document.getElementById('battleTimeLimitTimer');
+				if (timerEl) timerEl.textContent = window.__formatTimeMMSS(secLeft);
+
+				const inner = document.getElementById('battleTimeLimitBarInner');
+				if (inner) {
+					const ratio = Math.max(0, Math.min(1, secLeft / Math.max(1, st.totalSec)));
+					inner.style.width = Math.round(ratio * 100) + '%';
+				}
+			}catch(_){}
+		};
+
+		window.__startTimeLimitChallenge = window.__startTimeLimitChallenge || function(totalSec){
+			try{
+				totalSec = Math.floor(Number(totalSec) || 0);
+				if (!Number.isFinite(totalSec) || totalSec <= 0) {
+					window.__clearTimeLimitRuntime && window.__clearTimeLimitRuntime(true);
+					return;
+				}
+
+				// Ensure BattleDock exists (game screen only shows it)
+				try{ window.__initBattleControlDock && window.__initBattleControlDock(); }catch(_){}
+				try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+
+				// Reset interval
+				try{
+					if (window.__timeLimitInterval) {
+						clearInterval(window.__timeLimitInterval);
+						window.__timeLimitInterval = null;
+					}
+				}catch(_){}
+
+				window.__timeLimitState = {
+					active: true,
+					expired: false,
+					totalSec: totalSec,
+					endAt: Date.now() + totalSec * 1000
+				};
+
+				window.__applyTimeLimitUI && window.__applyTimeLimitUI();
+				window.__tickTimeLimit && window.__tickTimeLimit();
+
+				window.__timeLimitInterval = setInterval(() => {
+					try{ window.__tickTimeLimit && window.__tickTimeLimit(); }catch(_){}
+				}, 250);
+
+				try{
+					if (typeof showSubtitle === 'function') {
+						const mm = Math.floor(totalSec/60);
+						showSubtitle(`⏳ 制限時間：${mm}分`, 1200);
+					}
+				}catch(_){}
+
+			}catch(e){
+				console.warn('[TimeLimit] start failed', e);
+			}
+		};
+
+		window.__restoreTimeLimitStateFromSave = window.__restoreTimeLimitStateFromSave || function(saved){
+			try{
+				if (!saved || typeof saved !== 'object') {
+					window.__clearTimeLimitRuntime && window.__clearTimeLimitRuntime(true);
+					return;
+				}
+
+				const totalSec = Math.floor(Number(saved.totalSec || 0));
+				const endAt = (saved.endAt == null ? null : Number(saved.endAt));
+				const expired = !!saved.expired;
+
+				// If already expired in save, apply expired UI and block battles
+				if (expired) {
+					window.__timeLimitState = { active:false, expired:true, totalSec: totalSec || 0, endAt: endAt };
+					try{ window.__initBattleControlDock && window.__initBattleControlDock(); }catch(_){}
+					try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+					window.__applyTimeLimitUI && window.__applyTimeLimitUI();
+					return;
+				}
+
+				// Not active in save => treat as unlimited/inactive
+				if (!saved.active || !endAt || !Number.isFinite(endAt) || totalSec <= 0) {
+					window.__clearTimeLimitRuntime && window.__clearTimeLimitRuntime(true);
+					return;
+				}
+
+				const secLeft = Math.ceil((endAt - Date.now()) / 1000);
+				if (secLeft <= 0) {
+					window.__timeLimitState = { active:false, expired:true, totalSec: totalSec, endAt: endAt };
+					try{ window.__initBattleControlDock && window.__initBattleControlDock(); }catch(_){}
+					try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+					window.__applyTimeLimitUI && window.__applyTimeLimitUI();
+					return;
+				}
+
+				// Resume with remaining time
+				try{ window.__initBattleControlDock && window.__initBattleControlDock(); }catch(_){}
+				try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+
+				// Clear old interval
+				try{
+					if (window.__timeLimitInterval) {
+						clearInterval(window.__timeLimitInterval);
+						window.__timeLimitInterval = null;
+					}
+				}catch(_){}
+
+				window.__timeLimitState = {
+					active: true,
+					expired: false,
+					totalSec: totalSec,
+					endAt: endAt
+				};
+
+				window.__applyTimeLimitUI && window.__applyTimeLimitUI();
+				window.__tickTimeLimit && window.__tickTimeLimit();
+
+				window.__timeLimitInterval = setInterval(() => {
+					try{ window.__tickTimeLimit && window.__tickTimeLimit(); }catch(_){}
+				}, 250);
+
+			}catch(e){
+				console.warn('[TimeLimit] restore failed', e);
+			}
+		};
+
+		// Guard: If time is up, block battle start even if invoked indirectly
+		try{
+			if (!window.__timeLimitWrappedStartBattle && typeof window.startBattle === 'function') {
+				window.__timeLimitWrappedStartBattle = true;
+				const __origStartBattle = window.startBattle;
+				window.startBattle = function(){
+					try{
+						if (window.__timeLimitState && window.__timeLimitState.expired) {
+							try{ window.__applyTimeLimitUI && window.__applyTimeLimitUI(); }catch(_){}
+							return;
+						}
+					}catch(_){}
+					return __origStartBattle.apply(this, arguments);
+				};
+			}
+		}catch(_){}
+
+		// If dock refresh happens, re-apply (to ensure the row exists and stays aligned)
+		try{
+			if (!window.__timeLimitWrappedDockRefresh && typeof window.__refreshBattleControlDock === 'function') {
+				window.__timeLimitWrappedDockRefresh = true;
+				const __origRefresh = window.__refreshBattleControlDock;
+				window.__refreshBattleControlDock = function(){
+					const r = __origRefresh.apply(this, arguments);
+					try{ window.__applyTimeLimitUI && window.__applyTimeLimitUI(); }catch(_){}
+					return r;
+				};
+			}
+		}catch(_){}
+
+	}catch(e){
+		console.warn('[TimeLimit] init failed', e);
+	}
+})();

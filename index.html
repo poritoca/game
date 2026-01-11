@@ -151,6 +151,16 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="battleEffectOverlay"></div>
 
   <small>（ゲーム終了までの戦闘数を選択）</small>
+
+<select id="timeLimitSelect" class="rainbow-select">
+  <option value="unlimited" selected>無制限</option>
+	<option value="60">1分</option>
+  <option value="600">10分</option>
+  <option value="1200">20分</option>
+  <option value="1800">30分</option>
+  <option value="3600">60分</option>
+</select>
+<small>（制限時間：無制限以外を選ぶと、開始直後からタイマーが動きます）</small>
 	
     <button id="startNewGameBtn">はじめから</button>
   <!--   <button id="loadGameBtn">つづきから</button> -->

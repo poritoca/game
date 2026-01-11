@@ -1454,6 +1454,7 @@ const miniBar = document.createElement('button');
 miniBar.type = 'button';
 miniBar.id = 'battleDockMiniBar';
 miniBar.setAttribute('aria-label', '最小化バー（クリックで復帰）');
+miniBar.innerHTML = '<span class="miniBarLabel">バトルボタン表示</span>';
 miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 		// Content area (actual buttons moved here)
@@ -1629,7 +1630,7 @@ if (minimized) {
 			try { window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(); } catch (_) {}
 	dock.style.display = 'none';
 	if (minBtn) minBtn.style.display = 'none';
-	if (miniBar) miniBar.style.display = 'block';
+	if (miniBar) miniBar.style.display = 'flex';
 	return;
 } else {
 	if (miniBar) miniBar.style.display = 'none';

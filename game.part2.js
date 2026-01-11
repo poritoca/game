@@ -1725,6 +1725,19 @@ window.startNewGame = function() {
 	window.autoSaveEnabled = false;
 	try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catch (_) {}
 
+
+	// ==========================
+	// 制限時間（タイムアタック）設定：タイトルの選択を取り込む
+	//  - 無制限以外が選ばれた時だけ開始（「限り」に注意）
+	//  - 「はじめから」なので既存の挑戦状態は必ずリセット
+	// ==========================
+	try{
+		const sel = document.getElementById('timeLimitSelect');
+		const v = sel ? String(sel.value || 'unlimited') : 'unlimited';
+		window.__timeLimitSelectedSec = (v !== 'unlimited' && Number(v) > 0) ? Number(v) : 0;
+		if (typeof window.__clearTimeLimitRuntime === 'function') window.__clearTimeLimitRuntime(true);
+	}catch(_){}
+
 	//ガイド いるならtrueに
 	window.isFirstBattle = false;
 	const battleBtn = document.getElementById("startBattleBtn");
@@ -1813,6 +1826,20 @@ window.startNewGame = function() {
 		updateFaceUI();
 
 	}, 500);
+
+
+	// ==========================
+	// 制限時間（タイムアタック）開始：無制限以外のときだけタイマー表示＆カウント開始
+	// ==========================
+	try{
+		const sec = Number(window.__timeLimitSelectedSec || 0);
+		if (sec > 0 && typeof window.__startTimeLimitChallenge === 'function') {
+			window.__startTimeLimitChallenge(sec);
+		} else {
+			// 無制限：UIだけ確実に非表示へ
+			if (typeof window.__applyTimeLimitUI === 'function') window.__applyTimeLimitUI();
+		}
+	}catch(_){}
 };
 
 // 対戦モード選択画面表示
