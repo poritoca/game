@@ -815,7 +815,14 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="itemOverlay" style="display: none;"></div>
 
   <!-- スクリプト読込 -->
-  <script type="module" src="game.js" ></script>
+  
+  <script src="drawCharacter.js"></script>
+  <script src="skills.js"></script>
+  <script src="game.part1.js"></script>
+  <script src="game.part2.js"></script>
+  <script src="game.part3.js"></script>
+  <script src="game.part4.js"></script>
+
 	
 <div id="gachaAnimation" style="display: none;">
   <div class="gacha-body">
@@ -1016,7 +1023,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   bindGuard && bindGuard();
   try{
     var remain = Math.max(0, window.ONCE_LIMIT - (typeof getUsed==='function'?getUsed():0));
-    showOnceToast(`モード切替：${modeLabel()}（単発 残り ${remain}/${window.ONCE_LIMIT}）`, 1100);
+
   }catch(_e){}
 }, 0);
 

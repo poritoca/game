@@ -1,0 +1,2252 @@
+'use strict';
+window.showGrowthAutoBar = function(message) {
+	// 旧「左上バー（growthbar）」UIは廃止。
+	// 自動成長の通知だけ、短い中央ポップアップで出す。
+	const msg = message || '自動で成長を選択しました';
+	if (typeof showCenteredPopup === 'function') {
+		showCenteredPopup(`成長（自動）<br>${msg}`, 900);
+	}
+};;
+
+
+// 【白スキルを選んで削除するポップアップ】
+window.showWhiteSkillSelector = function(callback) {
+	clearEventPopup();
+	const popup = document.getElementById('eventPopup');
+	const titleEl = document.getElementById('eventPopupTitle');
+	const optionsEl = document.getElementById('eventPopupOptions');
+	const selectContainer = document.getElementById('eventPopupSelectContainer');
+	const selectEl = document.getElementById('eventPopupSelect');
+	const selectBtn = document.getElementById('eventPopupSelectBtn');
+
+	optionsEl.innerHTML = '';
+	selectEl.innerHTML = '';
+
+	const whiteSkills = player.skills.slice(); // 所持スキル全てをそのままコピー
+
+	if (whiteSkills.length === 0) {
+		popup.style.display = 'none';
+		showCustomAlert("削除できるスキルがありません！");
+		return;
+	}
+
+	// 既存の選択肢をクリア
+	selectEl.innerHTML = '';
+
+	whiteSkills.forEach(s => {
+		const option = document.createElement('option');
+		option.value = s.name;
+		option.textContent = `${s.name} Lv${s.level}`;
+		selectEl.appendChild(option);
+	});
+
+	// 「やめる」ボタンがまだ追加されていなければ追加する
+	if (!document.getElementById('cancelDeleteSkillBtn')) {
+		const cancelBtn = document.createElement('button');
+		cancelBtn.id = 'cancelDeleteSkillBtn';
+		cancelBtn.textContent = 'やめる';
+
+		// 決定ボタンと同じクラスとスタイルに統一
+		cancelBtn.className = 'event-popup-button'; // ← ボタン共通クラス
+
+		cancelBtn.onclick = () => {
+			popup.style.display = 'none';
+		};
+
+		// ボタン配置（決定ボタンの横に）
+		const btnContainer = document.getElementById('eventPopupSelectContainer');
+		if (btnContainer) {
+			btnContainer.appendChild(cancelBtn);
+		}
+	}
+
+	// 決定ボタン
+	selectBtn.onclick = () => {
+		const selectedName = selectEl.value;
+		popup.style.display = 'none';
+		callback(selectedName);
+	};
+
+	titleEl.textContent = "消すスキルを選んでください";
+	selectContainer.style.display = 'block';
+	popup.style.display = 'block';
+};
+// 【指定したスキル名を削除する】
+window.deleteSkillByName = function(skillName) {
+	player.skills = player.skills.filter(s => s.name !== skillName);
+};
+
+// 【白スキルからランダムに最大3個削除する】
+window.deleteRandomWhiteSkills = function(count) {
+	const whiteSkills = player.skills.filter(s => {
+		const found = skillPool.find(sk => sk.name === s.name);
+		if (!found) return false;
+		if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+		if (found.category === 'passive') return false;
+		return true;
+	});
+
+	const shuffled = whiteSkills.sort(() => 0.5 - Math.random());
+	const selected = shuffled.slice(0, count);
+
+	selected.forEach(s => {
+		deleteSkillByName(s.name);
+	});
+
+	return selected.map(s => s.name);
+};
+
+window.eventTriggered = false; // イベント発生フラグを初期化
+
+// 【バトル後にイベント発生を判定して処理する】
+window.maybeTriggerEvent = function() {
+	if (window.eventTriggered) return;
+	if (!window.allowSkillDeleteEvent) return;
+
+	const whiteSkills = player.skills.filter(s => {
+		const found = skillPool.find(sk => sk.name === s.name);
+		if (!found) return false;
+		if (window.initialAndSlotSkills && window.initialAndSlotSkills.includes(s.name)) return false;
+		if (found.category === 'passive') return false;
+		return true;
+	});
+
+	if (whiteSkills.length < 6) return;
+
+	const chance = 0.1;
+	if (Math.random() < chance) {
+		window.eventTriggered = true;
+		stopAutoBattle();
+
+		showEventOptions("スキル（初期・パッシブ以外）を削除する？", [
+			{ label: "スキルから選んで削除", value: "select" },
+			{ label: "ランダムに3個削除", value: "random" },
+			{ label: "何もしない", value: "none" }
+    ], (choice) => {
+			if (choice === "select") {
+				showWhiteSkillSelector(selectedName => {
+					if (!selectedName) {
+						showCustomAlert("キャンセルしました！", 2000);
+						return;
+					}
+					deleteSkillByName(selectedName);
+					updateStats();
+					showCustomAlert(`${selectedName} を削除しました！`, 3000);
+				});
+			} else if (choice === "random") {
+				const deleted = deleteRandomWhiteSkills(3);
+				updateStats();
+				showCustomAlert(`${deleted.join(", ")} を削除しました！`, 3000);
+			} else if (choice === "none") {
+				showCustomAlert("今回はスキルを削除しませんでした！", 3000);
+			}
+		});
+	}
+};
+
+function drawSkillMemoryList() {
+	const list = document.getElementById("skillMemoryList");
+	if (!list || !player || !player.skillMemory) return;
+
+	// 再描画（ちらつき防止）
+	list.style.display = "none";
+	list.innerHTML = "";
+
+	const ownedSkillNames = player.skills.map(sk => sk.name);
+	const memoryEntries = Object.entries(player.skillMemory); // ← ここは“格納順”をそのまま使う
+
+	// 黒白テキストのみのシンプルなリスト、ドラッグ不可
+	for (const [name, level] of memoryEntries) {
+		const li = document.createElement("li");
+		li.textContent = name; // ★ 色もLv表示もなし（白黒・名前のみ）
+		li.setAttribute("data-name", name);
+		li.setAttribute("data-level", level);
+		li.setAttribute("draggable", "false");
+
+		// 既存のドラッグ関連イベントは一切付けない
+		// タップで選択（最大3つ）
+		li.onclick = () => handleSkillSelect(name);
+
+		// 所持中の視覚ヒント（白黒のまま、太字程度）
+		if (ownedSkillNames.includes(name)) {
+			li.style.fontWeight = "bold";
+		}
+
+		list.appendChild(li);
+	}
+
+	// 選択中の番号バッジを再描画
+	updateSkillSelectionBadges();
+
+	requestAnimationFrame(() => {
+		list.style.display = "";
+	});
+}
+
+// === スキルメモリー：タップ選択で上位移動（1→2→3） ===
+window.skillSelectQueue = window.skillSelectQueue || [];
+
+function handleSkillSelect(name) {
+	// 既に選択済みならトグルで解除
+	const idx = window.skillSelectQueue.indexOf(name);
+	if (idx !== -1) {
+		window.skillSelectQueue.splice(idx, 1);
+	} else {
+		if (window.skillSelectQueue.length >= 3) {
+			if (typeof showCustomAlert === "function") showCustomAlert("選べるのは3つまで", 1200);
+			return;
+		}
+		window.skillSelectQueue.push(name);
+	}
+	updateSkillSelectionBadges();
+
+	if (window.skillSelectQueue.length === 3) {
+		reorderSkillMemoryBySelection();
+	}
+}
+
+function updateSkillSelectionBadges() {
+	const lis = document.querySelectorAll("#skillMemoryList li");
+	lis.forEach(li => {
+		const name = li.getAttribute("data-name");
+		const order = window.skillSelectQueue.indexOf(name);
+		if (order >= 0) {
+			li.classList.add("selected");
+			// 表示は「1. スキル名」のように番号＋ドット
+			li.textContent = (order + 1) + ". " + name;
+		} else {
+			li.classList.remove("selected");
+			li.textContent = name;
+		}
+	});
+}
+
+function reorderSkillMemoryBySelection() {
+	const names = window.skillSelectQueue.slice(0, 3);
+	const entries = Object.entries(player.skillMemory);
+
+	// 選択された3つを先頭、それ以外を後ろへ（元の相対順は維持）
+	const rest = entries.filter(([n]) => !names.includes(n));
+	const newMemory = {};
+	names.forEach(n => { newMemory[n] = player.skillMemory[n]; });
+	rest.forEach(([n, l]) => { newMemory[n] = l; });
+
+	player.skillMemory = newMemory;
+
+	// クリアして再描画
+	window.skillSelectQueue.length = 0;
+	drawSkillMemoryList();
+
+	if (typeof showCustomAlert === "function") {
+		showCustomAlert("選んだ3つを上へ移動しました", 1400);
+	}
+}
+
+
+
+function updateSkillMemoryOrder() {
+	const lis = document.querySelectorAll("#skillMemoryList li");
+	const newMemory = {};
+	lis.forEach(li => {
+		const name = li.getAttribute("data-name");
+		const level = parseInt(li.getAttribute("data-level"));
+		newMemory[name] = level;
+	});
+	player.skillMemory = newMemory;
+}
+
+let hpShineOffset = 0; // アニメーション用オフセット
+
+function drawItemMemoryList() {
+	const list = document.getElementById('itemMemoryList');
+	list.innerHTML = '';
+	player.itemMemory.forEach((item, idx) => {
+		const li = document.createElement('li');
+		const name = `${item.color}${item.adjective}${item.noun}`;
+		li.textContent = `${name}（${item.skillName}） Lv.${item.skillLevel}`;
+
+		li.className = ""; // リセット
+
+		if (item.protected) {
+			li.classList.add("item-protected");
+		}
+		li.onclick = (e) => onItemClick(item, idx, e);
+		list.appendChild(li);
+	});
+}
+
+window.drawHPGraph = function() {
+	//  if (isAutoBattle) return;
+	const canvas = document.getElementById('hpChart');
+	const ctx = canvas.getContext('2d');
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+	if (!hpHistory || hpHistory.length < 2) return; // データ不足なら描画しない
+
+	const maxTurns = hpHistory.length;
+	const stepX = canvas.width / Math.max(1, (maxTurns - 1));
+
+	// グリッド線
+	ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+	ctx.lineWidth = 1;
+	for (let i = 0; i < maxTurns; i++) {
+		const x = stepX * i;
+		ctx.beginPath();
+		ctx.moveTo(x, 0);
+		ctx.lineTo(x, canvas.height);
+		ctx.stroke();
+	}
+
+	// === プレイヤーの塗り（青） ===
+	const gradBlue = ctx.createLinearGradient(0, 0, 0, canvas.height);
+	gradBlue.addColorStop(0, 'rgba(80, 160, 255, 0.35)');
+	gradBlue.addColorStop(1, 'rgba(80, 160, 255, 0.05)');
+	ctx.beginPath();
+	hpHistory.forEach(([p], i) => {
+		const x = stepX * i;
+		const y = canvas.height * (1 - p);
+		if (i === 0) ctx.moveTo(x, y);
+		else ctx.lineTo(x, y);
+	});
+	ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+	ctx.lineTo(0, canvas.height);
+	ctx.closePath();
+	ctx.fillStyle = gradBlue;
+	ctx.fill();
+
+	// === 敵の塗り（赤） ===
+	const gradRed = ctx.createLinearGradient(0, 0, 0, canvas.height);
+	gradRed.addColorStop(0, 'rgba(255, 120, 120, 0.35)');
+	gradRed.addColorStop(1, 'rgba(255, 120, 120, 0.05)');
+	ctx.beginPath();
+	hpHistory.forEach(([, e], i) => {
+		const x = stepX * i;
+		const y = canvas.height * (1 - e);
+		if (i === 0) ctx.moveTo(x, y);
+		else ctx.lineTo(x, y);
+	});
+	ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+	ctx.lineTo(0, canvas.height);
+	ctx.closePath();
+	ctx.fillStyle = gradRed;
+	ctx.fill();
+
+	// === アニメーションする光沢 ===
+	window.hpShineOffset ??= -100;
+	window.hpShineOffset += 2;
+	if (window.hpShineOffset > canvas.width) window.hpShineOffset = -100;
+
+	const shineGrad = ctx.createLinearGradient(window.hpShineOffset, 0, window.hpShineOffset + 100, 0);
+	shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+	shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.06)');
+	shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = shineGrad;
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	// === グロー付き折れ線（プレイヤー） ===
+	ctx.shadowColor = 'rgba(100, 180, 255, 0.6)';
+	ctx.shadowBlur = 4;
+	ctx.strokeStyle = 'rgba(100, 180, 255, 1)';
+	ctx.lineWidth = 2;
+
+	// === グロー付き折れ線（敵） ===
+	ctx.shadowColor = 'rgba(255, 120, 120, 0.6)';
+	ctx.shadowBlur = 4;
+	ctx.strokeStyle = 'rgba(255, 120, 120, 1)';
+	ctx.lineWidth = 2;
+
+	// グロー効果を解除
+	ctx.shadowBlur = 0;
+
+	// ラベル
+	ctx.fillStyle = 'rgba(255,255,255,0.6)';
+	ctx.font = '12px sans-serif';
+	ctx.fillText('体力変化（自分:青 敵:赤）', 10, 15);
+	ctx.fillText("ターン数", canvas.width / 2 - 20, canvas.height - 5);
+};
+
+// 修正版 showCustomAlert 関数
+// 引数：
+//  message     : 表示するHTML文字列
+//  duration    : 表示時間（ミリ秒）デフォルト 3000
+//  background  : 背景色（例 "#222"）
+//  color       : 文字色（例 "#fff"）
+//  forceClear  : true にすると他のアラートを即座に消してから表示（デフォルト false）
+
+window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff", forceClear = false) {
+	const container = document.getElementById('customAlertContainer');
+
+	if (container) { container.style.display = 'block'; }
+
+	// ★ forceClear = true の場合、すでに表示中のアラートをすべて削除
+	if (forceClear && container) {
+		while (container.firstChild) {
+			container.removeChild(container.firstChild);
+		}
+	}
+
+	const alert = document.createElement('div');
+
+	// スタイル設定
+	alert.style.background = background;
+	alert.style.color = color;
+	alert.style.padding = '12px 20px';
+	alert.style.border = '2px solid #fff';
+	alert.style.borderRadius = '8px';
+	alert.style.fontSize = '12px';
+	alert.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+	alert.style.opacity = '0';
+	alert.style.transition = 'opacity 0.3s';
+	alert.style.position = 'absolute';
+	alert.style.top = '0';
+	alert.style.left = '50%';
+	alert.style.transform = 'translateX(-50%)';
+	alert.style.pointerEvents = 'auto';
+	alert.style.minWidth = '200px';
+	alert.style.maxWidth = '80vw';
+	alert.style.textAlign = 'center';
+	alert.style.zIndex = '10000';
+
+	alert.innerHTML = message;
+
+	container.appendChild(alert);
+
+	// フェードイン
+	window.__uiSetTimeout(() => {
+		alert.style.opacity = '1';
+	}, 10);
+
+	// フェードアウト＆削除
+	window.__uiSetTimeout(() => {
+		alert.style.opacity = '0';
+		window.__uiSetTimeout(() => {
+			if (alert.parentElement) {
+				container.removeChild(alert);
+			}
+			if (container.children.length === 0) {
+				container.style.display = 'none';
+			}
+		}, 300); // フェードアウト待機時間
+	}, duration);
+};
+
+// 全戦闘ログ保存用
+window.allBattleLogs = [];
+
+// 戦闘後、ログを保存する処理（startBattleの最後に追加するイメージ）
+function saveBattleLog(log) {
+	window.allBattleLogs.push(log.join('\n'));
+
+	// 100戦を超えたら古いものから削除
+	if (window.allBattleLogs.length > 20) {
+		window.allBattleLogs.shift();
+	}
+}
+
+// テキストファイル出力用
+window.downloadBattleLogs = function() {
+	const separator = '\n\n=============== 戦闘ログ区切り ===============\n\n';
+	const text = window.allBattleLogs.join(separator);
+
+	const now = new Date();
+	const yyyy = now.getFullYear();
+	const mm = String(now.getMonth() + 1).padStart(2, '0');
+	const dd = String(now.getDate()).padStart(2, '0');
+	const hh = String(now.getHours()).padStart(2, '0');
+	const min = String(now.getMinutes()).padStart(2, '0');
+
+	const filename = `100_battle_logs_${yyyy}${mm}${dd}_${hh}${min}.txt`;
+
+	const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+};
+window.populateItemElementList = function() {
+	const container = document.getElementById('itemElementList');
+	if (!container) return;
+
+	const formatValue = (val, digits = 10, suffix = '') => {
+		if (val === Infinity) return '∞' + suffix;
+		if (typeof val !== 'number') return '（未定義）';
+		return parseFloat(val.toFixed(digits)) + suffix;
+	};
+
+	let html = '<ul style="font-size: 13px;">';
+
+	html += '<li><strong>色（使用回数）</strong><ul>';
+	itemColors.forEach(c => {
+		const uses = (typeof c.usesPerBattle === 'number' || c.usesPerBattle === Infinity) ?
+			formatValue(c.usesPerBattle, 10, '回') :
+			'（未定義）';
+		html += `<li>${c.word}：${uses}</li>`;
+	});
+	html += '</ul></li>';
+
+	html += '<li><strong>修飾語（発動率）</strong><ul>';
+	itemAdjectives.forEach(a => {
+		html += `<li>${a.word}：${formatValue(a.activationRate * 100, 6, '%')}</li>`;
+	});
+	html += '</ul></li>';
+
+	html += '<li><strong>名詞（破損確率）</strong><ul>';
+	itemNouns.forEach(n => {
+		html += `<li>${n.word}：${formatValue(n.breakChance * 100, 6, '%')}</li>`;
+	});
+	html += '</ul></li>';
+
+	html += '</ul>';
+
+	container.innerHTML = html;
+};
+
+// =====================================================
+// 遊び方：スキル効果/パラメータ一覧（skills.js から自動生成）
+// =====================================================
+(function() {
+	// 既に定義済みなら二重定義しない（セーブデータロード等で再評価しても安全）
+	if (window.populateSkillGuideLists) return;
+
+	const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		"'": '&#39;'
+	} [c]));
+
+	const catLabel = (cat) => {
+		const map = {
+			damage: '攻撃',
+			multi: '連撃',
+			lifesteal: '吸収',
+			poison: '毒',
+			burn: '火傷',
+			heal: '回復',
+			regen: '再生',
+			buff: '強化',
+			debuff: '弱体',
+			barrier: 'バリア',
+			endure: '不死',
+			counter: '反撃',
+			reflect: '反射',
+			stun: 'スタン',
+			evasion: '回避',
+			skillSeal: '封印',
+			steal: '奪取',
+			bomb: '時限爆弾',
+			maxHpDown: '最大HP減',
+			sacrifice: '自傷',
+			berserk: '狂化',
+			block: '防御姿勢',
+			gap: '格差',
+			random: 'ランダム',
+			passive: 'パッシブ',
+			itemReuse: '魔道具再利用',
+			purifyCounter: '浄化反撃'
+		};
+		return map[cat] || cat || '（不明）';
+	};
+
+	const mainParams = (sk) => {
+		// よく使う/理解に効くパラメータだけを抽出（未定義は出さない）
+		const keys = [
+      'multiplier', 'power', 'amount', 'duration',
+      'baseHits', 'extraHits', 'extraHitsTriggerLevel',
+      'activationRate', 'criticalRateMax',
+      'stunChance', 'evasionChance', 'sealChance', 'sealCount',
+      'counterPercent', 'reflectPercent', 'stealRatio',
+      'reduction', 'ignoreDefense', 'factor', 'stat'
+    ];
+		const out = [];
+		for (const k of keys) {
+			if (sk[k] === undefined) continue;
+			out.push([k, sk[k]]);
+		}
+		// 補助: atkFactorBase/Max があるものはセットで表示
+		if (sk.atkFactorBase !== undefined || sk.atkFactorMax !== undefined) {
+			out.push(['atkFactor', `${sk.atkFactorBase ?? '—'}〜${sk.atkFactorMax ?? '—'}`]);
+		}
+		// targetStats 等は配列なので見やすく
+		if (Array.isArray(sk.targetStats) && sk.targetStats.length) {
+			out.push(['targetStats', sk.targetStats.join(',')]);
+		}
+		if (sk.priority !== undefined) out.push(['priority', sk.priority]);
+		return out;
+	};
+
+	const effectSummary = (sk) => {
+		const c = sk.category;
+		if (c === 'damage') {
+			const mul = sk.multiplier ?? sk.power ?? '—';
+			const ig = sk.ignoreDefense ? `（防御無視 ${Math.round(sk.ignoreDefense*100)}%）` : '';
+			return `ATK×${mul} を基準にダメージ${ig}`;
+		}
+		if (c === 'multi') {
+			const base = sk.baseHits ?? 1;
+			const extra = sk.extraHits ? ` +${sk.extraHits}（Lv${sk.extraHitsTriggerLevel ?? '?'}〜）` : '';
+			return `攻撃を ${base}回${extra} 行う`;
+		}
+		if (c === 'lifesteal') {
+			const ratio = sk.stealRatio ?? sk.factor ?? '—';
+			return `与ダメージの一部（${ratio}）を回復`;
+		}
+		if (c === 'poison' || c === 'burn' || c === 'regen') {
+			const p = sk.power ?? sk.amount ?? sk.multiplier ?? '—';
+			const d = sk.duration ?? '—';
+			const label = (c === 'regen') ? '回復' : '継続ダメージ';
+			return `${d}ターン ${label}（基準値 ${p}）`;
+		}
+		if (c === 'heal') {
+			const a = sk.amount ?? sk.power ?? sk.multiplier ?? '—';
+			return `回復（基準値 ${a}）`;
+		}
+		if (c === 'buff' || c === 'debuff') {
+			const stat = sk.stat || (Array.isArray(sk.targetStats) ? sk.targetStats.join(',') : '—');
+			const mul = sk.multiplier ?? sk.factor ?? '—';
+			const d = sk.duration ? `${sk.duration}T` : '';
+			return `${stat} に倍率 ${mul} ${d}`.trim();
+		}
+		if (c === 'barrier') {
+			const red = sk.reduction ?? '—';
+			const d = sk.duration ? `${sk.duration}T` : '';
+			return `被ダメ軽減 ${red} ${d}`.trim();
+		}
+		if (c === 'endure') {
+			return '致死ダメージを耐える（クールダウンあり）';
+		}
+		if (c === 'stun') {
+			const ch = sk.stunChance ?? '—';
+			return `確率 ${ch} で行動不能`;
+		}
+		if (c === 'evasion') {
+			const ch = sk.evasionChance ?? '—';
+			const d = sk.duration ? `${sk.duration}T` : '';
+			return `回避率 ${ch} ${d}`.trim();
+		}
+		if (c === 'skillSeal') {
+			const ch = sk.sealChance ?? '—';
+			const cnt = sk.sealCount ?? '—';
+			return `確率 ${ch} でスキルを ${cnt}個 封印`;
+		}
+		if (c === 'counter') {
+			const p = sk.counterPercent ?? '—';
+			return `被ダメの ${p}% を反撃`;
+		}
+		if (c === 'reflect') {
+			const p = sk.reflectPercent ?? '—';
+			return `与えたダメージの ${p}% を反射`;
+		}
+		if (c === 'bomb') {
+			const d = sk.duration ?? '—';
+			const p = sk.power ?? sk.multiplier ?? '—';
+			return `${d}T 後に追加ダメージ（基準値 ${p}）`;
+		}
+		return '（詳細はパラメータ一覧参照）';
+	};
+
+	window.populateSkillGuideLists = function() {
+		const effectEl = document.getElementById('skillEffectList');
+		const valueEl = document.getElementById('skillValueList');
+		if (!effectEl && !valueEl) return;
+
+		// skillPool が未ロード/未定義の可能性に備える
+		if (!Array.isArray(skillPool)) {
+			if (effectEl) effectEl.innerHTML = '<div class="subnote">※skills.js の読み込みに失敗しました。</div>';
+			if (valueEl) valueEl.innerHTML = '<div class="subnote">※skills.js の読み込みに失敗しました。</div>';
+			return;
+		}
+
+		const skillsSorted = skillPool.slice().sort((a, b) => {
+			const ca = catLabel(a.category);
+			const cb = catLabel(b.category);
+			if (ca !== cb) return ca.localeCompare(cb, 'ja');
+			return String(a.name || '').localeCompare(String(b.name || ''), 'ja');
+		});
+
+		if (effectEl) {
+			let html = '<table class="guide-table"><thead><tr>' +
+				'<th style="width: 26%;">スキル名</th>' +
+				'<th style="width: 12%;">種別</th>' +
+				'<th style="width: 34%;">説明</th>' +
+				'<th>効果（概要）</th>' +
+				'</tr></thead><tbody>';
+
+			for (const sk of skillsSorted) {
+				html += '<tr>' +
+					`<td><b>${esc(sk.name)}</b></td>` +
+					`<td>${esc(catLabel(sk.category))}</td>` +
+					`<td>${esc(sk.description || '（説明未記載）')}</td>` +
+					`<td>${esc(effectSummary(sk))}</td>` +
+					'</tr>';
+			}
+			html += '</tbody></table>';
+			effectEl.innerHTML = html;
+		}
+
+		if (valueEl) {
+			let html = '<table class="guide-table"><thead><tr>' +
+				'<th style="width: 26%;">スキル名</th>' +
+				'<th style="width: 12%;">種別</th>' +
+				'<th>主要パラメータ（skills.js）</th>' +
+				'</tr></thead><tbody>';
+
+			for (const sk of skillsSorted) {
+				const params = mainParams(sk);
+				const chips = params.length ?
+					params.map(([k, v]) => `<span class="guide-kv"><b>${esc(k)}</b>: ${esc(v)}</span>`).join(' ') :
+					'<span class="subnote">（主要パラメータなし）</span>';
+
+				html += '<tr>' +
+					`<td><b>${esc(sk.name)}</b></td>` +
+					`<td>${esc(catLabel(sk.category))}</td>` +
+					`<td>${chips}</td>` +
+					'</tr>';
+			}
+			html += '</tbody></table>' +
+				'<div class="subnote">※この一覧は「定義値（生データ）」です。戦闘中の実ダメージ等は、<b>ATK/DEF</b> や <b>スキルLv</b>、バリア/不死等の状態で変動します。</div>';
+			valueEl.innerHTML = html;
+		}
+	};
+})();
+
+function updatePlayerDisplay(player) {
+	const nameEl = document.getElementById('playerName');
+	if (nameEl) nameEl.textContent = player.name;
+
+	const atkEl = document.getElementById('atkStat');
+	if (atkEl) atkEl.textContent = `ATK: ${player.attack}`;
+
+	const defEl = document.getElementById('defStat');
+	if (defEl) defEl.textContent = `DEF: ${player.defense}`;
+
+	const spdEl = document.getElementById('spdStat');
+	if (spdEl) spdEl.textContent = `SPD: ${player.speed}`;
+
+	const hpEl = document.getElementById('hpStat');
+	if (hpEl) hpEl.textContent = `HP: ${player.hp}`;
+
+	const maxHpEl = document.getElementById('maxHpStat');
+	if (maxHpEl) maxHpEl.textContent = `MAX HP: ${player.maxHp}`;
+
+	// キャラクター画像
+	const imgCanvas = document.getElementById('playerImage');
+	if (imgCanvas) drawCharacterImage(player.characterId, 'playerImage');
+
+	// 所持スキル表示
+	const skillList = document.getElementById('playerSkillList');
+	if (skillList) {
+		skillList.innerHTML = '';
+		player.skillMemory.forEach(s => {
+			const li = document.createElement('li');
+			li.textContent = `${s.name} (Lv${s.level})`;
+			skillList.appendChild(li);
+		});
+	}
+
+	// 初期スキル表示
+	const initialSkillList = document.getElementById('playerInitialSkillList');
+	if (initialSkillList) {
+		initialSkillList.innerHTML = '';
+		player.initialSkills.forEach(skillName => {
+			const li = document.createElement('li');
+			li.textContent = skillName;
+			initialSkillList.appendChild(li);
+		});
+	}
+}
+
+function updateEnemyDisplay(enemy) {
+	const nameEl = document.getElementById('enemyName');
+	if (nameEl) nameEl.textContent = enemy.name;
+
+	const enemyStats = document.getElementById('enemyStats');
+	if (enemyStats) {
+		enemyStats.innerHTML = `
+      <p>ATK: ${enemy.attack}</p>
+      <p>DEF: ${enemy.defense}</p>
+      <p>SPD: ${enemy.speed}</p>
+      <p>HP: ${enemy.hp}</p>
+      <p>MAX HP: ${enemy.maxHp}</p>
+    `;
+	}
+
+	const imgCanvas = document.getElementById('enemyImage');
+	if (imgCanvas) drawCharacterImage(enemy.characterId, 'enemyImage');
+
+	const enemySkillList = document.getElementById('enemySkillList');
+	if (enemySkillList) {
+		enemySkillList.innerHTML = '';
+		enemy.skills.forEach(skillName => {
+			const li = document.createElement('li');
+			li.textContent = skillName;
+			enemySkillList.appendChild(li);
+		});
+	}
+}
+
+// パッシブスキルによる封印処理
+function applyPassiveSeals(attacker, defender, log = []) {
+	attacker.skills.forEach(passive => {
+		const passiveDef = skillPool.find(s => s.name === passive.name);
+		if (!passiveDef || passiveDef.category !== "passive" || passiveDef.effect !== "blockTurnEffects") {
+			return;
+		}
+
+		const subtype = passiveDef.subtype;
+		const finalSealTurns = Math.floor(passive.level / 333) + 1;
+		let sealedAny = false;
+
+		defender.skills.forEach(os => {
+			const def = skillPool.find(s => s.name === os.name);
+			if (!def) return;
+
+			let typeMatch = false;
+
+			// --- ここが修正部分 ---
+			if (Array.isArray(subtype)) {
+				typeMatch = subtype.includes(def.category);
+			} else if (subtype === "poison_burn") {
+				typeMatch = def.category === "poison" || def.category === "burn";
+			} else {
+				typeMatch = def.category === subtype;
+			}
+
+			if (typeMatch) {
+				os.sealed = true;
+				os.sealRemaining = finalSealTurns + 1;
+				sealedAny = true;
+			}
+		});
+
+		if (sealedAny) {
+			log.push(`${displayName(attacker.name)}のパッシブスキル「${passive.name}」が発動！（${finalSealTurns}ターン封印）`);
+		}
+	});
+}
+
+let scoreTimeout;
+let skillTimeout;
+let itemTimeout;
+let faceTimeout;
+
+window.addEventListener('scroll', () => {
+
+	updateLocalSaveButton();
+	updateLocalSaveButton2();
+
+	const battleEl = document.getElementById('remainingBattlesDisplay');
+	const scoreEl = document.getElementById('scoreOverlay');
+	const skillEl = document.getElementById('skillOverlay');
+	const itemEl = document.getElementById('itemOverlay');
+	const faceEl = document.getElementById('faceOverlay');
+	if (faceItemEquipped && faceEl) {
+		faceEl.src = faceItemEquipped;
+	}
+
+	// フェードアウト（スクロール中）
+	if (battleEl) battleEl.style.opacity = '0';
+	if (scoreEl) scoreEl.style.opacity = '0';
+	if (skillEl) skillEl.style.opacity = '0';
+	if (itemEl) itemEl.style.opacity = '0';
+	if (faceEl) faceEl.style.opacity = '0'; // ← 魔メイクも消す
+
+	// タイマー解除
+	clearTimeout(scoreTimeout);
+	clearTimeout(skillTimeout);
+	clearTimeout(itemTimeout);
+	clearTimeout(faceTimeout); // ← 追加
+
+	// スコア：1秒後に再表示
+	scoreTimeout = window.__battleSetTimeout(() => {
+		if (battleEl) battleEl.style.opacity = '1';
+		if (scoreEl) scoreEl.style.opacity = '1';
+	}, 1500);
+
+	// スキル：1.5秒後に再表示
+	skillTimeout = window.__battleSetTimeout(() => {
+		if (typeof updateSkillOverlay === 'function') updateSkillOverlay();
+		if (skillEl) skillEl.style.opacity = '1';
+	}, 1500);
+
+	// 魔道具：1.5秒後に再表示
+	itemTimeout = window.__battleSetTimeout(() => {
+		updateItemOverlay();
+		if (itemEl) itemEl.style.opacity = '1';
+	}, 1500);
+
+	// 魔メイク：1秒後に再表示（scoreOverlayと同時）
+	faceTimeout = window.__battleSetTimeout(() => {
+		if (faceItemEquipped && faceEl) {
+			faceEl.style.opacity = '1';
+		}
+	}, 1500);
+});
+
+
+document.getElementById("battleCountSelect").addEventListener("change", (e) => {
+	const value = e.target.value;
+	const overlay = document.getElementById("battleEffectOverlay");
+	if (!overlay) return;
+
+	let effectHTML = "";
+
+	switch (value) {
+		case "100":
+			effectHTML = `<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+        font-size:3em;font-weight:bold;color:#00ffff;text-shadow:0 0 10px #0ff;">
+        100戦<br>モード！
+      </div>`;
+			break;
+		case "1000":
+			effectHTML = `<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+        font-size:3em;font-weight:bold;color:#ffcc00;text-shadow:0 0 10px #ff0;">
+        1000戦<br>モード！
+      </div>`;
+			break;
+		case "unlimited":
+			effectHTML = `<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+        font-size:3em;font-weight:bold;color:#ff00ff;text-shadow:0 0 20px #f0f;">
+        無制限<br>モード！
+      </div>`;
+			break;
+		default:
+			effectHTML = `<div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+        font-size:2.5em;font-weight:bold;color:#00ff00;text-shadow:0 0 10px #0f0;">
+        ${value}戦<br>モード！
+      </div>`;
+	}
+
+	overlay.innerHTML = effectHTML;
+	overlay.style.display = "block";
+	overlay.style.background = "rgba(0,0,0,0.5)";
+
+	window.__uiSetTimeout(() => {
+		overlay.style.display = "none";
+		overlay.innerHTML = "";
+	}, 2000);
+});
+
+
+// ==========================
+// 自動保存（10戦ごとにローカル保存）
+//  - 「はじめから」で必ずOFFに戻す（startNewGame内でリセット）
+//  - ON中はオートバトル（長押し）でも10戦ごとに保存
+// ==========================
+if (typeof window.autoSaveEnabled !== 'boolean') window.autoSaveEnabled = false;
+
+window.maybeAutoLocalSave = function() {
+	try {
+		if (!window.autoSaveEnabled) return;
+		const n = Number(window.battlesPlayed || 0);
+		if (!Number.isFinite(n) || n <= 0) return;
+		if (n % 10 !== 0) return;
+
+		if (typeof window.saveToLocalStorage === 'function') {
+			Promise.resolve(window.saveToLocalStorage()).then(() => {
+				try {
+					if (typeof showSubtitle === 'function') {
+						showSubtitle(`💾 自動保存：${n}戦ごとにローカル保存しました`, 1400);
+					}
+				} catch (_) {}
+			}).catch((e) => {
+				console.warn('auto local save failed', e);
+			});
+		}
+	} catch (e) {
+		console.warn('maybeAutoLocalSave error', e);
+	}
+};
+
+window.isLocalSaveDirty = true;
+
+function markLocalSaveDirty() {
+	isLocalSaveDirty = true;
+	updateLocalSaveButton();
+}
+
+function markLocalSaveClean() {
+	isLocalSaveDirty = false;
+	updateLocalSaveButton();
+}
+
+function updateLocalSaveButton() {
+	const btn = document.getElementById('localSaveBtn');
+	if (!btn) return;
+
+	if (isLocalSaveDirty) {
+		btn.textContent = 'ローカルにセーブ:ステータス除く';
+		btn.classList.remove('saved');
+		btn.classList.add('unsaved');
+	} else {
+		btn.textContent = 'ローカルにセーブ:ステータス除く（保存済）';
+		btn.classList.remove('unsaved');
+		btn.classList.add('saved');
+	}
+}
+
+function updateLocalSaveButton2() {
+	const btn = document.getElementById('localProgressSaveMirror');
+	if (!btn) return;
+
+	if (isLocalSaveDirty) {
+		btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（未保存）';
+		btn.classList.remove('saved');
+		btn.classList.add('unsaved');
+	} else {
+		btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（保存済）';
+		btn.classList.remove('unsaved');
+		btn.classList.add('saved');
+	}
+}
+
+
+
+
+window.saveToLocalStorage = async function() {
+	if (!player) return;
+
+	// 成長ステータスを最新化
+	if (player.baseStats && player.growthBonus) {
+		player.attack = player.baseStats.attack + player.growthBonus.attack;
+		player.defense = player.baseStats.defense + player.growthBonus.defense;
+		player.speed = player.baseStats.speed + player.growthBonus.speed;
+		player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+		player.hp = player.maxHp;
+	}
+
+	window.itemFilterStates = buildItemFilterStates();
+	player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+	const payload = {
+		player,
+		currentStreak,
+		sslot,
+		growthMultiplier: window.growthMultiplier,
+		growthSkipCount: window.growthSkipCount || 0,
+		skillMemoryOrder: Object.entries(player.skillMemory),
+		itemMemory: player.itemMemory || [],
+		rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+		levelCapExemptSkills: window.levelCapExemptSkills || [],
+		specialMode: window.specialMode || 'normal',
+		allowGrowthEvent: window.allowGrowthEvent || false,
+		allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+		allowItemInterrupt: window.allowItemInterrupt || false,
+		itemFilterMode: window.itemFilterMode || 'and',
+		itemFilterStates: window.itemFilterStates || {},
+		remainingBattles: window.remainingBattles ?? null,
+		targetBattles: window.targetBattles ?? null,
+		maxScores: window.maxScores || {},
+		mixedSkills: player.mixedSkills || [],
+		faceCoins: window.faceCoins || 0,
+		faceItemsOwned: window.faceItemsOwned || [],
+		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemBonusMap: window.faceItemBonusMap || {},
+	};
+
+	const raw = JSON.stringify(payload);
+	const b64 = btoa(unescape(encodeURIComponent(raw)));
+	const hash = await generateHash(b64);
+	const code = `${b64}.${hash}`;
+
+	localStorage.setItem('rpgLocalSave', code);
+	try { localStorage.setItem('rpgLocalBaseMeta', JSON.stringify({ timestamp: Date.now() })); } catch (_) {}
+	if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+	markLocalSaveClean(); // ← 状態を更新
+
+
+	markAsSaved();
+	updateLocalSaveButton();
+	updateLocalSaveButton2();
+	//	location.reload();
+};
+
+
+window.exportSaveCode = async function() {
+	if (!player) return;
+
+	// 成長ステータスを最新化
+	if (player.baseStats && player.growthBonus) {
+		player.attack = player.baseStats.attack + player.growthBonus.attack;
+		player.defense = player.baseStats.defense + player.growthBonus.defense;
+		player.speed = player.baseStats.speed + player.growthBonus.speed;
+		player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+		player.hp = player.maxHp;
+	}
+
+	window.itemFilterStates = buildItemFilterStates();
+	player.initialAndSlotSkills = window.initialAndSlotSkills || [];
+
+	// ✅ 特殊スキル情報も保存（保護状態含む）
+	player.mixedSkills = player.mixedSkills || [];
+
+	const payload = {
+		player,
+		currentStreak,
+		sslot,
+		growthMultiplier: window.growthMultiplier,
+		growthSkipCount: window.growthSkipCount || 0,
+		skillMemoryOrder: Object.entries(player.skillMemory),
+		itemMemory: player.itemMemory || [],
+		rebirthCount: parseInt(localStorage.getItem('rebirthCount') || '0'),
+		levelCapExemptSkills: window.levelCapExemptSkills || [],
+		specialMode: window.specialMode || 'normal',
+		allowGrowthEvent: window.allowGrowthEvent || false,
+		allowSkillDeleteEvent: window.allowSkillDeleteEvent || false,
+		allowItemInterrupt: window.allowItemInterrupt || false,
+		itemFilterMode: window.itemFilterMode || 'and',
+		itemFilterStates: window.itemFilterStates || {},
+		remainingBattles: window.remainingBattles ?? null,
+		targetBattles: window.targetBattles ?? null,
+		maxScores: window.maxScores || {},
+
+		// ✅ 魔メイク情報を明示的に保存
+		faceCoins: window.faceCoins || 0,
+		faceItemsOwned: window.faceItemsOwned || [],
+		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemBonusMap: window.faceItemBonusMap || {},
+	};
+
+	const raw = JSON.stringify(payload);
+	const b64 = btoa(unescape(encodeURIComponent(raw)));
+	const hash = await generateHash(b64);
+	const code = `${b64}.${hash}`;
+
+	const box = document.getElementById('saveCodeBox');
+	box.value = code;
+	try {
+		await navigator.clipboard.writeText(code);
+	} catch (e) {
+		box.focus();
+		box.select();
+	}
+
+	const charName = displayName(player.name).replace(/[\\/:*?"<>|]/g, '_');
+	const now = new Date();
+	const timestamp = now.toLocaleString('ja-JP', {
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit'
+	}).replace(/[^\d]/g, '');
+	const filename = `${charName}_${timestamp}.txt`;
+
+	const blob = new Blob([code], { type: 'text/plain' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+};
+
+window.importSaveCode = async function(code = null) {
+	document.getElementById("skillMemoryList").classList.remove("hidden");
+
+	const input = code ?? document.getElementById('saveData').value.trim();
+
+	try {
+		const parts = input.split('.');
+		if (parts.length !== 2) throw new Error('形式が不正です');
+		const [b64, hash] = parts;
+		const computed = await generateHash(b64);
+		if (computed !== hash) throw new Error('署名不一致');
+
+		let raw = '';
+		try {
+			raw = decodeURIComponent(escape(atob(b64)));
+		} catch (e) {
+			throw new Error('デコード失敗');
+		}
+
+		const parsed = JSON.parse(raw);
+		player = parsed.player;
+
+		// ✅ 特殊スキル情報の復元（保護状態を正規化）
+		player.mixedSkills = Array.isArray(parsed.mixedSkills) ?
+			parsed.mixedSkills.map(s => {
+				if (s.protected) s.isProtected = true;
+				return s;
+			}) : [];
+
+		window.maxScores = parsed.maxScores || {};
+		//player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+
+		player.itemMemory = parsed.itemMemory || [];
+		window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
+		window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
+		window.growthMultiplier = parsed.growthMultiplier || 1;
+		// 成長スキップ回数（未保存の旧データなら倍率からざっくり推定）
+		if (typeof parsed.growthSkipCount === 'number') {
+			window.growthSkipCount = Math.max(0, Math.floor(parsed.growthSkipCount));
+		} else {
+			const targetMul = window.growthMultiplier;
+			let n = 0;
+			while (n < 999 && window.calcGrowthMultiplierBySkipCount(n) < targetMul) n++;
+			window.growthSkipCount = n;
+		}
+
+		const rebirth = (parsed.rebirthCount || 0) + 1;
+		localStorage.setItem('rebirthCount', rebirth);
+
+		// ✅ 魔メイク情報の復元とUI更新
+		window.faceCoins = parsed.faceCoins ?? 0;
+		window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
+		window.faceItemEquipped = parsed.faceItemEquipped ?? null;
+		window.faceItemBonusMap = (parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
+		// 念のため：所持分は必ずボーナスを用意
+		try { (window.faceItemsOwned || []).forEach(p => __ensureFaceBonus(p)); } catch(e) {}
+
+		const coinElem = document.getElementById('faceCoinCount');
+		if (coinElem) coinElem.innerText = window.faceCoins;
+		if (typeof updateFaceUI === 'function') updateFaceUI();
+		if (typeof updatePlayerImage === 'function') updatePlayerImage();
+
+		// --- その他設定の復元 ---
+		window.specialMode = parsed.specialMode || 'normal';
+		window.allowGrowthEvent = parsed.allowGrowthEvent ?? true;
+		window.allowSkillDeleteEvent = parsed.allowSkillDeleteEvent ?? true;
+		window.allowItemInterrupt = parsed.allowItemInterrupt ?? true;
+		window.itemFilterMode = parsed.itemFilterMode || 'and';
+		window.itemFilterStates = parsed.itemFilterStates || {};
+
+		if (typeof setupItemFilters === 'function') setupItemFilters();
+		if (typeof setupToggleButtons === 'function') setupToggleButtons();
+		if (typeof applyItemFilterUIState === 'function') applyItemFilterUIState();
+
+		do {
+			enemy = makeCharacter('敵' + Math.random());
+		} while (!hasOffensiveSkill(enemy));
+
+		updateStats();
+		if (typeof updateSpecialModeButton === 'function') updateSpecialModeButton();
+		if (typeof updateItemFilterModeButton === 'function') updateItemFilterModeButton();
+
+		const title = document.getElementById('titleScreen');
+		const game = document.getElementById('gameScreen');
+		title.classList.add('fade-out');
+
+		window.__battleSetTimeout(() => {
+			title.classList.add('hidden');
+			game.classList.remove('hidden');
+			game.classList.add('fade-in');
+			document.getElementById("battleArea").classList.add("hidden");
+
+			const streakDisplay = document.getElementById('currentStreakDisplay');
+			if (streakDisplay) {
+				const baseBoost = 1.02;
+				const boostMultiplier = Math.pow(baseBoost, currentStreak);
+				streakDisplay.textContent = `連勝数：${currentStreak} （補正倍率：約${boostMultiplier.toFixed(2)}倍）`;
+			}
+
+			const rebirthDisplay = document.getElementById('rebirthCountDisplay');
+			if (rebirthDisplay) {
+				rebirthDisplay.textContent = '転生回数：' + rebirth;
+			}
+
+			if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+			startBattle();
+
+			// ✅ 特殊スキルリストを再描画
+			if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
+
+		}, 500);
+
+	} catch (e) {
+		alert('セーブデータの読み込みに失敗しました：' + e.message);
+		console.error(e);
+	}
+
+	// ✅ スキルUI同期（スロットや記憶）
+	if (typeof syncSkillsUI === 'function') syncSkillsUI();
+};
+
+
+
+
+
+
+window.loadFromLocalStorage = async function() {
+	const code = localStorage.getItem('rpgLocalSave');
+	if (!code) {
+		alert("保存データがありません。");
+		return;
+	}
+
+	try {
+		await importSaveCode(code);
+		alert("ローカル保存データを読み込みました。");
+		updateRemainingBattleDisplay();
+	} catch (e) {
+		alert("ローカル保存データの読み込みに失敗しました。");
+		console.error(e);
+	}
+
+	player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+
+};
+
+
+window.loadProgressFromLocalStorage = async function() {
+	const primary = localStorage.getItem('rpgLocalProgressSave');
+	const fallback = localStorage.getItem('rpgLocalSave');
+	if (!primary && !fallback) { alert('進捗を含む保存データが見つかりません。'); return; }
+
+	async function tryImport(code) {
+		if (!code) throw new Error('no code');
+		if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+		await importSaveCode(code);
+	}
+
+	// 既存
+	// try {
+	//   await tryImport(primary);
+	// } catch(e1){
+	//   console.warn('progress import failed, trying fallback:', e1);
+	//   try {
+	//     await tryImport(fallback);
+	//   } catch(e2){ ... }
+	// }
+
+	// 変更後（フラグを立て分ける）
+	let used = null;
+	try {
+		if (primary) {
+			window.__loadingFromProgress = true; // ★進捗ルート
+			await tryImport(primary);
+			used = 'progress';
+		}
+	} catch (e1) {
+		console.warn('progress import failed, trying fallback:', e1);
+	}
+	if (!used) {
+		window.__loadingFromProgress = false; // ★通常ルート
+		await tryImport(fallback);
+		used = 'fallback';
+	}
+	// フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
+	window.__battleSetTimeout(() => { try { delete window.__loadingFromProgress; } catch (_) {} }, 0);
+
+	try {
+		const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+		if (metaStr) {
+			const m = JSON.parse(metaStr);
+			if (m.targetBattles != null) window.targetBattles = m.targetBattles;
+			if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+			if (m.currentStreak != null) window.currentStreak = m.currentStreak;
+		}
+	} catch (_) {}
+
+	const title = document.getElementById('titleScreen');
+	const game = document.getElementById('gameScreen');
+	if (title && game) {
+		title.classList.add('hidden');
+		game.classList.remove('hidden');
+	}
+	if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+	if (typeof updateStats === 'function') updateStats();
+};
+
+// ================ Debug Dump ================
+window.dumpDebugSave = function() {
+	try {
+		const c1 = localStorage.getItem('rpgLocalSave');
+		const c2 = localStorage.getItem('rpgLocalProgressSave');
+		const meta = localStorage.getItem('rpgLocalProgressMeta');
+		const probe = {
+			now: new Date().toISOString(),
+			targetBattles: window.targetBattles ?? null,
+			remainingBattles: window.remainingBattles ?? null,
+			battleCount: window.battleCount ?? null,
+			currentStreak: window.currentStreak ?? null,
+			hasPlayer: !!window.player,
+			playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+			typeof_player: typeof window.player,
+			typeof_importSaveCode: typeof window.importSaveCode,
+			typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+		};
+		const out = {
+			rpgLocalSave: c1 ? (c1.slice(0, 80) + '... len=' + c1.length) : null,
+			rpgLocalProgressSave: c2 ? (c2.slice(0, 80) + '... len=' + c2.length) : null,
+			rpgLocalProgressMeta: meta,
+			runtime: probe
+		};
+		const pretty = JSON.stringify(out, null, 2);
+		let overlay = document.getElementById('debugDumpOverlay');
+		if (!overlay) {
+			overlay = document.createElement('div');
+			overlay.id = 'debugDumpOverlay';
+			overlay.style.position = 'fixed';
+			overlay.style.inset = '0';
+			overlay.style.background = 'rgba(0,0,0,.7)';
+			overlay.style.zIndex = '9999';
+			overlay.style.display = 'flex';
+			overlay.style.alignItems = 'center';
+			overlay.style.justifyContent = 'center';
+			const box = document.createElement('div');
+			box.style.width = 'min(900px, 90vw)';
+			box.style.height = 'min(70vh, 600px)';
+			box.style.background = 'rgba(0,0,0,0.6)';
+			box.style.border = '1px solid rgba(255,255,255,.25)';
+			box.style.backdropFilter = 'blur(10px)';
+			box.style.padding = '16px';
+			box.style.borderRadius = '8px';
+			const ta = document.createElement('textarea');
+			ta.id = 'debugDumpText';
+			ta.style.width = '100%';
+			ta.style.height = 'calc(100% - 48px)';
+			ta.style.color = '#fff';
+			ta.style.background = 'rgba(255,255,255,.06)';
+			ta.style.border = '1px solid rgba(255,255,255,.25)';
+			ta.style.padding = '8px';
+			const btn = document.createElement('button');
+			btn.textContent = '閉じる';
+			btn.onclick = () => overlay.remove();
+			btn.style.marginTop = '8px';
+			btn.style.padding = '8px 16px';
+			box.appendChild(ta);
+			box.appendChild(btn);
+			overlay.appendChild(box);
+			document.body.appendChild(overlay);
+		}
+		const ta = document.getElementById('debugDumpText');
+		if (ta) {
+			ta.value = pretty;
+			ta.focus();
+			ta.select();
+		}
+	} catch (e) {
+		alert('デバッグ出力に失敗しました：' + e.message);
+		console.error(e);
+	}
+};
+
+
+
+// === タイトルの「ロード」ボタン強調（最新データ側のみ光らせる） ===
+window.refreshLoadButtonsHighlight = function() {
+	try {
+		const baseBtn = document.getElementById('loadLocalBtn');
+		const progBtn = document.getElementById('loadLocalProgressBtn');
+		if (!baseBtn || !progBtn) return;
+
+		const getTs = (k) => {
+			try {
+				const s = localStorage.getItem(k);
+				if (!s) return 0;
+				const m = JSON.parse(s);
+				return Number(m.timestamp) || 0;
+			} catch (_) { return 0; }
+		};
+
+		// 既存のメタ構造：
+		//  - 通常セーブ側:  rpgLocalBaseMeta { timestamp }
+		//  - 進捗セーブ側: rpgLocalProgressMeta { timestamp, battleCount 等 }
+		let tsBase = getTs('rpgLocalBaseMeta');
+		let tsProg = getTs('rpgLocalProgressMeta');
+
+		// メタが無くてもセーブ本体があるかどうかは見る（古い環境との互換）
+		const hasBase = !!localStorage.getItem('rpgLocalSave');
+		const hasProg = !!localStorage.getItem('rpgLocalProgressSave');
+
+		// メタが無い場合は存在だけで「ごく古い値」として扱う（= 1）
+		if (hasBase && tsBase === 0) tsBase = 1;
+		if (hasProg && tsProg === 0) tsProg = 1;
+
+		// 初期化：両方オフ
+		baseBtn.classList.remove('highlight');
+		progBtn.classList.remove('highlight');
+
+		if (!hasBase && !hasProg) return; // 何も無ければ何もしない
+
+		// 新しさで決定（同時刻なら通常セーブを優先）
+		if (tsBase >= tsProg) {
+			if (hasBase) baseBtn.classList.add('highlight');
+		} else {
+			if (hasProg) progBtn.classList.add('highlight');
+		}
+	} catch (e) {
+		console.warn('refreshLoadButtonsHighlight failed:', e);
+	}
+};
+
+// ======================================================
+// 進捗セーブ／ロード（既存ローカルセーブ完全互換＋メタ保存）
+// ======================================================
+(function() {
+	// 活性制御：バトル1回以上 & 残り戦闘数>0
+	function refreshProgressSaveAvailability() {
+		const btn = document.getElementById('localProgressSaveBtn');
+		if (!btn) return;
+		const battles = (window.battleCount || 0);
+		const remain = (window.remainingBattles ?? 0);
+		btn.disabled = !((battles > 0) && (remain > 0));
+	}
+	document.addEventListener('DOMContentLoaded', refreshProgressSaveAvailability);
+	window.addEventListener('focus', refreshProgressSaveAvailability);
+	setInterval(refreshProgressSaveAvailability, 1200);
+
+	// 明示的な成功アラートを出すヘルパ
+	function notify(msg) { try { alert(msg); } catch (_) {} }
+
+	// 進捗セーブ
+	window.saveProgressToLocalStorage = async function() {
+		const battles = (window.battleCount || 0);
+		const remain = (window.remainingBattles ?? 0);
+		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+
+		try {
+			if (typeof saveToLocalStorage === 'function') {
+				await saveToLocalStorage(); // 既存の正規セーブ
+			}
+			const baseCode = localStorage.getItem('rpgLocalSave');
+			if (!baseCode) { notify('セーブコードの取得に失敗しました。'); return; }
+
+			// 形式は一切変更せず、そのまま複製
+			localStorage.setItem('rpgLocalProgressSave', baseCode);
+
+			// 進捗メタ（JSON）
+			const meta = {
+				remainingBattles: window.remainingBattles ?? null,
+				targetBattles: window.targetBattles ?? null,
+				battleCount: window.battleCount ?? null,
+				currentStreak: window.currentStreak ?? 0,
+				timestamp: Date.now()
+			};
+			localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+
+			if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+			const btn = document.getElementById('localProgressSaveBtn');
+			if (btn) {
+				btn.classList.add('saved');
+				btn.classList.remove('unsaved');
+			}
+
+			// 明示的に成功メッセージ（既存が沈黙でも確実に出す）
+			notify('ローカルに進捗（含む）を保存しました。');
+		} catch (e) {
+			console.error(e);
+			notify('セーブに失敗しました。');
+		}
+	};
+
+	// 進捗ロード（フォールバックあり）
+	window.loadProgressFromLocalStorage = async function() {
+		const primary = localStorage.getItem('rpgLocalProgressSave');
+		const fallback = localStorage.getItem('rpgLocalSave');
+		if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+
+		async function tryImport(code) {
+			if (!code) throw new Error('no code');
+			if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+			await importSaveCode(code);
+		}
+
+		// 既存
+		// try {
+		//   await tryImport(primary);
+		// } catch(e1){
+		//   console.warn('progress import failed, trying fallback:', e1);
+		//   try {
+		//     await tryImport(fallback);
+		//   } catch(e2){ ... }
+		// }
+
+		// 変更後（フラグを立て分ける）
+		let used = null;
+		try {
+			if (primary) {
+				window.__loadingFromProgress = true; // ★進捗ルート
+				await tryImport(primary);
+				used = 'progress';
+			}
+		} catch (e1) {
+			console.warn('progress import failed, trying fallback:', e1);
+		}
+		if (!used) {
+			window.__loadingFromProgress = false; // ★通常ルート
+			await tryImport(fallback);
+			used = 'fallback';
+		}
+		// フラグは後片付け（ズレ防止にsetTimeoutで確実にクリア）
+		window.__battleSetTimeout(() => { try { delete window.__loadingFromProgress; } catch (_) {} }, 0);
+	};
+
+	// デバッグ出力
+	if (typeof window.dumpDebugSave !== 'function') {
+		window.dumpDebugSave = function() {
+			try {
+				const c1 = localStorage.getItem('rpgLocalSave');
+				const c2 = localStorage.getItem('rpgLocalProgressSave');
+				const meta = localStorage.getItem('rpgLocalProgressMeta');
+				const probe = {
+					now: new Date().toISOString(),
+					targetBattles: window.targetBattles ?? null,
+					remainingBattles: window.remainingBattles ?? null,
+					battleCount: window.battleCount ?? null,
+					currentStreak: window.currentStreak ?? null,
+					hasPlayer: !!window.player,
+					playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+					typeof_player: typeof window.player,
+					typeof_importSaveCode: typeof window.importSaveCode,
+					typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+				};
+				const out = {
+					rpgLocalSave: c1 ? (c1.slice(0, 80) + '... len=' + c1.length) : null,
+					rpgLocalProgressSave: c2 ? (c2.slice(0, 80) + '... len=' + c2.length) : null,
+					rpgLocalProgressMeta: meta,
+					runtime: probe
+				};
+				const pretty = JSON.stringify(out, null, 2);
+				let overlay = document.getElementById('debugDumpOverlay');
+				if (!overlay) {
+					overlay = document.createElement('div');
+					overlay.id = 'debugDumpOverlay';
+					overlay.style.position = 'fixed';
+					overlay.style.inset = '0';
+					overlay.style.background = 'rgba(0,0,0,.7)';
+					overlay.style.zIndex = '9999';
+					overlay.style.display = 'flex';
+					overlay.style.alignItems = 'center';
+					overlay.style.justifyContent = 'center';
+					const box = document.createElement('div');
+					box.style.width = 'min(900px, 90vw)';
+					box.style.height = 'min(70vh, 600px)';
+					box.style.background = 'rgba(0,0,0,0.6)';
+					box.style.border = '1px solid rgba(255,255,255,.25)';
+					box.style.backdropFilter = 'blur(10px)';
+					box.style.padding = '16px';
+					box.style.borderRadius = '8px';
+					const ta = document.createElement('textarea');
+					ta.id = 'debugDumpText';
+					ta.style.width = '100%';
+					ta.style.height = 'calc(100% - 48px)';
+					ta.style.color = '#fff';
+					ta.style.background = 'rgba(255,255,255,.06)';
+					ta.style.border = '1px solid rgba(255,255,255,.25)';
+					ta.style.padding = '8px';
+					const btn = document.createElement('button');
+					btn.textContent = '閉じる';
+					btn.onclick = () => overlay.remove();
+					btn.style.marginTop = '8px';
+					btn.style.padding = '8px 16px';
+					box.appendChild(ta);
+					box.appendChild(btn);
+					overlay.appendChild(box);
+					document.body.appendChild(overlay);
+				}
+				const ta = document.getElementById('debugDumpText');
+				if (ta) {
+					ta.value = pretty;
+					ta.focus();
+					ta.select();
+				}
+			} catch (e) {
+				alert('デバッグ出力に失敗しました：' + e.message);
+				console.error(e);
+			}
+		};
+	}
+})();
+
+
+// ======================================================
+// Progress save/load (compat mirror, no format change)
+// ======================================================
+(function() {
+	function notify(msg) { try { alert(msg); } catch (_) {} }
+
+	function refreshProgressSaveAvailability() {
+		const btn = document.getElementById('localProgressSaveBtn');
+		if (!btn) return;
+		const battles = (window.battleCount || 0);
+		const remain = (window.remainingBattles ?? 0);
+		btn.disabled = !((battles > 0) && (remain > 0));
+	}
+	document.addEventListener('DOMContentLoaded', refreshProgressSaveAvailability);
+	window.addEventListener('focus', refreshProgressSaveAvailability);
+	setInterval(refreshProgressSaveAvailability, 1200);
+
+	window.localProgressSaveMirror = async function() {
+		const battles = (window.battleCount || 0);
+		const remain = (window.remainingBattles ?? 0);
+		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+		try {
+			if (typeof saveToLocalStorage === 'function') { await saveToLocalStorage(); }
+			const baseCode = localStorage.getItem('rpgLocalSave');
+			if (!baseCode) { notify('セーブコードの取得に失敗しました。'); return; }
+			localStorage.setItem('rpgLocalProgressSave', baseCode);
+			const meta = {
+				remainingBattles: window.remainingBattles ?? null,
+				targetBattles: window.targetBattles ?? null,
+				battleCount: window.battleCount ?? null,
+				currentStreak: window.currentStreak ?? 0,
+				timestamp: Date.now()
+
+			};
+			localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+			if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+			if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+			//   notify('ローカルに進捗（含む）を保存しました。');
+			refreshProgressSaveAvailability();
+		} catch (e) {
+			console.error(e);
+			notify('セーブに失敗しました。');
+		}
+	};
+
+	window.loadProgressFromLocalStorageCompat = async function() {
+		const primary = localStorage.getItem('rpgLocalProgressSave');
+		const fallback = localStorage.getItem('rpgLocalSave');
+		if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+		async function tryImport(code) {
+			if (!code) throw new Error('no code');
+			if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+			await importSaveCode(code);
+		}
+		try {
+			try { await tryImport(primary); } catch (_e) { await tryImport(fallback); }
+			try {
+				const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+				if (metaStr) {
+					const m = JSON.parse(metaStr);
+					if (m.targetBattles != null) window.targetBattles = m.targetBattles;
+					if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+					if (m.battleCount != null) window.battleCount = m.battleCount;
+					if (m.currentStreak != null) window.currentStreak = m.currentStreak;
+				}
+			} catch (_) {}
+			const title = document.getElementById('titleScreen');
+			const game = document.getElementById('gameScreen');
+			if (title && game) {
+				title.classList.add('hidden');
+				game.classList.remove('hidden');
+			}
+			if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+			if (typeof updateStats === 'function') updateStats();
+			notify('ローカルからロード（進捗含む）を実行しました。');
+		} catch (e) {
+			console.error(e);
+			notify('ローカル保存（進捗含む）の読み込みに失敗しました。');
+		}
+	};
+})();
+
+
+// ======================================================
+// HARD SHIM: force progress save/load to be base-format
+// and neuter any progress_v2 writers. (idempotent)
+// ======================================================
+(function() {
+	if (window.__progressCompatShimInstalled) return;
+	window.__progressCompatShimInstalled = true;
+
+	function notify(msg) { try { alert(msg); } catch (_) {} }
+
+	function snapshotMeta() {
+		try {
+			const meta = {
+				remainingBattles: window.remainingBattles ?? null,
+				targetBattles: window.targetBattles ?? null,
+				battleCount: window.battleCount ?? null,
+				currentStreak: window.currentStreak ?? 0,
+				timestamp: Date.now()
+			};
+			localStorage.setItem('rpgLocalProgressMeta', JSON.stringify(meta));
+			if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+		} catch (e) { console.warn('meta save failed', e); }
+	}
+
+	async function mirrorSaveCore() {
+		const battles = (window.battleCount || 0);
+		const remain = (window.remainingBattles ?? 0);
+		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
+		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+
+		if (typeof window.saveToLocalStorage === 'function') {
+			try { await window.saveToLocalStorage(); } catch (e) { console.warn('base save failed', e); }
+		}
+		let base = localStorage.getItem('rpgLocalSave');
+		if (!base) { notify('セーブコードの取得に失敗しました。'); return; }
+		localStorage.setItem('rpgLocalProgressSave', base);
+		snapshotMeta();
+		if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+	}
+
+	window.localProgressSaveMirror = mirrorSaveCore;
+
+	window.loadProgressFromLocalStorageCompat = async function() {
+		const primary = localStorage.getItem('rpgLocalProgressSave');
+		const fallback = localStorage.getItem('rpgLocalSave');
+		if (!primary && !fallback) { notify('進捗を含む保存データが見つかりません。'); return; }
+		async function tryImport(code) {
+			if (!code) throw new Error('no code');
+			if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
+			await importSaveCode(code);
+		}
+		try {
+			try { await tryImport(primary); } catch (_) { await tryImport(fallback); }
+			try {
+				const metaStr = localStorage.getItem('rpgLocalProgressMeta');
+				if (metaStr) {
+					const m = JSON.parse(metaStr);
+					if (m.targetBattles != null) window.targetBattles = m.targetBattles;
+					if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
+					if (m.battleCount != null) window.battleCount = m.battleCount;
+					if (m.currentStreak != null) window.currentStreak = m.currentStreak;
+				}
+			} catch (_) {}
+			const title = document.getElementById('titleScreen');
+			const game = document.getElementById('gameScreen');
+			if (title && game) {
+				title.classList.add('hidden');
+				game.classList.remove('hidden');
+			}
+			if (typeof updateRemainingBattleDisplay === 'function') updateRemainingBattleDisplay();
+			if (typeof updateStats === 'function') updateStats();
+			notify('ローカルからロード（進捗含む）を実行しました。');
+		} catch (e) {
+			console.error(e);
+			notify('ローカル保存（進捗含む）の読み込みに失敗しました。');
+		}
+	};
+
+	// Intercept localStorage writes to override progress_v2
+	const __origSetItem = localStorage.setItem.bind(localStorage);
+	localStorage.setItem = function(key, val) {
+		try {
+			if (key === 'rpgLocalProgressSave' && typeof val === 'string' && val.indexOf('"version":"progress_v2"') !== -1) {
+				const base = localStorage.getItem('rpgLocalSave');
+				if (base) { val = base; }
+			}
+			const res = __origSetItem(key, val);
+			if (key === 'rpgLocalSave') {
+				snapshotMeta();
+				if (typeof window.refreshLoadButtonsHighlight === 'function') window.refreshLoadButtonsHighlight();
+			}
+			return res;
+		} catch (e) {
+			return __origSetItem(key, val);
+		}
+	};
+
+	// After all scripts load, override legacy functions and attach fallback click handler
+	window.addEventListener('load', function() {
+		window.saveProgressToLocalStorage = mirrorSaveCore;
+		window.loadProgressFromLocalStorage = window.loadProgressFromLocalStorageCompat;
+		document.body.addEventListener('click', function(ev) {
+			const t = ev.target;
+			if (!t) return;
+			const txt = (t.textContent || '').trim();
+			if (txt.includes('ローカルセーブ') && txt.includes('進捗')) {
+				window.__battleSetTimeout(function() { mirrorSaveCore(); }, 30);
+			}
+		}, true);
+	});
+
+	if (typeof window.dumpDebugSave !== 'function') {
+		window.dumpDebugSave = function() {
+			try {
+				const c1 = localStorage.getItem('rpgLocalSave');
+				const c2 = localStorage.getItem('rpgLocalProgressSave');
+				const meta = localStorage.getItem('rpgLocalProgressMeta');
+				const probe = {
+					now: new Date().toISOString(),
+					targetBattles: window.targetBattles ?? null,
+					remainingBattles: window.remainingBattles ?? null,
+					battleCount: window.battleCount ?? null,
+					currentStreak: window.currentStreak ?? null,
+					hasPlayer: !!window.player,
+					playerKeys: window.player ? Object.keys(window.player).slice(0, 50) : [],
+					typeof_player: typeof window.player,
+					typeof_importSaveCode: typeof window.importSaveCode,
+					typeof_saveToLocalStorage: typeof window.saveToLocalStorage
+				};
+				const out = {
+					rpgLocalSave: c1 ? (c1.slice(0, 80) + '... len=' + c1.length) : null,
+					rpgLocalProgressSave: c2 ? (c2.slice(0, 80) + '... len=' + c2.length) : null,
+					rpgLocalProgressMeta: meta,
+					runtime: probe
+				};
+				const pretty = JSON.stringify(out, null, 2);
+				let overlay = document.getElementById('debugDumpOverlay');
+				if (!overlay) {
+					overlay = document.createElement('div');
+					overlay.id = 'debugDumpOverlay';
+					overlay.style.position = 'fixed';
+					overlay.style.inset = '0';
+					overlay.style.background = 'rgba(0,0,0,.7)';
+					overlay.style.zIndex = '9999';
+					overlay.style.display = 'flex';
+					overlay.style.alignItems = 'center';
+					overlay.style.justifyContent = 'center';
+					const box = document.createElement('div');
+					box.style.width = 'min(900px, 90vw)';
+					box.style.height = 'min(70vh, 600px)';
+					box.style.background = 'rgba(0,0,0,0.6)';
+					box.style.border = '1px solid rgba(255,255,255,.25)';
+					box.style.backdropFilter = 'blur(10px)';
+					box.style.padding = '16px';
+					box.style.borderRadius = '8px';
+					const ta = document.createElement('textarea');
+					ta.id = 'debugDumpText';
+					ta.style.width = '100%';
+					ta.style.height = 'calc(100% - 48px)';
+					ta.style.color = '#fff';
+					ta.style.background = 'rgba(255,255,255,.06)';
+					ta.style.border = '1px solid rgba(255,255,255,.25)';
+					ta.style.padding = '8px';
+					const btn = document.createElement('button');
+					btn.textContent = '閉じる';
+					btn.onclick = () => overlay.remove();
+					btn.style.marginTop = '8px';
+					btn.style.padding = '8px 16px';
+					box.appendChild(ta);
+					box.appendChild(btn);
+					overlay.appendChild(box);
+					document.body.appendChild(overlay);
+				}
+				const ta = document.getElementById('debugDumpText');
+				if (ta) {
+					ta.value = pretty;
+					ta.focus();
+					ta.select();
+				}
+			} catch (e) {
+				alert('デバッグ出力に失敗しました：' + e.message);
+				console.error(e);
+			}
+		};
+	}
+})();
+
+
+// 初期同期：タイトル表示時に最新データ側を強調
+document.addEventListener('DOMContentLoaded', function() {
+	/*_added_ready_refresh_*/
+	if (typeof window.refreshLoadButtonsHighlight === 'function') {
+		window.refreshLoadButtonsHighlight();
+	}
+});
+
+
+// 初期同期：タイトル表示時に最新データ側を強調
+document.addEventListener('DOMContentLoaded', function() {
+	/*_added_ready_refresh_v2_*/
+	if (typeof window.refreshLoadButtonsHighlight === 'function') {
+		window.refreshLoadButtonsHighlight();
+	}
+});
+
+
+;
+(function() {
+	function bindOnceButton() {
+		var onceBtn = document.getElementById('startBattleOnceBtn');
+		if (!onceBtn || onceBtn.__wired) return;
+		onceBtn.__wired = true;
+		onceBtn.addEventListener('click', function() {
+			if (window.isAutoBattle) return; // Auto中は無効
+			if (window.__onceBtnCooldown) return; // 連打防止
+			window.__onceBtnCooldown = true;
+			try {
+				(window.startBattle || startBattle)();
+			} finally {
+				window.__battleSetTimeout(function() { window.__onceBtnCooldown = false; }, 400);
+			}
+		});
+	}
+	document.addEventListener('DOMContentLoaded', bindOnceButton);
+	window.__battleSetTimeout(bindOnceButton, 0);
+	window.__battleSetTimeout(bindOnceButton, 500);
+})();
+
+
+window.ensureBattleButtons = function() {
+	var b1 = document.getElementById('startBattleBtn');
+	var b2 = document.getElementById('startBattleOnceBtn');
+  [b1, b2].forEach(function(b) {
+		if (!b) return;
+		b.classList.remove('hidden');
+		b.style.display = '';
+		b.disabled = false;
+	});
+};
+document.addEventListener('DOMContentLoaded', window.ensureBattleButtons);
+
+
+window.syncBattleButtonsMode = function() {
+	var b1 = document.getElementById('startBattleBtn');
+	var b2 = document.getElementById('startBattleOnceBtn');
+	var brutal = (window.specialMode === 'brutal');
+  [b1, b2].forEach(function(b) {
+		if (!b) return;
+		b.classList.remove('normal-mode', 'brutal-mode');
+		b.classList.add(brutal ? 'brutal-mode' : 'normal-mode');
+	});
+};
+document.addEventListener('DOMContentLoaded', window.syncBattleButtonsMode);
+window.__battleSetTimeout(window.syncBattleButtonsMode, 0);
+
+
+;
+(function() {
+	function after(fn, tail) { return function() { try { return fn.apply(this, arguments); } finally { try { tail(); } catch (e) {} } }; }
+	if (typeof window.toggleSpecialMode === 'function') {
+		window.toggleSpecialMode = after(window.toggleSpecialMode, window.syncBattleButtonsMode);
+	}
+	if (typeof window.updateSpecialModeButton === 'function') {
+		window.updateSpecialModeButton = after(window.updateSpecialModeButton, window.syncBattleButtonsMode);
+	}
+})();
+
+
+// === Selection guard refinements ===
+(function() {
+	function getPopup() { return document.getElementById('eventPopup'); }
+
+	function hasOptions() {
+		const p = getPopup();
+		if (!p) return false;
+		const opt = p.querySelector('#eventPopupOptions');
+		if (!opt) return false;
+		// buttons or clickable options count
+		return opt.querySelectorAll('button, .option, .choice, .selectable').length > 0;
+	}
+
+	function markHasOptions() {
+		const p = getPopup();
+		if (!p) return;
+		if (hasOptions()) p.classList.add('has-options');
+		else p.classList.remove('has-options');
+	}
+	// If previous helpers exist, reuse their names
+	window.__hasGrowthOptions = hasOptions;
+	window.__markGrowthOptions = markHasOptions;
+
+	// Upgrade keep-alive to only enforce when options really exist
+	if (window.selectionKeepAliveUpgraded !== true && typeof window.selectionKeepAlive !== 'undefined') {
+		window.selectionKeepAliveUpgraded = true;
+		// Stop old interval, start upgraded one
+		try { if (window.selectionKeepAlive) clearInterval(window.selectionKeepAlive); } catch (e) {}
+		window.selectionKeepAlive = setInterval(function() {
+			const p = getPopup();
+			if (!p) return;
+			markHasOptions();
+			if (!window.isPopupSelecting || !hasOptions()) {
+				// auto-release if selection flag stuck but options gone
+				if (window.isPopupSelecting && !hasOptions()) window.isPopupSelecting = false;
+				// don't enforce display; let UI be interactive
+				return;
+			}
+			// Only now enforce visibility
+			if (p.style && p.style.display === 'none') p.style.display = 'block';
+			p.classList.add('selection-lock');
+		}, 250);
+	}
+
+	// Wrap clearEventPopup again to allow closing when options are gone
+	if (!window.__decorate_clearEventPopup3 && typeof window.clearEventPopup === 'function') {
+		window.__decorate_clearEventPopup3 = true;
+		const prev = window.clearEventPopup;
+		window.clearEventPopup = function(force) {
+			// If there are no options anymore, allow close even without force
+			if (window.isPopupSelecting && !force && !hasOptions()) {
+				force = true;
+			}
+			try {
+				return prev.apply(this, arguments);
+			} finally {
+				// If options are gone or force-close, release guards
+				if (!hasOptions() || force === true) {
+					window.isPopupSelecting = false;
+					try {
+						const p = getPopup();
+						if (p) {
+							p.classList.remove('selection-lock');
+							p.classList.remove('has-options');
+						}
+					} catch (e) {}
+					try {
+						if (window.selectionObserver) {
+							window.selectionObserver.disconnect();
+							window.selectionObserver = null;
+						}
+					} catch (e) {}
+				}
+			}
+		}
+	}
+
+	// Also decorate showEventOptions to flag 'has-options' quickly after render tick
+	if (!window.__decorate_showEventOptions3 && typeof window.showEventOptions === 'function') {
+		window.__decorate_showEventOptions3 = true;
+		const base = window.showEventOptions;
+		window.showEventOptions = function() {
+			const ret = base.apply(this, arguments);
+			window.isPopupSelecting = true;
+			window.__battleSetTimeout(markHasOptions, 0);
+			window.__battleSetTimeout(markHasOptions, 100); // after DOM fills
+			return ret;
+		}
+	}
+})();
+// =====================================================
+
+(function() {
+	function callInit() { if (typeof window.init === 'function') window.init(); }
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', callInit);
+	} else {
+		callInit();
+	}
+	window.__battleSetTimeout(callInit, 0);
+	window.__battleSetTimeout(callInit, 600);
+})();
+// ======================================================
+// 単発バトル：二重カウント完全防止（Proxy＋クリックトークン）+ 黒ガラス風トースト
+// ======================================================
+;
+
+
+// ===============================
+// テキストセーブ出力 / テキストからロード
+// ===============================
+
+window.exportSaveAsTextFile = async function() {
+	try {
+		if (!player) {
+			alert('セーブできるデータがありません（ゲームを開始してから実行してください）。');
+			return;
+		}
+		if (typeof window.exportSaveCode === 'function') {
+			await window.exportSaveCode();
+			try {
+				if (typeof showSubtitle === 'function') {
+					showSubtitle('📄 セーブデータをテキスト出力しました', 1400);
+				}
+			} catch (_) {}
+		} else {
+			alert('エクスポート関数が見つかりません。');
+		}
+	} catch (e) {
+		console.error(e);
+		alert('テキスト出力に失敗しました：' + (e && e.message ? e.message : e));
+	}
+};
+
+window.__bindTextFileLoadUI = function() {
+	try {
+		const btn = document.getElementById('loadFromTextBtn');
+		const input = document.getElementById('loadTextFileInput');
+		if (!btn || !input) return;
+
+		if (btn.__bound) return;
+		btn.__bound = true;
+
+		btn.addEventListener('click', () => {
+			try { input.click(); } catch (_) {}
+		});
+
+		input.addEventListener('change', async () => {
+			try {
+				const file = input.files && input.files[0] ? input.files[0] : null;
+				if (!file) return;
+
+				const text = (await file.text()).trim();
+				if (!text) {
+					alert('ファイルの内容が空です。');
+					return;
+				}
+
+				if (typeof window.importSaveCode !== 'function') {
+					alert('インポート関数が見つかりません。');
+					return;
+				}
+
+				await window.importSaveCode(text);
+
+			} catch (e) {
+				console.error(e);
+				alert('テキストからのロードに失敗しました：' + (e && e.message ? e.message : e));
+			} finally {
+				// 同じファイルを連続で選べるようにクリア
+				try { input.value = ''; } catch (_) {}
+			}
+		});
+	} catch (e) {
+		console.warn('bindTextFileLoadUI error', e);
+	}
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+	if (typeof window.__bindTextFileLoadUI === 'function') window.__bindTextFileLoadUI();
+});
+
+
+// =====================================================
+// Title Screen: "つづきから" -> compact load panel (animated swap)
+// =====================================================
+window.resetTitleLoadPanel = window.resetTitleLoadPanel || function() {
+	try {
+		const btn = document.getElementById('continueBtn');
+		const panel = document.getElementById('loadPanel');
+		if (btn) {
+			btn.style.display = '';
+			btn.classList.remove('is-swapping');
+		}
+		if (panel) {
+			panel.classList.add('is-collapsed');
+			panel.classList.remove('is-open');
+			panel.setAttribute('aria-hidden', 'true');
+		}
+	} catch (e) {}
+};
+
+window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() {
+	try {
+		const btn = document.getElementById('continueBtn');
+		const panel = document.getElementById('loadPanel');
+		if (!btn || !panel) return;
+
+		if (btn.__bound) return;
+		btn.__bound = true;
+
+		const openPanel = () => {
+			try {
+				// swap animation: fade/blur out the single button, then reveal panel
+				btn.classList.add('is-swapping');
+
+				// Let CSS transition run, then hide the button & open panel
+				const ms = 240;
+				window.__uiSetTimeout(() => {
+					try { btn.style.display = 'none'; } catch (_) {}
+					panel.classList.remove('is-collapsed');
+					panel.classList.add('is-open');
+					panel.setAttribute('aria-hidden', 'false');
+				}, ms);
+			} catch (e) {}
+		};
+
+		btn.addEventListener('click', openPanel);
+
+		// Default state: collapsed
+		window.resetTitleLoadPanel();
+	} catch (e) {}
+};
+
+// Bind on DOMContentLoaded (alongside existing title UI bindings)
+window.addEventListener('DOMContentLoaded', () => {
+	try {
+		if (typeof window.__initTitleContinuePanel === 'function') window.__initTitleContinuePanel();
+	} catch (e) {}
+});

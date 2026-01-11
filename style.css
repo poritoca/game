@@ -34,7 +34,7 @@ body {
    =============================== */
 .top-fold-panel{
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
   margin: 0 0 16px;
@@ -2625,7 +2625,7 @@ canvas {
 #battleLog .turn-stats-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -3195,7 +3195,7 @@ canvas {
 
 .guide-two-col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3279,7 +3279,7 @@ canvas {
 /* ===== Fold + Panel layout (added) ===== */
 .panel-grid{
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
@@ -3388,7 +3388,7 @@ canvas {
 
 .load-panel-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3548,6 +3548,54 @@ canvas {
   opacity: 0.78;
 }
 
+/* Drag handle (grab here to move the panel) */
+#eventPopup.growth-compact-ui .growth-drag-handle{
+  height: 16px;
+  margin: -2px 0 6px 0;
+  border-radius: 999px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+#eventPopup.growth-compact-ui .growth-drag-handle.dragging{ cursor: grabbing; }
+#eventPopup.growth-compact-ui.growth-dragging{
+  border-color: rgba(0,255,255,0.35) !important;
+  box-shadow: 0 0 0 2px rgba(0,255,255,0.12), 0 18px 40px rgba(0,0,0,0.45);
+}
+#eventPopup.growth-compact-ui .growth-drag-handle.dragging{
+  background: rgba(0,255,255,0.14);
+  border-color: rgba(0,255,255,0.28);
+}
+
+#eventPopup.growth-compact-ui .growth-drag-handle .grip{
+  width: 42px;
+  height: 6px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 4px 3px, rgba(255,255,255,0.55) 0 1.2px, transparent 1.3px) 0 0 / 10px 6px;
+  opacity: 0.75;
+}
+
+
+#eventPopup.growth-compact-ui .growth-drag-handle{
+  flex-direction: column;
+  gap: 1px;
+}
+#eventPopup.growth-compact-ui .growth-drag-handle::after{
+  content: 'つまみ';
+  font-size: 9px;
+  opacity: 0.40;
+  letter-spacing: 0.18em;
+  transform: scale(0.92);
+}
+
+
+
 #eventPopup.growth-compact-ui #eventPopupOptions{
   margin-top: 0 !important;
   display: grid;
@@ -3571,6 +3619,23 @@ canvas {
   line-height: 1.0;
 }
 
+
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-disabled{
+  opacity: 0.45 !important;
+  filter: grayscale(0.7);
+  transform: none !important;
+  box-shadow: none !important;
+  cursor: default !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-disabled .icon{
+  opacity: 0.8;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-disabled .label{
+  opacity: 0.85;
+}
 #eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon:active{
   transform: translateY(1px) scale(0.99);
 }
@@ -3589,6 +3654,31 @@ canvas {
   text-overflow: ellipsis;
   max-width: 100%;
 }
+
+/* Skip/next multiplier option: span full width and keep text readable */
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon.event-opt-skip{
+  grid-column: 1 / -1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon.event-opt-skip .icon{
+  font-size: 16px;
+}
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon.event-opt-skip .skip-text{
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  opacity: 0.95;
+}
+
 
 /* Make the compact popup not block too much on very small screens */
 @media (max-width: 420px){
@@ -3628,7 +3718,10 @@ canvas {
   display: none;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 6px 6px;
+  padding: 5px 5px 6px;
+  box-sizing: border-box;
+  width: auto;
+  max-width: 92vw;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(18,18,22,0.66);
@@ -3636,6 +3729,56 @@ canvas {
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 12px 34px rgba(0,0,0,0.36);
 }
+
+/* Drag handle (grab here to move the battle dock) */
+#battleOverlayDock .dock-drag-handle{
+  height: auto;
+  margin: -2px 0 6px 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: grab;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+#battleOverlayDock .dock-drag-handle.dragging{ cursor: grabbing; }
+#battleOverlayDock.dock-dragging{
+  border-color: rgba(0,255,255,0.35) !important;
+  box-shadow: 0 0 0 2px rgba(0,255,255,0.12), 0 18px 40px rgba(0,0,0,0.45);
+}
+#battleOverlayDock .dock-drag-handle.dragging{
+  background: rgba(0,255,255,0.14);
+  border-color: rgba(0,255,255,0.28);
+}
+#battleOverlayDock .dock-drag-handle .grip{
+  width: 28px;
+  height: 5px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 4px 3px, rgba(255,255,255,0.55) 0 1.2px, transparent 1.3px) 0 0 / 10px 6px;
+  opacity: 0.75;
+}
+
+#battleOverlayDock .dock-drag-handle .dock-handle-label{
+  color: rgba(255,255,255,0.70);
+  opacity: 0.9;
+  transform: translateY(0.5px);
+}
+
+/* While dragging the battle dock: avoid accidental scroll/selection */
+body.battle-dock-dragging{
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 
 #battleOverlayDock.dock-left{
   left: 10px;
@@ -3645,34 +3788,6 @@ canvas {
 #battleOverlayDock.dock-right{
   right: 10px;
   left: auto;
-}
-
-#battleOverlayDock .dockToggleRow{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-#battleOverlayDock .dockSideBtn{
-  appearance: none;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 999px;
-  padding: 4px 0;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: rgba(245,245,255,0.92);
-  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 22px rgba(0,0,0,0.18);
-}
-
-#battleOverlayDock .dockSideBtn:active{
-  transform: translateY(1px);
-}
-
-#battleOverlayDock .dockSideBtn.is-active{
-  border-color: rgba(255,255,255,0.28);
-  background: linear-gradient(180deg, rgba(180,220,255,0.22), rgba(255,255,255,0.08));
 }
 
 #battleOverlayDock .dockContent{
@@ -3788,7 +3903,34 @@ canvas {
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+  touch-action: manipulation;
 }
+
+
+/* Mini bar follow modes */
+#battleDockMiniBar.follow-viewport{
+  position: fixed !important;
+  top: auto !important;
+  bottom: calc(env(safe-area-inset-bottom) + 12px) !important;
+}
+#battleDockMiniBar.follow-page{
+  position: absolute !important;
+  bottom: auto !important;
+}
+
+/* Auto-minimized-by-scroll pulse (only when minimized due to scroll) */
+@keyframes battleMiniPop {
+  0%   { transform: translateX(-50%) scaleX(1.0); filter: brightness(1.0); }
+  35%  { transform: translateX(-50%) scaleX(1.16); filter: brightness(1.35); }
+  70%  { transform: translateX(-50%) scaleX(1.06); filter: brightness(1.15); }
+  100% { transform: translateX(-50%) scaleX(1.0); filter: brightness(1.0); }
+}
+#battleDockMiniBar.scroll-minimized{
+  animation: battleMiniPop 0.65s ease-out 1, battleMiniGlow 2.2s ease-in-out infinite;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.24), 0 0 20px color-mix(in srgb, var(--battleDock-glow) 55%, rgba(255,255,255,0.0));
+}
+
+
 
 
 
@@ -3842,4 +3984,144 @@ canvas {
   font-size: 9px;
   padding: 10px 12px;
   border-radius: 12px;
+}
+
+
+/* Growth popup drag feedback (moving) */
+#eventPopup.growth-compact-ui.growth-drag-moving{
+  box-shadow: 0 0 0 2px rgba(0,255,255,0.45), 0 0 18px rgba(0,255,255,0.22) !important;
+}
+
+
+/* =========================================
+   Compact & Chic Event Popup (Growth / Defeat)
+   ========================================= */
+#eventPopup {
+  width: min(320px, 90vw);
+  padding: 12px 14px;
+  border-radius: 14px;
+
+  background: rgba(18, 18, 22, 0.82);
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+
+  box-shadow:
+    0 12px 28px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+#eventPopupTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  color: #e5e7eb;
+}
+
+#eventPopupOptions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.event-popup-button {
+  padding: 8px 10px;
+  margin: 0;
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.08),
+    rgba(255,255,255,0.02)
+  );
+
+  color: #f9fafb;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+
+  box-shadow:
+    0 6px 14px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+
+  transition:
+    transform 120ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.event-popup-button:hover {
+  border-color: rgba(96,165,250,0.6);
+}
+
+.event-popup-button:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow:
+    0 4px 10px rgba(0,0,0,0.5);
+}
+
+
+
+
+/* === Growth selection UI size tuning (compact) === */
+#eventPopup.growth-compact-ui{
+  width: min(160px, 38vw) !important;
+  max-width: 160px !important;
+  max-height: 50vh !important;
+  padding: 6px 6px 5px !important;
+  overflow-y: auto !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupTitle{
+  font-size: 10px !important;
+  margin-bottom: 5px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions{
+  gap: 5px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon{
+  height: 40px !important;
+  padding: 4px 4px !important;
+  border-radius: 11px !important;
+  gap: 2px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon .icon{
+  font-size: 14px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon .label{
+  font-size: 9px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon.event-opt-skip{
+  height: 34px !important;
+  padding: 5px 8px !important;
+}
+
+#eventPopup.growth-compact-ui #eventPopupOptions .event-opt-icon.event-opt-skip .icon{
+  font-size: 12px !important;
+}
+
+.handleText{
+  font-size: 10px;
+  line-height: 1.1;
+}
+.handleDots{
+  font-size: 12px;
+  opacity: 0.6;
 }
