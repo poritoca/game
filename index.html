@@ -246,8 +246,6 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
           <li>ボス強化倍率（鬼畜モード）：<code><span id="guideBossMulBrutal">-</span></code></li>
           <li>ボスの見た目レアリティ（連勝数で変化）：<span id="guideBossFaceRarityRule">-</span></li>
         </ul>
-        <div class="subnote">※上記は <code>game.js</code> の実装値をそのまま表示しています（調整したらここも自動で変わります）。</div>
-      </div>
     </details>
 
     <details class="guide-fold">
@@ -288,7 +286,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
             <div id="guideBossAdjExcluded" class="guide-pillbox">-</div>
           </div>
         </div>
-        <div class="subnote">※色（例：虹色の）や名詞（例：箱）はボス戦利品でも通常どおり抽選されます。</div>
+        <div class="subnote"><br> ※色（例：虹色の）や名詞（例：箱）はボス戦利品でも通常どおり抽選されます。</div>
       </div>
     </details>
 
@@ -308,7 +306,6 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
             <tr><td>現在の連勝数</td><td><span id="guideStreakNow">-</span></td></tr>
             <tr><td>（参考）現在の敵レアリティ係数</td><td><span id="guideEnemyRarityNow">-</span></td></tr>
             <tr><td>現在の計算結果（この条件なら）</td><td><strong><span id="guideSkillGainNow">-</span></strong></td></tr>
-            <tr><td>計算式（実装どおり）</td><td><code id="guideSkillGainFormula">-</code></td></tr>
           </tbody>
         </table>
 
@@ -321,8 +318,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 		
 
-		<h3>🎯 連勝数によるボーナス仕様</h3>
-		<p>あなたの戦績が良いほど、スキルや報酬に有利な影響を与えます！</p>
+		<h3>🎯 細部に関するボーナス仕様</h3>
+		<p>スキルや報酬に有利な影響を与えます！</p>
 		
 		<h4>🔹 特殊スキルの性能上昇</h4>
 		<ul>
@@ -333,7 +330,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		
 		<h4>💎 魔メイクのレア排出率UP</h4>
 		<ul>
-		  <li>魔メイクのレアランク（S〜B）の出現率が、現在の連勝数に応じて上昇します。</li>
+		  <li>魔メイクのレアランク（S〜B）の出現率が、現在の連勝数に応じて上昇します。最大連勝数ではない点、ご注意ください。</li>
 		  <li>例：Dランクの割合が減少し、S〜Aランクの出現率がわずかに上昇。</li>
 		</ul>
 		
@@ -357,10 +354,9 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </strong>
 </p>
 
-    <h3>スキルメモリー</h3>
+    <h3>スキルについて（特殊スキルは別記）</h3>
     <p>
-        スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、発動率に影響する順番をドラッグで調整できます。<br>
-        初期スキルは白色で表示され、それ以外の習得スキルは色付きで表示されます。パッシブスキル（補助効果）はゴールドで表示され、常時効果を発揮します。
+			スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、発動率に影響する順番をドラッグで調整できます。
     </p>
 		
 		<h3>特殊スキルについて</h3>
@@ -504,19 +500,19 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
     <details class="guide-details">
       <summary><b>🧰 魔道具の説明・数値一覧（色 / 形容詞 / 名詞）</b></summary>
-      <div class="subnote">※中の数値は、ゲーム内の設定値から自動生成しています。</div>
+      <div class="subnote"> <br>※中の数値は、ゲーム内の設定値から自動生成しています。</div>
       <div id="itemElementList"></div>
     </details>
 
     <details class="guide-details">
       <summary><b>📚 スキル効果一覧（簡易説明）</b></summary>
-      <div class="subnote">※一覧は <code>skills.js</code> の定義から自動生成しています。</div>
+      <div class="subnote"> <br>※一覧は、スキルの定義から自動生成しています。</div>
       <div id="skillEffectList"></div>
     </details>
 
     <details class="guide-details">
       <summary><b>📐 スキル効果値一覧（パラメータ）</b></summary>
-      <div class="subnote">※「倍率・確率・継続ターン」などの生データです。実際のダメージ/回復量は ATK/DEF/スキルLv 等で変動します。</div>
+      <div class="subnote"> <br>※「倍率・確率・継続ターン」などの生データです。実際のダメージ/回復量は ATK/DEF/スキルLv 等で変動します。</div>
       <div id="skillValueList"></div>
     </details>
 </div>
