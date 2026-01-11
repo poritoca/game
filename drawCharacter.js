@@ -1,3 +1,4 @@
+'use strict';
 function hashString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -37,7 +38,7 @@ function getMetallicBaseColor(rng) {
 
 let animationFrameIds = {}; // アニメーションID管理用オブジェクト
 
-export function drawCharacterImage(name, canvasId) {
+function drawCharacterImage(name, canvasId) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -186,3 +187,6 @@ function animateWave(timestamp) {
 animationFrameIds[canvasId] = requestAnimationFrame(animateWave);
     };
 }
+
+// expose for other scripts
+try{ window.drawCharacterImage = drawCharacterImage; }catch(e){}

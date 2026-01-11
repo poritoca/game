@@ -1,4 +1,5 @@
-export const skillPool = [
+'use strict';
+const skillPool = [
   {
     "name": "連続攻撃",
     "category": "multi",
@@ -957,3 +958,6 @@ export const skillPool = [
     "description": "スタン系・痺れ系・睡眠系スキルを戦闘開始時に封印する"
   }
 ];
+
+// expose for other scripts
+try{ window.skillPool = skillPool; }catch(e){}
