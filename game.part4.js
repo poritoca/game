@@ -1067,6 +1067,76 @@ window.saveToLocalStorage = async function() {
 	//	location.reload();
 };
 
+// =====================================================
+// リザルト画面（「〜は敗北した」）用：ローカル保存→成功したらページをリロード
+// ※ 設定内の「ローカルにセーブ」ボタン（id: localSaveBtn）の挙動は変えない
+// =====================================================
+window.saveToLocalStorageAndReloadFromFinalResults = async function() {
+	const btn = document.getElementById('localSaveBtnFinal');
+	if (btn) {
+		btn.disabled = true;
+		btn.dataset.__prevText = btn.textContent || '';
+		btn.textContent = '保存中...';
+	}
+	let before = null;
+	try { before = localStorage.getItem('rpgLocalSave'); } catch (_) { before = null; }
+
+	let savedOk = false;
+	let lastErr = null;
+
+	try {
+		if (typeof window.saveToLocalStorage !== 'function') {
+			throw new Error('saveToLocalStorage is not defined');
+		}
+		await window.saveToLocalStorage();
+		savedOk = true;
+	} catch (e) {
+		lastErr = e;
+
+		// iOS Safari では「保存自体は成功したが UI 更新で例外」になることがあるため、
+		// 保存キーが更新されていれば成功扱いにする。
+		try {
+			const after = localStorage.getItem('rpgLocalSave');
+			if (after && after !== before) savedOk = true;
+		} catch (_) {}
+	}
+
+	if (savedOk) {
+		// 成功表示（描画のため少し待ってからリロード）
+		if (btn) btn.textContent = '保存しました。リロードします…';
+		try { await new Promise(r => setTimeout(r, 180)); } catch (_) {}
+		try { location.reload(); } catch (_) {}
+		return;
+	}
+
+	// ここに来たら保存失敗
+	if (btn) {
+		btn.disabled = false;
+		btn.textContent = btn.dataset.__prevText || 'ローカルにセーブ（未保存）';
+	}
+
+	// エラー詳細をできるだけ表示
+	let detail = '';
+	try {
+		if (lastErr) {
+			const name = (lastErr && lastErr.name) ? String(lastErr.name) : 'Error';
+			const msg = (lastErr && lastErr.message) ? String(lastErr.message) : '';
+			detail = msg ? `
+(${name}: ${msg})` : `
+(${name})`;
+		}
+	} catch (_) {}
+
+	try {
+		if (typeof window.showCustomAlert === 'function') {
+			window.showCustomAlert('ローカル保存に失敗しました。ブラウザの容量や権限をご確認ください。' + detail, 3400, '#3a1212', '#fff', true);
+		} else {
+			alert('ローカル保存に失敗しました。' + detail);
+		}
+	} catch (_) {}
+};
+
+
 
 window.exportSaveCode = async function() {
 	if (!player) return;
@@ -2214,7 +2284,6 @@ window.resetTitleLoadPanel = window.resetTitleLoadPanel || function() {
 	try {
 		const btn = document.getElementById('continueBtn');
 		const panel = document.getElementById('loadPanel');
-		const closeBtn = document.getElementById('loadPanelCloseBtn');
 		if (btn) {
 			btn.style.display = '';
 			btn.classList.remove('is-swapping');
@@ -2231,6 +2300,7 @@ window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() 
 	try {
 		const btn = document.getElementById('continueBtn');
 		const panel = document.getElementById('loadPanel');
+		const closeBtn = document.getElementById('loadPanelCloseBtn');
 		if (!btn || !panel) return;
 
 		if (btn.__bound) return;
@@ -2252,20 +2322,41 @@ window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() 
 			} catch (e) {}
 		};
 
-				const closePanel = () => {
-			try {
-				panel.classList.add('is-collapsed');
-				panel.classList.remove('is-open');
-				panel.setAttribute('aria-hidden', 'true');
-				window.__uiSetTimeout(() => {
-					try { btn.style.display = ''; } catch(_){}
-					btn.classList.remove('is-swapping');
-				}, 30);
-			} catch (e) {}
-		};
-
 		btn.addEventListener('click', openPanel);
-		if (closeBtn) closeBtn.addEventListener('click', closePanel);
+
+
+			// Close (×) returns to the single continue button
+			if (closeBtn && !closeBtn.__bound) {
+				closeBtn.__bound = true;
+				closeBtn.addEventListener('click', (ev) => {
+					try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+					try { window.resetTitleLoadPanel(); } catch (_) {}
+				});
+			}
+
+			// Clicking backdrop closes panel (if click is outside inner)
+			if (!panel.__boundBackdropClose) {
+				panel.__boundBackdropClose = true;
+				panel.addEventListener('click', (ev) => {
+					try {
+						const inner = panel.querySelector('.load-panel-inner');
+						if (inner && inner.contains(ev.target)) return;
+					} catch (_) {}
+					try { window.resetTitleLoadPanel(); } catch (_) {}
+				});
+			}
+
+			// ESC closes panel when open
+			if (!window.__boundTitleContinueEsc) {
+				window.__boundTitleContinueEsc = true;
+				window.addEventListener('keydown', (ev) => {
+					try {
+						if (ev.key !== 'Escape') return;
+						const p = document.getElementById('loadPanel');
+						if (p && p.classList.contains('is-open')) window.resetTitleLoadPanel();
+					} catch (_) {}
+				});
+			}
 
 		// Default state: collapsed
 		window.resetTitleLoadPanel();
@@ -2697,3 +2788,191 @@ window.resetTitleNewPanel = window.resetTitleNewPanel || function() {
 document.addEventListener('DOMContentLoaded', () => {
   try { if (typeof window.resetTitleNewPanel === 'function') window.resetTitleNewPanel(); } catch(_){}
 });
+
+/* =========================================================
+   TimeLimit (when expired) : Full-screen score summary (V1)
+   - Shows which minute-mode was played, the scoreOverlay content,
+     and sum of all maxScores, in a responsive table.
+   ========================================================= */
+(function(){
+	try{
+		if (window.__timeUpSummaryV1) return;
+		window.__timeUpSummaryV1 = true;
+
+		function fmtHuge(v){
+			// Returns {disp, full}
+			try{
+				if (v == null) return {disp:'-', full:'-'};
+				if (typeof v === 'bigint') {
+					const full = v.toString();
+					return {disp: full.length>24 ? (full.slice(0,12)+'…'+full.slice(-8)) : full, full: full};
+				}
+				if (typeof v === 'number') {
+					if (!Number.isFinite(v)) return {disp: String(v), full: String(v)};
+					const full = String(v);
+					// If very large, use exponential for display but keep full in title
+					let disp = '';
+					if (Math.abs(v) >= 1e21) {
+						disp = v.toExponential(6);
+					} else {
+						try{ disp = v.toLocaleString('ja-JP'); }catch(_){ disp = full; }
+					}
+					// Avoid layout break by shortening too-long display
+					if (disp.length > 28) disp = disp.slice(0,14) + '…' + disp.slice(-10);
+					return {disp: disp, full: full};
+				}
+				// string or others
+				const s = String(v);
+				return {disp: s.length>28 ? (s.slice(0,14)+'…'+s.slice(-10)) : s, full: s};
+			}catch(_){
+				return {disp: '-', full:'-'};
+			}
+		}
+
+		function ensureOverlay(){
+			let root = document.getElementById('timeUpSummaryOverlay');
+			if (root) return root;
+
+			root = document.createElement('div');
+			root.id = 'timeUpSummaryOverlay';
+			root.className = 'timeup-summary-overlay';
+			root.innerHTML = `
+				<div class="timeup-summary-backdrop" data-close="1"></div>
+				<div class="timeup-summary-panel" role="dialog" aria-modal="true" aria-label="制限時間終了 結果">
+					<div class="timeup-summary-head">
+						<div class="timeup-summary-title">⏰ 制限時間終了 結果</div>
+						<button class="timeup-summary-close" type="button" aria-label="閉じる" data-close="1">×</button>
+					</div>
+					<div class="timeup-summary-body">
+						<div class="timeup-summary-hint">※数値が大きい場合は、スコア欄を横スクロールできます</div>
+						<div class="timeup-summary-tablewrap">
+							<table class="timeup-summary-table">
+								<thead>
+									<tr>
+										<th class="col-label">項目</th>
+										<th class="col-value">値</th>
+									</tr>
+								</thead>
+								<tbody id="timeUpSummaryTbody"></tbody>
+							</table>
+						</div>
+						<div class="timeup-summary-foot">
+							<button class="timeup-summary-ok" type="button" data-close="1">OK</button>
+						</div>
+					</div>
+				</div>
+			`;
+			document.body.appendChild(root);
+
+			// close behavior
+			root.addEventListener('click', (e) => {
+				try{
+					const t = e.target;
+					if (!t) return;
+					if (t && t.getAttribute && t.getAttribute('data-close') === '1') {
+						window.__hideTimeUpSummary && window.__hideTimeUpSummary();
+					}
+				}catch(_){}
+			});
+			document.addEventListener('keydown', (e) => {
+				try{
+					if (!root.classList.contains('is-open')) return;
+					if (e.key === 'Escape') window.__hideTimeUpSummary && window.__hideTimeUpSummary();
+				}catch(_){}
+			});
+			return root;
+		}
+
+		window.__hideTimeUpSummary = window.__hideTimeUpSummary || function(){
+			try{
+				const root = document.getElementById('timeUpSummaryOverlay');
+				if (!root) return;
+				root.classList.remove('is-open');
+			}catch(_){}
+		};
+
+		window.__showTimeUpSummary = window.__showTimeUpSummary || function(){
+			try{
+				const st = window.__timeLimitState || {};
+				// Avoid showing multiple times
+				if (st && st.__summaryShown) return;
+				if (st) st.__summaryShown = true;
+
+				// Stop autobattle if still running (safety)
+				try{ if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle(); }catch(_){}
+
+				const root = ensureOverlay();
+				const tbody = root.querySelector('#timeUpSummaryTbody');
+				if (!tbody) return;
+
+				const totalSec = Math.max(0, Math.floor(Number(st.totalSec || 0)));
+				const mm = totalSec ? Math.max(1, Math.round(totalSec / 60)) : 0;
+				const modeLabel = totalSec ? `${mm}分` : '（不明）';
+
+				const scoreOverlayEl = document.getElementById('scoreOverlay');
+				const scoreOverlayText = (scoreOverlayEl && scoreOverlayEl.textContent) ? String(scoreOverlayEl.textContent).trim() : '';
+				const scoreOverlayShown = scoreOverlayText || '（表示なし）';
+
+				// Collect scores
+				const entries = [100, 200, 500, 1000, 5000, 10000];
+				let sum = 0;
+				for (const n of entries) {
+					const v = (window.maxScores && window.maxScores[n] != null) ? window.maxScores[n] : 0;
+					if (typeof v === 'number' && Number.isFinite(v)) sum += v;
+					// BigInt not expected here, but if someone changed it:
+					if (typeof v === 'bigint') {
+						try{ sum = (BigInt(sum) + v); }catch(_){}
+					}
+				}
+
+				function row(label, valueHtml){
+					const tr = document.createElement('tr');
+					const tdL = document.createElement('td');
+					tdL.className = 'cell-label';
+					tdL.textContent = label;
+
+					const tdV = document.createElement('td');
+					tdV.className = 'cell-value';
+					tdV.innerHTML = valueHtml;
+
+					tr.appendChild(tdL);
+					tr.appendChild(tdV);
+					return tr;
+				}
+
+				tbody.innerHTML = '';
+				tbody.appendChild(row('挑戦モード（制限時間）', `<div class="valueWrap"><span class="num" title="${modeLabel}">${modeLabel}</span></div>`));
+				tbody.appendChild(row('ScoreOverlay 表示内容', `<div class="valueWrap preLike" title="${scoreOverlayShown.replace(/"/g,'&quot;')}">${scoreOverlayShown.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`));
+
+				for (const n of entries) {
+					const raw = (window.maxScores && window.maxScores[n] != null) ? window.maxScores[n] : 0;
+					const f = fmtHuge(raw);
+					tbody.appendChild(row(`${n}戦 最高スコア`, `<div class="valueWrap"><span class="num" title="${String(f.full).replace(/"/g,'&quot;')}">${f.disp}</span></div>`));
+				}
+
+				const sumF = fmtHuge(sum);
+				tbody.appendChild(row('すべて合計（上記スコアの合計）', `<div class="valueWrap sum"><span class="num" title="${String(sumF.full).replace(/"/g,'&quot;')}">${sumF.disp}</span></div>`));
+
+				root.classList.add('is-open');
+
+				// Focus OK for accessibility
+				try{
+					const ok = root.querySelector('.timeup-summary-ok');
+					if (ok) ok.focus();
+				}catch(_){}
+			}catch(e){
+				console.warn('[TimeUpSummary] failed', e);
+			}
+		};
+
+		// Hook: after time-limit expires, show the summary table
+		const __origExpire = window.__onTimeLimitExpired;
+		window.__onTimeLimitExpired = function(){
+			try{ if (typeof __origExpire === 'function') __origExpire(); }catch(_){}
+			try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(_){}
+		};
+
+	}catch(e){
+		console.warn('[TimeUpSummary] init failed', e);
+	}
+})();

@@ -1627,7 +1627,7 @@ window.startBattle = function() {
 
   <br><br>
 
-  <button id="localSaveBtn" onclick="window.saveToLocalStorage()" style="
+  <button id="localSaveBtnFinal" onclick="window.saveToLocalStorageAndReloadFromFinalResults()" style="
     margin-top: 10px;
     padding: 8px 16px;
     background: linear-gradient(to right, #222, #555);
@@ -1748,32 +1748,28 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
-	// ---- Title screen: New Game start button binding (robust) ----
-// Some versions use #startNewGameConfirmBtn, others use #startNewGameBtn ("開始する").
-// Bind whichever exists (and both if present) so the title screen always starts.
-(function bindStartNewGameButtons(){
-	try{
-		const handler = () => {
-			try{
-				const name = document.getElementById("inputStr")?.value || "プレイヤー";
-				if (typeof startNewGame === 'function') startNewGame(name);
-				else if (typeof window.startNewGame === 'function') window.startNewGame(name);
-			}catch(_){}
-		};
+	const startConfirmBtn = document.getElementById("startNewGameConfirmBtn");
+	if (startConfirmBtn) {
+		startConfirmBtn.addEventListener("click", () => {
+			const name = document.getElementById("inputStr")?.value || "プレイヤー";
+			startNewGame(name);
+		});
+	}
 
-		const confirmBtn = document.getElementById("startNewGameConfirmBtn");
-		if (confirmBtn && !confirmBtn.__boundStartNewGame) {
-			confirmBtn.__boundStartNewGame = true;
-			confirmBtn.addEventListener("click", handler);
-		}
 
-		const startBtn = document.getElementById("startNewGameBtn");
-		if (startBtn && !startBtn.__boundStartNewGame) {
-			startBtn.__boundStartNewGame = true;
-			startBtn.addEventListener("click", handler);
-		}
-	}catch(e){}
-})();
+	// 新UI: 「開始する」ボタン（startNewGameBtn）を必ず有効化
+	const startNewBtn = document.getElementById("startNewGameBtn");
+	if (startNewBtn && !startNewBtn.__boundStartNew) {
+		startNewBtn.__boundStartNew = true;
+		startNewBtn.addEventListener("click", () => {
+			const name = document.getElementById("inputStr")?.value || "プレイヤー";
+			if (typeof window.startNewGame === "function") {
+				window.startNewGame(name);
+			} else if (typeof startNewGame === "function") {
+				startNewGame(name);
+			}
+		});
+	}
 
 	//document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
 	//document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);

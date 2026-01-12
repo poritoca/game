@@ -142,12 +142,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <div class="new-panel-inner">
     <div class="panel-head">
       <div class="panel-title">はじめから 設定</div>
-      <button id="newPanelCloseBtn" class="panel-close" type="button" aria-label="閉じる">×</button>
+
     </div>
 
     <div class="new-panel-body">
 <small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
-<input type="text" id="inputStr" placeholder="はじめから時のみ名前を入力:" />
+<input type="text" id="inputStr" placeholder="名前を入力:" />
 
 		<!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
 <select id="battleCountSelect" class="rainbow-select">
@@ -186,13 +186,6 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 	
 
   <div class="load-panel-inner">
-
-  <div class="panel-head">
-    <div class="panel-title">つづきから 設定</div>
-    <button id="loadPanelCloseBtn" class="panel-close" type="button" aria-label="閉じる">×</button>
-  </div>
-
-  <div class="load-panel-body">
 		
 		
 		
@@ -222,7 +215,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       </button>
 
       <button id="loadFromTextBtn" class="load-tile load-tile-wide" type="button">
-        <span class="tile-title">テキスト</span>
+        <span class="tile-title">テキストからロード</span>
         <span class="tile-sub">保存テキスト/ファイル</span>
       </button>
     </div>
@@ -237,10 +230,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </div> -->
 
 		
-  
   </div>
-</div>
-</div>
 
   <!-- ゲーム画面 -->
 	<div id="gameScreen" class="hidden" style="margin: 50px 0;">

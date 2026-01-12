@@ -4345,38 +4345,162 @@ body::before{
 
 
 
-/* Load panel (continue) : match "はじめから 設定" header styling */
-.load-panel .panel-head{
+/* =========================================================
+   TimeLimit expired full-screen summary (V1)
+   - robust against huge numbers (horizontal scroll in value)
+   ========================================================= */
+#timeUpSummaryOverlay.timeup-summary-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: none;
+  font-family: inherit;
+}
+#timeUpSummaryOverlay.timeup-summary-overlay.is-open{
+  display: block;
+}
+#timeUpSummaryOverlay .timeup-summary-backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#timeUpSummaryOverlay .timeup-summary-panel{
+  position: absolute;
+  inset: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(18,18,22,0.88);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#timeUpSummaryOverlay .timeup-summary-head{
   display:flex;
   align-items:center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.00));
 }
-.load-panel .panel-title{
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(238,224,180,0.90);
-  opacity: 0.92;
+#timeUpSummaryOverlay .timeup-summary-title{
+  font-weight: 800;
+  letter-spacing: .04em;
+  font-size: 16px;
+  color: rgba(255,255,255,0.92);
 }
-.load-panel .panel-close{
-  width: 34px;
-  height: 34px;
+#timeUpSummaryOverlay .timeup-summary-close{
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.92);
+  width: 38px;
+  height: 38px;
   border-radius: 12px;
-  border: 1px solid rgba(214,183,105,0.35);
-  background: rgba(20,20,24,0.60);
-  color: rgba(238,224,180,0.90);
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.load-panel .load-panel-body small{
-  display:block;
-  margin: 6px 0 6px;
-  font-size: 10px;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  color: rgba(238,224,180,0.72);
+#timeUpSummaryOverlay .timeup-summary-close:active{
+  transform: translateY(1px);
+}
+#timeUpSummaryOverlay .timeup-summary-body{
+  padding: 12px 12px 14px;
+  overflow: auto;
+}
+#timeUpSummaryOverlay .timeup-summary-hint{
+  font-size: 12px;
+  color: rgba(255,255,255,0.68);
+  margin: 2px 2px 10px;
+}
+#timeUpSummaryOverlay .timeup-summary-tablewrap{
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+}
+#timeUpSummaryOverlay table.timeup-summary-table{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* critical for fit */
+}
+#timeUpSummaryOverlay .timeup-summary-table th,
+#timeUpSummaryOverlay .timeup-summary-table td{
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  vertical-align: top;
+}
+#timeUpSummaryOverlay .timeup-summary-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(24,24,30,0.92);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  text-transform: none;
+}
+#timeUpSummaryOverlay .timeup-summary-table tr:last-child td{
+  border-bottom: none;
+}
+#timeUpSummaryOverlay .col-label{ width: 44%; }
+#timeUpSummaryOverlay .col-value{ width: 56%; }
+#timeUpSummaryOverlay td.cell-label{
+  color: rgba(255,255,255,0.82);
+  font-weight: 700;
+  font-size: 13px;
+}
+#timeUpSummaryOverlay td.cell-value{
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+}
+#timeUpSummaryOverlay .valueWrap{
+  overflow-x: auto;      /* huge numbers scroll horizontally */
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+  padding-bottom: 2px;
+}
+#timeUpSummaryOverlay .valueWrap.preLike{
+  white-space: pre-wrap; /* allow multi-line */
+  overflow-x: hidden;
+  word-break: break-word;
+}
+#timeUpSummaryOverlay .num{
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+#timeUpSummaryOverlay .valueWrap.sum .num{
+  font-weight: 900;
+  font-size: 14px;
+}
+#timeUpSummaryOverlay .timeup-summary-foot{
+  margin-top: 10px;
+  display:flex;
+  justify-content: center;
+}
+#timeUpSummaryOverlay .timeup-summary-ok{
+  appearance:none;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 18px;
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+#timeUpSummaryOverlay .timeup-summary-ok:active{
+  transform: translateY(1px);
+}
+
+@media (max-width: 420px){
+  #timeUpSummaryOverlay .col-label{ width: 48%; }
+  #timeUpSummaryOverlay .col-value{ width: 52%; }
+  #timeUpSummaryOverlay .timeup-summary-panel{ inset: 8px; border-radius: 16px; }
+  #timeUpSummaryOverlay td.cell-label,
+  #timeUpSummaryOverlay td.cell-value{ font-size: 12px; }
 }

@@ -1718,7 +1718,6 @@ window.updateStats = function() {
 
 };
 // 「はじめから」スタート（タイトル画面非表示、ゲーム画面表示）
-// NOTE: タイトル画面の「開始する」ボタンからプレイヤー名を渡せるように引数を受け取る
 window.startNewGame = function(name) {
 
 	// window.isFirstBattle = true;
