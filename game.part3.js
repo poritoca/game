@@ -1512,6 +1512,7 @@ window.startBattle = function() {
 		if (gameScreen) gameScreen.classList.add('hidden');
 		if (titleScreen) titleScreen.classList.remove('hidden');
 		try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_e) {}
+		try { window.resetTitleStartPanel && window.resetTitleStartPanel(); } catch (_e) {}
 		if (finalResults) finalResults.style.display = 'none';
 		if (battleArea) battleArea.classList.add('hidden');
 		if (remainDisplay) remainDisplay.style.display = 'none';
@@ -1519,8 +1520,6 @@ window.startBattle = function() {
 
 		document.getElementById('loadGameBtn')?.classList.add('hidden');
 		document.getElementById('loadSection')?.classList.add('hidden');
-		document.getElementById('inputStr')?.classList.add('hidden');
-		document.querySelector('.playerNameHint')?.classList.add('hidden');
 
 		// ゲーム内変数を初期化（window を通して安全に）
 		window.returnToTitleScreen = function() {
@@ -1749,13 +1748,32 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
-	const startBtn = document.getElementById("startNewGameBtn");
-	if (startBtn) {
-		startBtn.addEventListener("click", () => {
-			const name = document.getElementById("inputStr").value || "プレイヤー";
-			startNewGame(name);
-		});
-	}
+	// ---- Title screen: New Game start button binding (robust) ----
+// Some versions use #startNewGameConfirmBtn, others use #startNewGameBtn ("開始する").
+// Bind whichever exists (and both if present) so the title screen always starts.
+(function bindStartNewGameButtons(){
+	try{
+		const handler = () => {
+			try{
+				const name = document.getElementById("inputStr")?.value || "プレイヤー";
+				if (typeof startNewGame === 'function') startNewGame(name);
+				else if (typeof window.startNewGame === 'function') window.startNewGame(name);
+			}catch(_){}
+		};
+
+		const confirmBtn = document.getElementById("startNewGameConfirmBtn");
+		if (confirmBtn && !confirmBtn.__boundStartNewGame) {
+			confirmBtn.__boundStartNewGame = true;
+			confirmBtn.addEventListener("click", handler);
+		}
+
+		const startBtn = document.getElementById("startNewGameBtn");
+		if (startBtn && !startBtn.__boundStartNewGame) {
+			startBtn.__boundStartNewGame = true;
+			startBtn.addEventListener("click", handler);
+		}
+	}catch(e){}
+})();
 
 	//document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
 	//document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
@@ -2084,7 +2102,9 @@ window.addEventListener("DOMContentLoaded", () => {
 	populateItemElementList();
 	const btn = document.getElementById("startNewGameBtn");
 	if (btn) {
-		btn.addEventListener("click", window.startNewGame);
+		// startNewGameBtn is now used to open the Start Panel (see game.part4.js)
+		// Actual start is handled by #startNewGameConfirmBtn
+		
 	} else {}
 });
 

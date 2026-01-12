@@ -2214,6 +2214,7 @@ window.resetTitleLoadPanel = window.resetTitleLoadPanel || function() {
 	try {
 		const btn = document.getElementById('continueBtn');
 		const panel = document.getElementById('loadPanel');
+		const closeBtn = document.getElementById('loadPanelCloseBtn');
 		if (btn) {
 			btn.style.display = '';
 			btn.classList.remove('is-swapping');
@@ -2251,7 +2252,20 @@ window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() 
 			} catch (e) {}
 		};
 
+				const closePanel = () => {
+			try {
+				panel.classList.add('is-collapsed');
+				panel.classList.remove('is-open');
+				panel.setAttribute('aria-hidden', 'true');
+				window.__uiSetTimeout(() => {
+					try { btn.style.display = ''; } catch(_){}
+					btn.classList.remove('is-swapping');
+				}, 30);
+			} catch (e) {}
+		};
+
 		btn.addEventListener('click', openPanel);
+		if (closeBtn) closeBtn.addEventListener('click', closePanel);
 
 		// Default state: collapsed
 		window.resetTitleLoadPanel();
@@ -2615,3 +2629,71 @@ window.addEventListener('DOMContentLoaded', () => {
 		console.warn('[TimeLimit] init failed', e);
 	}
 })();
+
+
+// =====================================================
+// Title Screen: "はじめから" -> New Game Panel (like "つづきから")
+// =====================================================
+window.resetTitleNewPanel = window.resetTitleNewPanel || function() {
+  try {
+    const btn = document.getElementById('startNewMenuBtn');
+    const panel = document.getElementById('newPanel');
+    const closeBtn = document.getElementById('newPanelCloseBtn');
+    const continueBtn = document.getElementById('continueBtn');
+    const loadPanel = document.getElementById('loadPanel');
+    if (!btn || !panel) return;
+
+    if (btn.__boundNewPanel) return;
+    btn.__boundNewPanel = true;
+
+    const openPanel = () => {
+      try {
+        // close continue panel if open
+        if (typeof window.resetTitleLoadPanel === 'function') {
+          try { window.resetTitleLoadPanel(); } catch(_) {}
+        } else {
+          try {
+            if (loadPanel) { loadPanel.classList.add('is-collapsed'); loadPanel.classList.remove('is-open'); loadPanel.setAttribute('aria-hidden','true'); }
+            if (continueBtn) continueBtn.style.display = '';
+          } catch(_){}
+        }
+
+        btn.classList.add('is-swapping');
+        const ms = 220;
+        window.__uiSetTimeout(() => {
+          try { btn.style.display = 'none'; } catch(_){}
+          panel.classList.remove('is-collapsed');
+          panel.classList.add('is-open');
+          panel.setAttribute('aria-hidden', 'false');
+        }, ms);
+      } catch(_){}
+    };
+
+    const closePanel = () => {
+      try {
+        panel.classList.add('is-collapsed');
+        panel.classList.remove('is-open');
+        panel.setAttribute('aria-hidden', 'true');
+        window.__uiSetTimeout(() => {
+          try { btn.style.display = ''; } catch(_){}
+          btn.classList.remove('is-swapping');
+        }, 30);
+      } catch(_){}
+    };
+
+    btn.addEventListener('click', openPanel);
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+
+    // If user taps outside inner panel, close it (optional, safe)
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) closePanel();
+    });
+
+  } catch (e) {
+    console.warn('resetTitleNewPanel error', e);
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  try { if (typeof window.resetTitleNewPanel === 'function') window.resetTitleNewPanel(); } catch(_){}
+});

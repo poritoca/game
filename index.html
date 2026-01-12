@@ -135,7 +135,18 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
  -->
 		
-		<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
+		<!-- Start New UI group (toggle like "つづきから") -->
+<button id="startNewMenuBtn" class="lux-main-btn" type="button">はじめから</button>
+
+<div id="newPanel" class="new-panel is-collapsed" aria-hidden="true">
+  <div class="new-panel-inner">
+    <div class="panel-head">
+      <div class="panel-title">はじめから 設定</div>
+      <button id="newPanelCloseBtn" class="panel-close" type="button" aria-label="閉じる">×</button>
+    </div>
+
+    <div class="new-panel-body">
+<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
 <input type="text" id="inputStr" placeholder="はじめから時のみ名前を入力:" />
 
 		<!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
@@ -161,8 +172,11 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <option value="3600">60分</option>
 </select>
 <small>（制限時間：無制限以外を選ぶと、開始直後からタイマーが動きます）</small>
-	
-    <button id="startNewGameBtn">はじめから</button>
+    </div>
+
+    <button id="startNewGameBtn" class="lux-main-btn lux-main-btn--confirm" type="button">開始する</button>
+  </div>
+</div>
   <!--   <button id="loadGameBtn">つづきから</button> -->
 		
 
@@ -172,6 +186,13 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 	
 
   <div class="load-panel-inner">
+
+  <div class="panel-head">
+    <div class="panel-title">つづきから 設定</div>
+    <button id="loadPanelCloseBtn" class="panel-close" type="button" aria-label="閉じる">×</button>
+  </div>
+
+  <div class="load-panel-body">
 		
 		
 		
@@ -216,7 +237,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </div> -->
 
 		
+  
   </div>
+</div>
+</div>
 
   <!-- ゲーム画面 -->
 	<div id="gameScreen" class="hidden" style="margin: 50px 0;">
