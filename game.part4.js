@@ -2492,7 +2492,20 @@ window.addEventListener('DOMContentLoaded', () => {
 					}
 					if (row) {
 						row.classList.add('is-active');
-						row.innerHTML = `<span class="dockTimerExpired">制限時間終了</span>`;
+						row.innerHTML = `
+							<button type="button" class="dockTimerExpiredBtn" id="timeLimitSummaryToggleBtn" aria-label="制限時間終了の結果を表示/非表示">
+								⏰ 制限時間終了
+							</button>
+						`;
+						try{
+							const btn = row.querySelector('#timeLimitSummaryToggleBtn');
+							if (btn && !btn.__boundTimeUpToggle) {
+								btn.__boundTimeUpToggle = true;
+								btn.addEventListener('click', () => {
+									try{ window.__toggleTimeUpSummary && window.__toggleTimeUpSummary(); }catch(_ ){}
+								});
+							}
+						}catch(_ ){}
 					}
 					return;
 				}
@@ -2909,9 +2922,55 @@ document.addEventListener('DOMContentLoaded', () => {
 				const mm = totalSec ? Math.max(1, Math.round(totalSec / 60)) : 0;
 				const modeLabel = totalSec ? `${mm}分` : '（不明）';
 
-				const scoreOverlayEl = document.getElementById('scoreOverlay');
-				const scoreOverlayText = (scoreOverlayEl && scoreOverlayEl.textContent) ? String(scoreOverlayEl.textContent).trim() : '';
-				const scoreOverlayShown = scoreOverlayText || '（表示なし）';
+				// ★途中強制算出：現在進行中の「戦闘回数モード」のスコアを計算して一覧に追加
+				//  - 無制限（unlimited）は対象外
+				let forced = null; // { target, score, replaced, prev }
+				try{
+					const validTargets = [100, 200, 500, 1000, 5000, 10000];
+					const target = Number(window.targetBattles);
+					if (validTargets.includes(target)) {
+						const p = (typeof window.player === 'object' && window.player) ? window.player : ((typeof player === 'object' && player) ? player : null);
+						const maxStreak = (typeof window.sessionMaxStreak === 'number') ? window.sessionMaxStreak :
+							((typeof sessionMaxStreak === 'number') ? sessionMaxStreak :
+								((typeof window.currentStreak === 'number') ? window.currentStreak : 0));
+						const finalAtk = (p && typeof p.attack === 'number') ? p.attack : 0;
+						const finalDef = (p && typeof p.defense === 'number') ? p.defense : 0;
+						const finalSpd = (p && typeof p.speed === 'number') ? p.speed : 0;
+						const finalHP  = (p && typeof p.maxHp === 'number') ? p.maxHp : 0;
+
+						// 所持魔道具の総レアリティ（ドロップ率の逆数の合計）
+						let totalRarity = 0;
+						try{
+							if (p && p.itemMemory && p.itemMemory.length > 0 &&
+								typeof itemAdjectives !== 'undefined' && typeof itemNouns !== 'undefined' && typeof itemColors !== 'undefined') {
+								for (const item of p.itemMemory) {
+									const adjDef = itemAdjectives.find(a => a.word === item.adjective);
+									const nounDef = itemNouns.find(n => n.word === item.noun);
+									const colorDef = itemColors.find(c => c.word === item.color);
+									let dropRate = 1;
+									if (colorDef && colorDef.dropRateMultiplier) dropRate *= colorDef.dropRateMultiplier;
+									if (adjDef && adjDef.dropRate) dropRate *= adjDef.dropRate;
+									if (nounDef && nounDef.dropRateMultiplier) dropRate *= nounDef.dropRateMultiplier;
+									if (dropRate < 1e-9) dropRate = 1e-9; // ゼロ除算防止
+									totalRarity += (1 / dropRate);
+								}
+							}
+						}catch(_){ totalRarity = 0; }
+
+						const score = Math.round((finalAtk + finalDef + finalSpd + finalHP * 0.1 + totalRarity) * (maxStreak || 0));
+
+						// 最高スコア更新（無制限を除く）
+						if (!window.maxScores) window.maxScores = {};
+						const prev = (window.maxScores[target] != null) ? window.maxScores[target] : null;
+						let replaced = false;
+						if (prev === null || score > prev) {
+							window.maxScores[target] = score;
+							replaced = true;
+							try{ if (typeof updateScoreOverlay === 'function') updateScoreOverlay(); }catch(_){}
+						}
+						forced = { target, score, replaced, prev };
+					}
+				}catch(_){}
 
 				// Collect scores
 				const entries = [100, 200, 500, 1000, 5000, 10000];
@@ -2942,9 +3001,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 				tbody.innerHTML = '';
 				tbody.appendChild(row('挑戦モード（制限時間）', `<div class="valueWrap"><span class="num" title="${modeLabel}">${modeLabel}</span></div>`));
-				tbody.appendChild(row('ScoreOverlay 表示内容', `<div class="valueWrap preLike" title="${scoreOverlayShown.replace(/"/g,'&quot;')}">${scoreOverlayShown.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`));
 
-				for (const n of entries) {
+				// 途中強制算出の行（無制限は出ない）
+				if (forced && typeof forced.score !== 'undefined') {
+					const fNow = fmtHuge(forced.score);
+					const tag = forced.replaced ? '<span class="tinyNote">（最高更新）</span>' : '<span class="tinyNote">（最高未更新）</span>';
+					tbody.appendChild(row(`${forced.target}戦 途中スコア`, `<div class="valueWrap"><span class="num" title="${String(fNow.full).replace(/"/g,'&quot;')}">${fNow.disp}</span>${tag}</div>`));
+				}
+for (const n of entries) {
 					const raw = (window.maxScores && window.maxScores[n] != null) ? window.maxScores[n] : 0;
 					const f = fmtHuge(raw);
 					tbody.appendChild(row(`${n}戦 最高スコア`, `<div class="valueWrap"><span class="num" title="${String(f.full).replace(/"/g,'&quot;')}">${f.disp}</span></div>`));
@@ -2963,6 +3027,30 @@ document.addEventListener('DOMContentLoaded', () => {
 			}catch(e){
 				console.warn('[TimeUpSummary] failed', e);
 			}
+		};
+
+		// Allow reopening/closing the summary overlay anytime.
+		// - __showTimeUpSummary is "show once" (auto popup when time is up)
+		// - __openTimeUpSummary bypasses the once-guard
+		window.__openTimeUpSummary = window.__openTimeUpSummary || function(){
+			try{
+				const st = window.__timeLimitState || {};
+				// bypass "show once" guard safely
+				try{ if (st) st.__summaryShown = false; }catch(_){ }
+				try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(_){ }
+				try{ if (st) st.__summaryShown = true; }catch(_){ }
+			}catch(_){ }
+		};
+
+		window.__toggleTimeUpSummary = window.__toggleTimeUpSummary || function(){
+			try{
+				const root = document.getElementById('timeUpSummaryOverlay');
+				if (root && root.classList.contains('is-open')) {
+					try{ window.__hideTimeUpSummary && window.__hideTimeUpSummary(); }catch(_){ }
+					return;
+				}
+				try{ window.__openTimeUpSummary && window.__openTimeUpSummary(); }catch(_){ }
+			}catch(_){ }
 		};
 
 		// Hook: after time-limit expires, show the summary table

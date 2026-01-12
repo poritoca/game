@@ -3823,6 +3823,27 @@ body.battle-dock-dragging{
 }
 
 /* =========================================================
+   TimeLimit expired row (toggle summary)
+   ========================================================= */
+#battleOverlayDock #battleTimeLimitRow{
+  display: flex;
+}
+#battleOverlayDock #battleTimeLimitRow .dockTimerExpiredBtn{
+  width: 100%;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-color: color-mix(in srgb, var(--battleDock-main) 32%, rgba(255,255,255,0.18));
+  background: linear-gradient(90deg, rgba(18,18,22,0.70), color-mix(in srgb, var(--battleDock-glow) 18%, rgba(18,18,22,0.62)));
+  color: rgba(255,255,255,0.92);
+  font-weight: 800;
+  letter-spacing: .03em;
+  cursor: pointer;
+}
+#battleOverlayDock #battleTimeLimitRow .dockTimerExpiredBtn:active{
+  transform: translateY(1px);
+}
+
+/* =========================================================
    Battle control dock - minimize controls
    ========================================================= */
 #battleDockMinimizeBtn{
@@ -4406,6 +4427,13 @@ body::before{
 }
 #timeUpSummaryOverlay .timeup-summary-close:active{
   transform: translateY(1px);
+}
+
+#timeUpSummaryOverlay .tinyNote{
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin-left: 10px;
+  white-space: nowrap;
 }
 #timeUpSummaryOverlay .timeup-summary-body{
   padding: 12px 12px 14px;
