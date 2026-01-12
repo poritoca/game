@@ -1454,7 +1454,6 @@ const miniBar = document.createElement('button');
 miniBar.type = 'button';
 miniBar.id = 'battleDockMiniBar';
 miniBar.setAttribute('aria-label', '最小化バー（クリックで復帰）');
-miniBar.innerHTML = '<span class="miniBarLabel">バトルボタン表示</span>';
 miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 		// Content area (actual buttons moved here)
@@ -1630,7 +1629,7 @@ if (minimized) {
 			try { window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(); } catch (_) {}
 	dock.style.display = 'none';
 	if (minBtn) minBtn.style.display = 'none';
-	if (miniBar) miniBar.style.display = 'flex';
+	if (miniBar) miniBar.style.display = 'block';
 	return;
 } else {
 	if (miniBar) miniBar.style.display = 'none';
@@ -1705,6 +1704,79 @@ window.__ensureBattleDockReady = window.__ensureBattleDockReady || function() {
 	} catch (e) {}
 };
 
+
+// ---------------------------------------------------------
+// BattleDock: result window (used for defeat result etc.)
+// - Always uses draggable BattleDock UI (no legacy centered popup)
+// - Safe: never throws; will silently no-op if dock not ready
+// ---------------------------------------------------------
+window.__showBattleDockResultWindow = window.__showBattleDockResultWindow || function(messageHtml, options = {}) {
+	try {
+		// Ensure dock exists/visible
+		try { window.__ensureBattleDockReady && window.__ensureBattleDockReady(); } catch (_e) {}
+		const dock = document.getElementById('battleOverlayDock');
+		if (!dock) return;
+
+		// If dock is minimized, unminimize so the user can see the result
+		try {
+			if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+				window.__setBattleDockMinimized && window.__setBattleDockMinimized(false);
+			}
+		} catch (_e) {}
+ 
+		let box = document.getElementById('battleDockResultWindow');
+		if (!box) {
+			box = document.createElement('div');
+			box.id = 'battleDockResultWindow';
+			box.setAttribute('role', 'status');
+			box.className = 'battleDockResultWindow';
+			// place above buttons
+			const content = dock.querySelector('.dockContent') || dock;
+			dock.insertBefore(box, content);
+		}
+
+		// Reset any previous fade/timers
+		box.classList.remove('show');
+		box.classList.remove('fade-out');
+		box.style.opacity = '1';
+		try {
+			if (box.__timer1) { (window.__uiClearTimeout || window.clearTimeout)(box.__timer1); box.__timer1 = null; }
+			if (box.__timer2) { (window.__uiClearTimeout || window.clearTimeout)(box.__timer2); box.__timer2 = null; }
+		} catch (_e) {}
+
+		box.innerHTML = messageHtml || '';
+
+		// Show
+		box.style.display = 'block';
+		// Force reflow so transitions apply reliably
+		try { void box.offsetWidth; } catch (_e) {}
+		box.classList.add('show');
+
+		// Auto-dismiss support (same option names as showConfirmationPopup)
+		const autoDismissMs = Number(options.autoDismissMs || 0);
+		const fadeOutMs = Number(options.fadeOutMs || 420);
+
+		if (autoDismissMs > 0) {
+			box.__timer1 = (window.__uiSetTimeout || window.setTimeout)(() => {
+				try {
+					box.classList.add('fade-out');
+					box.__timer2 = (window.__uiSetTimeout || window.setTimeout)(() => {
+						try {
+							box.style.display = 'none';
+							box.classList.remove('fade-out');
+							box.classList.remove('show');
+							box.style.opacity = '1';
+						} catch (_e) {}
+						try { if (typeof options.onDismiss === 'function') options.onDismiss(); } catch (_e) {}
+					}, fadeOutMs);
+				} catch (_e) {}
+			}, autoDismissMs);
+		}
+	} catch (e) {
+		// Keep as warn (user requested visibility for debugging)
+		console.warn('[BattleDockResultWindow] failed', e);
+	}
+};
 
 document.addEventListener('DOMContentLoaded', () => {
 	__loadBattleLogSpeedSettings();

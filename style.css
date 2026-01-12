@@ -3100,7 +3100,7 @@ canvas {
 
 /* mobile: slightly taller for readability */
 @media (max-width: 420px){
-  #battleLog .turn-advbar{ height: 22px; margin: 6px 8px 10px; }
+  #battleLog .turn-advbar{ height: 16px; margin: 6px 8px 10px; }
 }
 
 /* =========================
@@ -3550,7 +3550,7 @@ canvas {
 
 /* Drag handle (grab here to move the panel) */
 #eventPopup.growth-compact-ui .growth-drag-handle{
-  height: 22px;
+  height: 16px;
   margin: -2px 0 6px 0;
   border-radius: 999px;
   cursor: grab;
@@ -3715,6 +3715,7 @@ canvas {
   left: 10px;
   transform: translateY(-50%);
   z-index: 10050;
+  overflow: visible;
   display: none;
   flex-direction: column;
   gap: 6px;
@@ -3893,11 +3894,7 @@ body.battle-dock-dragging{
   border-color: color-mix(in srgb, var(--battleDock-main) 32%, rgba(255,255,255,0.18));
   border-radius: 999px;
   width: 128px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
+  height: 16px;
   padding: 0;
   background: linear-gradient(90deg,
     rgba(18,18,22,0.78) 0%,
@@ -3911,17 +3908,6 @@ body.battle-dock-dragging{
 }
 
 
-
-#battleDockMiniBar .miniBarLabel{
-  font-size: 9px;
-  line-height: 1.1;
-  letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.55);
-  text-shadow: 0 1px 8px rgba(0,0,0,0.55);
-  padding: 0 6px;
-  pointer-events: none;
-  user-select: none;
-}
 /* Mini bar follow modes */
 #battleDockMiniBar.follow-viewport{
   position: fixed !important;
@@ -3979,17 +3965,14 @@ body.battle-dock-dragging{
 
 #battleDockMiniBar::after{
   content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 3px;
-  transform: translateX(-50%);
+  display: block;
   width: 54px;
-  height: 3px;
+  height: 4px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.42);
-  pointer-events: none;
+  margin: 0 auto;
+  margin-top: 5px;
+  background: rgba(255,255,255,0.48);
 }
-
 
 #battleDockMiniBar:active{
   transform: translateX(-50%) scale(0.98);
@@ -4142,4 +4125,48 @@ body.battle-dock-dragging{
 .handleDots{
   font-size: 12px;
   opacity: 0.6;
+}
+
+/* =========================================================
+   BattleDock result window (defeat/result message)
+   - Shown above the dock buttons
+   ========================================================= */
+#battleDockResultWindow{
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  pointer-events: none;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(10,10,14,0.62);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.34);
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+  line-height: 1.25;
+  text-align: left;
+  transition: opacity 420ms ease, transform 420ms ease;
+  opacity: 1;
+}
+
+#battleDockResultWindow.show{
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#battleDockResultWindow.fade-out{
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* --- FIX: never auto-hide eventPopup due to selection-lock (keeps growth selection visible) --- */
+#eventPopup.selection-lock:not(.has-options){
+  display: block !important;
+  visibility: visible !important;
 }

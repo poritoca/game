@@ -2108,8 +2108,8 @@ window.__battleSetTimeout(window.syncBattleButtonsMode, 0);
 		window.showEventOptions = function() {
 			const ret = base.apply(this, arguments);
 			window.isPopupSelecting = true;
-			window.__battleSetTimeout(markHasOptions, 0);
-			window.__battleSetTimeout(markHasOptions, 100); // after DOM fills
+			try{ (window.__battleSetTimeout||window.setTimeout)(markHasOptions, 0); }catch(e){}
+			try{ (window.__battleSetTimeout||window.setTimeout)(markHasOptions, 100); }catch(e){} // after DOM fills
 			return ret;
 		}
 	}

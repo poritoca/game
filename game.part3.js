@@ -1237,7 +1237,11 @@ window.startBattle = function() {
 			victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
 		}
 
-		showCustomAlert(victoryMessage, 1200);
+		try{
+			window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(victoryMessage, { autoDismissMs: 1200, fadeOutMs: 400 });
+		}catch(_e){
+			try{ showCustomAlert(victoryMessage, 1200); }catch(_e2){}
+		}
 
 		log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
 		saveBattleLog(log);
@@ -1409,15 +1413,20 @@ window.startBattle = function() {
 		}
 		if (typeof updateStats === "function") updateStats();
 
-		showConfirmationPopup(
-			`敗北：${displayName(enemy.name)}に敗北<br>` +
-			`最終連勝数：${currentStreak}<br>
+		try {
+			window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(
+				`敗北：${displayName(enemy.name)}に敗北<br>` +
+				`最終連勝数：${currentStreak}<br>
 	敵倍率: ${enemyMultiplier.toFixed(3)}
 	
 	${resetMessage}` +
-			`${growthMsg}` + // ← ここで成長説明を表示
-			`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`, null, { autoDismissMs: 1500, fadeOutMs: 400, hideOk: true }
-		);
+				`${growthMsg}` +
+				`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`,
+				{ autoDismissMs: 1500, fadeOutMs: 400 }
+			);
+		} catch (e) {
+			try { console.warn('[BattleDockResultWindow] failed', e); } catch (_e) {}
+		}
 
 		//showSubtitle(
 		//  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
@@ -1718,12 +1727,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	const returnBtn = document.getElementById('returnToTitleBtnInGame');
 	if (returnBtn) {
 		returnBtn.addEventListener('click', () => {
-			const isTimeAttack = !!(window.__timeLimitState && (window.__timeLimitState.active || window.__timeLimitState.expired));
-			const msg = isTimeAttack
-				? "制限時間での挑戦がリセットされますがよろしいですか？\n（未保存の進行状況も失われます）"
-				: "本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）";
-			if (confirm(msg)) {
-				try{ if (typeof window.__clearTimeLimitRuntime === 'function') window.__clearTimeLimitRuntime(true); }catch(_){}
+			if (confirm("本当にタイトルに戻りますか？\n（現在の進行状況は保存されていない場合失われます）")) {
 				location.reload();
 			}
 		});
@@ -1961,26 +1965,6 @@ window.loadGame = async function() {
 	const hasFile = fileInput && fileInput.files.length > 0;
 	const hasText = input.length > 0;
 
-	// --- Ensure we fully enter game screen (hide title) and re-dock the battle UI immediately ---
-	const __enterGameScreen = () => {
-		try {
-			const titleScreen = document.getElementById('titleScreen');
-			const gameScreen = document.getElementById('gameScreen');
-			if (titleScreen) {
-				titleScreen.classList.add('hidden');
-				try { titleScreen.classList.remove('fade-out'); } catch (_) {}
-			}
-			if (gameScreen) {
-				gameScreen.classList.remove('hidden');
-				try { gameScreen.classList.add('fade-in'); } catch (_) {}
-			}
-			try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_) {}
-			try { window.__ensureBattleDockReady && window.__ensureBattleDockReady(); } catch (_) {}
-			// Time limit UI might need to be reattached to the dock after re-dock
-			try { window.__applyTimeLimitUI && window.__applyTimeLimitUI(); } catch (_) {}
-		} catch (e) {}
-	};
-
 	if (!hasFile && !hasText) {
 		alert('セーブデータが入力されていません。');
 		location.reload();
@@ -1995,7 +1979,6 @@ window.loadGame = async function() {
 			const content = e.target.result.trim();
 			document.getElementById('saveData').value = content;
 			await window.importSaveCode();
-			try { __enterGameScreen(); } catch (_) {}
 			updateRemainingBattleDisplay(); // ★表示更新
 		};
 		reader.readAsText(file);
@@ -2004,7 +1987,6 @@ window.loadGame = async function() {
 
 	if (input.includes('.')) {
 		await window.importSaveCode();
-		try { __enterGameScreen(); } catch (_) {}
 		updateRemainingBattleDisplay(); // ★表示更新
 		return;
 	}
@@ -2026,7 +2008,7 @@ window.loadGame = async function() {
 		} while (!hasOffensiveSkill(enemy));
 
 		updateStats();
-		try { __enterGameScreen(); } catch (_) {}
+		document.getElementById('gameScreen').classList.remove('hidden');
 		document.getElementById("battleArea").classList.add("hidden");
 
 		// ★表示更新
@@ -2545,6 +2527,28 @@ window.showEventOptions = function(title, options, onSelect) {
 
 		optionsEl.appendChild(btn);
 	});
+
+// --- FIX: ensure popup is recognized as having options immediately (prevents CSS auto-hide) ---
+try{
+	popup.classList.add('has-options');
+	window.isPopupSelecting = true;
+	// re-assert visible in next ticks (in case other guards race)
+	(window.__battleSetTimeout || window.setTimeout)(() => {
+		try{
+			popup.style.display = 'block';
+			popup.style.visibility = 'visible';
+			popup.classList.add('has-options');
+		}catch(_e){}
+	}, 0);
+	(window.__battleSetTimeout || window.setTimeout)(() => {
+		try{
+			popup.style.display = 'block';
+			popup.style.visibility = 'visible';
+			popup.classList.add('has-options');
+		}catch(_e){}
+	}, 80);
+}catch(_e){}
+
 };
 
 
