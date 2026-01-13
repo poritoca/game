@@ -1,4 +1,13 @@
 'use strict';
+
+// ===== TimeUp: keep a reliable reference to the active player object =====
+window.__syncActivePlayerRef = window.__syncActivePlayerRef || function(){
+  try{
+    if (typeof player === 'object' && player) window.__activePlayerRef = player;
+    else if (typeof window.player === 'object' && window.player) window.__activePlayerRef = window.player;
+  }catch(_){}
+};
+try{ window.__syncActivePlayerRef(); }catch(_){}
 window.startBattle = function() {
 	// 既に戦闘処理中なら二重起動しない（AutoBattleのバックログ防止）
 	if (window.__battleInProgress) return;
@@ -2009,6 +2018,8 @@ window.loadGame = async function() {
 	try {
 		const parsed = window.decodeBase64(input);
 		player = parsed.player;
+	try{ window.__syncActivePlayerRef && window.__syncActivePlayerRef(); }catch(_){ }
+
 		if (!player.growthBonus) {
 			player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 		}

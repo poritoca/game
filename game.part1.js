@@ -1,5 +1,54 @@
 'use strict';
 
+
+window.__timeUpDebug = (typeof window.__timeUpDebug === 'boolean') ? window.__timeUpDebug : false;
+// ===== TimeUp FIX: keep active player reference & snapshot (works even if player is reassigned) =====
+window.__activePlayerRef = window.__activePlayerRef || null;
+window.__activePlayerSnap = window.__activePlayerSnap || null;
+
+window.__ensureActivePlayerRefOnce = window.__ensureActivePlayerRefOnce || function(){
+  try{
+    // prefer global variable `player` (script-scope), then window.player
+    const p = (typeof player !== 'undefined' && player && typeof player === 'object') ? player :
+              ((window.player && typeof window.player === 'object') ? window.player : null);
+    if (!p) return;
+    // Heuristic: real player has at least one of these
+    const looksPlayer = (p.baseStats && p.growthBonus) || ('attack' in p) || ('defense' in p) || ('speed' in p) || ('maxHp' in p) || ('skills' in p) || ('skillMemory' in p);
+    if (!looksPlayer) return;
+    window.__activePlayerRef = p;
+    // lightweight snapshot for time-up safety (numbers only)
+    const num = (v)=>{ const n=Number(v); return (Number.isFinite(n)?n:0); };
+    const snap = {};
+    try{
+      if (p.baseStats && p.growthBonus){
+        snap.attack  = num(p.baseStats.attack)  + num(p.growthBonus.attack);
+        snap.defense = num(p.baseStats.defense) + num(p.growthBonus.defense);
+        snap.speed   = num(p.baseStats.speed)   + num(p.growthBonus.speed);
+        snap.maxHp   = num(p.baseStats.maxHp)   + num(p.growthBonus.maxHp);
+      }else{
+        snap.attack  = num(p.attack || p.atk);
+        snap.defense = num(p.defense || p.def);
+        snap.speed   = num(p.speed || p.spd);
+        snap.maxHp   = num(p.maxHp || p.hp);
+      }
+      snap.itemMemoryLen = (p.itemMemory && p.itemMemory.length) ? p.itemMemory.length : 0;
+      snap._itemMemory = p.itemMemory || null;
+      snap.name = p.name || null;
+    }catch(_){}
+    window.__activePlayerSnap = snap;
+  }catch(_){}
+};
+
+window.__ensureActivePlayerRef = window.__ensureActivePlayerRef || function(){
+  try{
+    if (window.__activePlayerRefKeeperStarted) return;
+    window.__activePlayerRefKeeperStarted = true;
+    // run often; low cost
+    setInterval(()=>{ try{ window.__ensureActivePlayerRefOnce(); }catch(_){} }, 500);
+  }catch(_){}
+};
+try{ window.__ensureActivePlayerRef(); }catch(_){}
+try{ window.__ensureActivePlayerRefOnce(); }catch(_){}
 // =====================================================
 // Fold helper (for inline onclick handlers)
 // =====================================================

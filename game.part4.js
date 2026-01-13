@@ -596,7 +596,7 @@ window.populateItemElementList = function() {
 			return `与ダメージの一部（${ratio}）を回復`;
 		}
 		if (c === 'poison' || c === 'burn' || c === 'regen') {
-			const p = sk.power ?? sk.amount ?? sk.multiplier ?? '—';
+			const p = (window.__activePlayerRef || window.player || (sk.power ?? sk.amount ?? sk.multiplier ?? '—'));
 			const d = sk.duration ?? '—';
 			const label = (c === 'regen') ? '回復' : '継続ダメージ';
 			return `${d}ターン ${label}（基準値 ${p}）`;
@@ -2933,17 +2933,18 @@ document.addEventListener('DOMContentLoaded', () => {
 						const maxStreak = (typeof window.sessionMaxStreak === 'number') ? window.sessionMaxStreak :
 							((typeof sessionMaxStreak === 'number') ? sessionMaxStreak :
 								((typeof window.currentStreak === 'number') ? window.currentStreak : 0));
-						const finalAtk = (p && typeof p.attack === 'number') ? p.attack : 0;
-						const finalDef = (p && typeof p.defense === 'number') ? p.defense : 0;
-						const finalSpd = (p && typeof p.speed === 'number') ? p.speed : 0;
-						const finalHP  = (p && typeof p.maxHp === 'number') ? p.maxHp : 0;
+						let finalAtk = (p ? (Number(p.attack) || Number(p.atk) || 0) : 0);
+						let finalDef = (p ? (Number(p.defense) || Number(p.def) || 0) : 0);
+						let finalSpd = (p ? (Number(p.speed) || Number(p.spd) || 0) : 0);
+						let finalHP  = (p ? (Number(p.maxHp) || Number(p.hp) || 0) : 0);
+						try{ const es=(window.__timeLimitState&&window.__timeLimitState.expireSnapshot)||null; if(es){ if(!finalAtk) finalAtk=Number(es.attack||es.atk)||finalAtk; if(!finalDef) finalDef=Number(es.defense||es.def)||finalDef; if(!finalSpd) finalSpd=Number(es.speed||es.spd)||finalSpd; if(!finalHP) finalHP=Number(es.maxHp||es.hp)||finalHP; } }catch(_){ }
 
 						// 所持魔道具の総レアリティ（ドロップ率の逆数の合計）
 						let totalRarity = 0;
 						try{
 							if (p && p.itemMemory && p.itemMemory.length > 0 &&
 								typeof itemAdjectives !== 'undefined' && typeof itemNouns !== 'undefined' && typeof itemColors !== 'undefined') {
-								for (const item of p.itemMemory) {
+								for (const item of (p.itemMemory || ((window.__timeLimitState&&window.__timeLimitState.expireSnapshot)?window.__timeLimitState.expireSnapshot._itemMemory:null) || [])) {
 									const adjDef = itemAdjectives.find(a => a.word === item.adjective);
 									const nounDef = itemNouns.find(n => n.word === item.noun);
 									const colorDef = itemColors.find(c => c.word === item.color);
@@ -2959,7 +2960,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 						const score = Math.round((finalAtk + finalDef + finalSpd + finalHP * 0.1 + totalRarity) * (maxStreak || 0));
 
-						// 最高スコア更新（無制限を除く）
+						
+						if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_forced]', {target: target, finalAtk: finalAtk, finalDef: finalDef, finalSpd: finalSpd, finalHP: finalHP, maxStreak: maxStreak, totalRarity: totalRarity, score: score}); }catch(_){ }
+// 最高スコア更新（無制限を除く）
 						if (!window.maxScores) window.maxScores = {};
 						const prev = (window.maxScores[target] != null) ? window.maxScores[target] : null;
 						let replaced = false;
@@ -3053,11 +3056,49 @@ for (const n of entries) {
 			}catch(_){ }
 		};
 
-		// Hook: after time-limit expires, show the summary table
+		// Hook: time-limit expires -> capture snapshot BEFORE original handler (it may reset player), then show summary.
 		const __origExpire = window.__onTimeLimitExpired;
 		window.__onTimeLimitExpired = function(){
+			try{
+				window.__timeLimitState = window.__timeLimitState || {};
+				const pLive = (window.__activePlayerRef || (typeof player!=='undefined'?player:null) || window.player || null);
+				const s = window.__timeLimitState.expireSnapshot = (window.__timeLimitState.expireSnapshot || {});
+
+					// activeSnapFallback
+					const as = window.__activePlayerSnap || null;
+				if (pLive){
+					s.attack = Number(pLive.attack || pLive.atk || 0) || 0;
+					s.defense = Number(pLive.defense || pLive.def || 0) || 0;
+					s.speed = Number(pLive.speed || pLive.spd || 0) || 0;
+					s.maxHp = Number(pLive.maxHp || pLive.hp || 0) || 0;
+					s.itemMemoryLen = (pLive.itemMemory && pLive.itemMemory.length) ? pLive.itemMemory.length : 0;
+					// keep a reference for rarity calc if needed
+					s._itemMemory = pLive.itemMemory || null;
+				}
+				try{
+
+					try{
+						if (as){
+							if (!s.attack && as.attack) s.attack = Number(as.attack)||0;
+							if (!s.defense && as.defense) s.defense = Number(as.defense)||0;
+							if (!s.speed && as.speed) s.speed = Number(as.speed)||0;
+							if (!s.maxHp && as.maxHp) s.maxHp = Number(as.maxHp)||0;
+							if (!s.itemMemoryLen && as.itemMemoryLen) s.itemMemoryLen = as.itemMemoryLen;
+							if (!s._itemMemory && as._itemMemory) s._itemMemory = as._itemMemory;
+							if (!s.name && as.name) s.name = as.name;
+						}
+					}catch(_){}
+					s.sessionMaxStreak = Math.max(Number(window.sessionMaxStreak)||0, Number((typeof sessionMaxStreak!=='undefined')?sessionMaxStreak:0)||0, Number(window.maxStreak)||0);
+				}catch(_){}
+				try{
+					if (window.__timeUpDebug) console.log('[TimeUpDBG_expireSnapshot]', { usingActiveRef: !!window.__activePlayerRef, keys: pLive ? Object.keys(pLive).slice(0,40) : null, snap: s });
+				}catch(_){}
+			}catch(e){
+				if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_expireSnapshot_error]', String(e)); }catch(_){}
+			}
+			if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_forced_enter]'); }catch(_){}
+			if (window.__timeUpDebug) try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(e){ try{ console.log('[TimeUpDBG_showSummary_error]', String(e)); }catch(_){ } }
 			try{ if (typeof __origExpire === 'function') __origExpire(); }catch(_){}
-			try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(_){}
 		};
 
 	}catch(e){
