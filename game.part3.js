@@ -1411,13 +1411,19 @@ window.startBattle = function() {
 		const labels = { attack: "攻撃", defense: "防御", speed: "素早さ", maxHp: "最大HP" };
 		const chosen = stats[Math.floor(Math.random() * stats.length)];
 
-		// growthBonus 初期化
-		if (!player.growthBonus) {
-			player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		// ✅ 敗北時の成長は「恒久ステータス」扱い（growthBonus には積まない）
+		// - growthBonus は“勝利後の成長選択”で使う領域として維持（ユーザー要望）
+		// - ここでは baseStats を増やし、次戦以降も必ず反映されるようにする
+		if (!player.baseStats || typeof player.baseStats !== 'object') {
+			const gb = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+			player.baseStats = {
+				attack: Math.max(0, Math.floor((Number(player.attack) || 0) - (Number(gb.attack) || 0))),
+				defense: Math.max(0, Math.floor((Number(player.defense) || 0) - (Number(gb.defense) || 0))),
+				speed: Math.max(0, Math.floor((Number(player.speed) || 0) - (Number(gb.speed) || 0))),
+				maxHp: Math.max(0, Math.floor((Number(player.maxHp) || 0) - (Number(gb.maxHp) || 0))),
+			};
 		}
-
-		// 成長反映
-		player.growthBonus[chosen] += growthTotal;
+		player.baseStats[chosen] = Math.floor((Number(player.baseStats[chosen]) || 0) + growthTotal);
 
 		// 表示用の“成長説明”を組み立て（サブタイトルに埋め込む）
 		const growthMsg =
@@ -1426,12 +1432,15 @@ window.startBattle = function() {
 			`<br>(連勝 ${currentStreak} × 敵倍率切り上げ ${multiplierInt})</span>`;
 
 		// ステータス再計算（敗北時はHPを満タンにしない仕様は維持）
-		if (player.baseStats && player.growthBonus) {
-			player.attack = player.baseStats.attack + player.growthBonus.attack;
-			player.defense = player.baseStats.defense + player.growthBonus.defense;
-			player.speed = player.baseStats.speed + player.growthBonus.speed;
-			player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-		}
+		const __oldHp = Number(player.hp) || 0;
+		const gb2 = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		player.attack = (Number(player.baseStats.attack) || 0) + (Number(gb2.attack) || 0);
+		player.defense = (Number(player.baseStats.defense) || 0) + (Number(gb2.defense) || 0);
+		player.speed = (Number(player.baseStats.speed) || 0) + (Number(gb2.speed) || 0);
+		player.maxHp = (Number(player.baseStats.maxHp) || 0) + (Number(gb2.maxHp) || 0);
+		player.hp = Math.min(__oldHp, player.maxHp);
+
+		try{ markLocalSaveDirty && markLocalSaveDirty(); }catch(_e){}
 		if (typeof updateStats === "function") updateStats();
 
 		try {
