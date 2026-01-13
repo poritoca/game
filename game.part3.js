@@ -199,10 +199,22 @@ window.startBattle = function() {
 		popup.style.left = "50%";
 		popup.style.transform = "translateX(-50%)";
 
-		window.__battleSetTimeout(() => {
-			popup.style.display = "none";
-		}, 1000);
-	}
+		// auto-dismiss + tap-to-dismiss (does not depend on __battleSetTimeout)
+		const __hideAutoPickNotice = () => {
+			try{ popup.style.display = "none"; }catch(_){}
+			try{ popup.classList && popup.classList.remove("autoPickNotice"); }catch(_){}
+			try{
+				popup.removeEventListener("click", __hideAutoPickNotice);
+				popup.removeEventListener("touchstart", __hideAutoPickNotice);
+			}catch(_){}
+		};
+		try{
+			popup.classList && popup.classList.add("autoPickNotice");
+			popup.addEventListener("click", __hideAutoPickNotice, { once: true });
+			popup.addEventListener("touchstart", __hideAutoPickNotice, { once: true });
+		}catch(_){}
+		setTimeout(__hideAutoPickNotice, 1300);
+		}
 
 
 

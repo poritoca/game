@@ -3097,7 +3097,7 @@ for (const n of entries) {
 				if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_expireSnapshot_error]', String(e)); }catch(_){}
 			}
 			if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_forced_enter]'); }catch(_){}
-			if (window.__timeUpDebug) try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(e){ try{ console.log('[TimeUpDBG_showSummary_error]', String(e)); }catch(_){ } }
+			try{ window.__showTimeUpSummary && window.__showTimeUpSummary(); }catch(e){ if (window.__timeUpDebug) try{ console.log('[TimeUpDBG_showSummary_error]', String(e)); }catch(_){ } }
 			try{ if (typeof __origExpire === 'function') __origExpire(); }catch(_){}
 		};
 
