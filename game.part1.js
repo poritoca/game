@@ -320,9 +320,50 @@ window.showCenteredPopup = function(message, duration = 3000) {
 
 	if (!popup || !title || !optionsEl) return;
 
+	// centered popup is a "toast-like" message: no options, tap to dismiss
 	title.innerHTML = message;
 	optionsEl.innerHTML = "";
 
+	// Ensure it is tappable even when CSS sets #eventPopup:not(.has-options){pointer-events:none;}
+	try { popup.style.pointerEvents = "auto"; } catch (e) {}
+	try { popup.classList.add("centered-popup"); } catch (e) {}
+
+	// Cleanup any previous centered-popup handlers/timers (prevents stuck state)
+	const __cleanupCentered = () => {
+		try {
+			if (popup.__centeredPopupTimer) {
+				window.__uiClearTimeout(popup.__centeredPopupTimer);
+				popup.__centeredPopupTimer = null;
+			}
+		} catch (e) {}
+		try {
+			if (popup.__centeredDismissHandler) {
+				popup.removeEventListener("click", popup.__centeredDismissHandler);
+				popup.removeEventListener("touchstart", popup.__centeredDismissHandler);
+				popup.__centeredDismissHandler = null;
+			}
+		} catch (e) {}
+		try {
+			if (popup.__centeredDocDismissHandler) {
+				document.removeEventListener("pointerdown", popup.__centeredDocDismissHandler, true);
+				document.removeEventListener("touchstart", popup.__centeredDocDismissHandler, true);
+				popup.__centeredDocDismissHandler = null;
+			}
+		} catch (e) {}
+		try { popup.classList.remove("centered-popup"); } catch (e) {}
+		// keep pointerEvents reset to default; other popups may rely on CSS classes
+		try { popup.style.pointerEvents = ""; } catch (e) {}
+	};
+
+	// Dismiss (tap anywhere OR timeout)
+	const __dismiss = () => {
+		try { popup.style.display = "none"; } catch (e) {}
+		__cleanupCentered();
+	};
+
+	__cleanupCentered();
+
+	// Show and center
 	popup.style.display = "block";
 	popup.style.visibility = "hidden";
 
@@ -330,24 +371,40 @@ window.showCenteredPopup = function(message, duration = 3000) {
 	const popupHeight = popup.offsetHeight;
 	popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
 	popup.style.left = "50%";
-	popup.style.transform = "translateX(-50%)"; // ← ← ← 修正ポイント
+	popup.style.transform = "translateX(-50%)";
 	popup.style.visibility = "visible";
 
-
-
-
-
-	// clear previous auto-hide timer (so it never gets stuck)
+	// Tap-to-dismiss on the popup itself
+	popup.__centeredDismissHandler = () => { __dismiss(); };
 	try {
-		if (popup.__centeredPopupTimer) {
-			window.__uiClearTimeout(popup.__centeredPopupTimer);
-			popup.__centeredPopupTimer = null;
-		}
+		popup.addEventListener("click", popup.__centeredDismissHandler, { once: true });
+		popup.addEventListener("touchstart", popup.__centeredDismissHandler, { once: true, passive: true });
 	} catch (e) {}
-	popup.__centeredPopupTimer = window.__uiSetTimeout(() => {
-		popup.style.display = "none";
-	}, duration);
+
+	// Tap-to-dismiss anywhere on the UI (capture so it works even if another overlay is on top)
+	popup.__centeredDocDismissHandler = (ev) => {
+		// If another eventPopup mode took over, don't kill it.
+		try {
+			if (popup.style.display !== "block") return;
+			// If popup now has options, it's not a centered toast anymore.
+			if (popup.classList && popup.classList.contains("has-options")) return;
+		} catch (e) {}
+		__dismiss();
+	};
+	try {
+		document.addEventListener("pointerdown", popup.__centeredDocDismissHandler, true);
+		document.addEventListener("touchstart", popup.__centeredDocDismissHandler, true);
+	} catch (e) {}
+
+	// Auto-hide timer (use UI timer wrapper so battle-cancel doesn't kill it)
+	try {
+		popup.__centeredPopupTimer = window.__uiSetTimeout(() => { __dismiss(); }, duration);
+	} catch (e) {
+		// fallback
+		setTimeout(() => { __dismiss(); }, duration);
+	}
 };
+;
 
 window.updateSkillOverlay = function() {
 	const el = document.getElementById('skillOverlay');
@@ -1393,6 +1450,147 @@ window.__getBattleDockMode = window.__getBattleDockMode || function(){
 		return 'normal';
 	}
 };
+// =====================================================
+// Global UI opacity slider (Battle Dock)
+// - Controls opacity for: battle dock buttons + handle label, Growth selection UI, score/skill/item overlays
+// - Does NOT affect: hpChart / charts, the slider itself
+// =====================================================
+window.__uiOpacityKey = window.__uiOpacityKey || 'rpg_ui_opacity_percent';
+window.__getUIOpacityPercent = window.__getUIOpacityPercent || function(){
+	try{
+		const v = Number(localStorage.getItem(window.__uiOpacityKey));
+		if (Number.isFinite(v) && v >= 20 && v <= 100) return v;
+	}catch(_){}
+	return 100;
+};
+window.__setUIOpacityPercent = window.__setUIOpacityPercent || function(p){
+	try{
+		let v = Number(p);
+		if (!Number.isFinite(v)) v = 100;
+		v = Math.max(20, Math.min(100, Math.round(v)));
+		try{ localStorage.setItem(window.__uiOpacityKey, String(v)); }catch(_){}
+		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_){}
+		return v;
+	}catch(_){
+		return 100;
+	}
+};
+window.__getUIOpacityAlpha = window.__getUIOpacityAlpha || function(){
+	const p = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100;
+	return Math.max(0.2, Math.min(1, p/100));
+};
+
+// Create/move the slider into battle dock (above mode button)
+window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattleDock || function(dock, content, modeBtn){
+	try{
+		if (!dock) dock = document.getElementById('battleOverlayDock');
+		if (!dock) return null;
+		if (!content) content = dock.querySelector('.dockContent') || dock;
+
+		let wrap = document.getElementById('uiOpacityControl');
+		if (!wrap){
+			wrap = document.createElement('div');
+			wrap.id = 'uiOpacityControl';
+			wrap.className = 'ui-opacity-control';
+			wrap.innerHTML = `
+				<label id="uiOpacityLabel" for="uiOpacityRange">透過度(<span id="uiOpacityValue">100</span>%)</label>
+				<input id="uiOpacityRange" type="range" min="20" max="100" step="5" value="100" />
+			`;
+		}
+
+		// Move into dock
+		if (!dock.contains(wrap)){
+			try{ wrap.remove(); }catch(_){}
+		}
+
+		// Insert: inside content, just above mode button if possible
+		try{
+			const mb = modeBtn || document.getElementById('specialModeButton');
+			if (mb && content && content.contains(mb)){
+				content.insertBefore(wrap, mb);
+			}else if (content){
+				content.insertBefore(wrap, content.firstChild);
+			}else{
+				dock.appendChild(wrap);
+			}
+		}catch(_){
+			try{ dock.appendChild(wrap); }catch(__){}
+		}
+
+		// Wire once
+		try{
+			const range = wrap.querySelector('#uiOpacityRange');
+			const valueEl = wrap.querySelector('#uiOpacityValue');
+			if (range && !range.__wiredUIOpacity){
+				range.__wiredUIOpacity = true;
+				const applyUI = () => {
+					const v = window.__setUIOpacityPercent ? window.__setUIOpacityPercent(range.value) : Number(range.value);
+					try{ if (valueEl) valueEl.textContent = String(v); }catch(_){}
+				};
+				range.addEventListener('input', applyUI, {passive:true});
+				// init from saved
+				const saved = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100;
+				range.value = saved;
+				try{ if (valueEl) valueEl.textContent = String(saved); }catch(_){}
+			}
+		}catch(_){}
+		return wrap;
+	}catch(_){
+		return null;
+	}
+};
+
+window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
+	try{
+		const alpha = window.__getUIOpacityAlpha ? window.__getUIOpacityAlpha() : 1;
+
+		// Battle dock: affect handle + main buttons/rows, but NOT the slider itself
+		const dock = document.getElementById('battleOverlayDock');
+		if (dock){
+			const handle = dock.querySelector('.dock-drag-handle');
+			if (handle) handle.style.opacity = String(alpha);
+
+			const modeBtn = document.getElementById('specialModeButton');
+			const battleBtn = document.getElementById('startBattleBtn');
+			if (modeBtn && dock.contains(modeBtn)) modeBtn.style.opacity = String(alpha);
+			if (battleBtn && dock.contains(battleBtn)) battleBtn.style.opacity = String(alpha);
+
+			const row = document.getElementById('battleTimeLimitRow');
+			if (row && dock.contains(row)) row.style.opacity = String(alpha);
+
+			const result = document.getElementById('battleDockResultWindow');
+			if (result && dock.contains(result)) result.style.opacity = String(alpha);
+
+			// Ensure the opacity control itself is always visible
+			const ctrl = document.getElementById('uiOpacityControl');
+			if (ctrl && dock.contains(ctrl)) ctrl.style.opacity = '1';
+		}
+
+		// Minimize controls (part of battle UI)
+		const minBtn = document.getElementById('battleDockMinimizeBtn');
+		if (minBtn) minBtn.style.opacity = String(alpha);
+		const miniBar = document.getElementById('battleDockMiniBar');
+		if (miniBar) miniBar.style.opacity = String(alpha);
+
+		// Overlays
+		const score = document.getElementById('scoreOverlay');
+		if (score) score.style.opacity = String(alpha);
+		const skill = document.getElementById('skillOverlay');
+		if (skill) skill.style.opacity = String(alpha);
+		const item = document.getElementById('itemOverlay');
+		if (item) item.style.opacity = String(alpha);
+
+		// Growth selection UI only (avoid affecting other event popups)
+		const popup = document.getElementById('eventPopup');
+		if (popup){
+			const isGrowth = popup.classList.contains('growth-compact-ui') || popup.classList.contains('growthbar-ui') || popup.getAttribute('data-ui-mode') === 'growth';
+			if (isGrowth) popup.style.opacity = String(alpha);
+		}
+
+		// Charts: intentionally NOT affected (hpChart etc) -> do nothing
+	}catch(_){}
+};
+
 
 window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(minimized) {
 	try {
@@ -1515,6 +1713,11 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 		document.body.appendChild(minBtn);
 		document.body.appendChild(miniBar);
+
+		// Place opacity slider into dock now (above mode button)
+		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, null); }catch(_e){}
+		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_e){}
+
 
 		// Observe screen switch so the dock appears immediately on game screen
 		const gameScreen = document.getElementById('gameScreen');
@@ -1721,6 +1924,9 @@ if (minimized) {
 		const modeBtn = document.getElementById('specialModeButton');
 		const battleBtn = document.getElementById('startBattleBtn');
 
+		// Ensure opacity slider is inside the battle dock (above mode button)
+		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, modeBtn); }catch(_e){}
+
 		if (modeBtn && !dock.contains(modeBtn)) content.appendChild(modeBtn);
 		if (battleBtn && !dock.contains(battleBtn)) content.appendChild(battleBtn);
 
@@ -1733,6 +1939,9 @@ if (minimized) {
 		requestAnimationFrame(() => {
 			try { dock.style.opacity = '1'; } catch (_) {}
 		});
+
+		// Re-apply global opacity (handle/buttons/overlays) after DOM moves
+		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_e){}
 	} catch (e) {
 		console.warn('[BattleDock] refresh failed', e);
 	}
