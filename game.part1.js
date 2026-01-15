@@ -320,50 +320,9 @@ window.showCenteredPopup = function(message, duration = 3000) {
 
 	if (!popup || !title || !optionsEl) return;
 
-	// centered popup is a "toast-like" message: no options, tap to dismiss
 	title.innerHTML = message;
 	optionsEl.innerHTML = "";
 
-	// Ensure it is tappable even when CSS sets #eventPopup:not(.has-options){pointer-events:none;}
-	try { popup.style.pointerEvents = "auto"; } catch (e) {}
-	try { popup.classList.add("centered-popup"); } catch (e) {}
-
-	// Cleanup any previous centered-popup handlers/timers (prevents stuck state)
-	const __cleanupCentered = () => {
-		try {
-			if (popup.__centeredPopupTimer) {
-				window.__uiClearTimeout(popup.__centeredPopupTimer);
-				popup.__centeredPopupTimer = null;
-			}
-		} catch (e) {}
-		try {
-			if (popup.__centeredDismissHandler) {
-				popup.removeEventListener("click", popup.__centeredDismissHandler);
-				popup.removeEventListener("touchstart", popup.__centeredDismissHandler);
-				popup.__centeredDismissHandler = null;
-			}
-		} catch (e) {}
-		try {
-			if (popup.__centeredDocDismissHandler) {
-				document.removeEventListener("pointerdown", popup.__centeredDocDismissHandler, true);
-				document.removeEventListener("touchstart", popup.__centeredDocDismissHandler, true);
-				popup.__centeredDocDismissHandler = null;
-			}
-		} catch (e) {}
-		try { popup.classList.remove("centered-popup"); } catch (e) {}
-		// keep pointerEvents reset to default; other popups may rely on CSS classes
-		try { popup.style.pointerEvents = ""; } catch (e) {}
-	};
-
-	// Dismiss (tap anywhere OR timeout)
-	const __dismiss = () => {
-		try { popup.style.display = "none"; } catch (e) {}
-		__cleanupCentered();
-	};
-
-	__cleanupCentered();
-
-	// Show and center
 	popup.style.display = "block";
 	popup.style.visibility = "hidden";
 
@@ -371,40 +330,24 @@ window.showCenteredPopup = function(message, duration = 3000) {
 	const popupHeight = popup.offsetHeight;
 	popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
 	popup.style.left = "50%";
-	popup.style.transform = "translateX(-50%)";
+	popup.style.transform = "translateX(-50%)"; // ← ← ← 修正ポイント
 	popup.style.visibility = "visible";
 
-	// Tap-to-dismiss on the popup itself
-	popup.__centeredDismissHandler = () => { __dismiss(); };
-	try {
-		popup.addEventListener("click", popup.__centeredDismissHandler, { once: true });
-		popup.addEventListener("touchstart", popup.__centeredDismissHandler, { once: true, passive: true });
-	} catch (e) {}
 
-	// Tap-to-dismiss anywhere on the UI (capture so it works even if another overlay is on top)
-	popup.__centeredDocDismissHandler = (ev) => {
-		// If another eventPopup mode took over, don't kill it.
-		try {
-			if (popup.style.display !== "block") return;
-			// If popup now has options, it's not a centered toast anymore.
-			if (popup.classList && popup.classList.contains("has-options")) return;
-		} catch (e) {}
-		__dismiss();
-	};
-	try {
-		document.addEventListener("pointerdown", popup.__centeredDocDismissHandler, true);
-		document.addEventListener("touchstart", popup.__centeredDocDismissHandler, true);
-	} catch (e) {}
 
-	// Auto-hide timer (use UI timer wrapper so battle-cancel doesn't kill it)
+
+
+	// clear previous auto-hide timer (so it never gets stuck)
 	try {
-		popup.__centeredPopupTimer = window.__uiSetTimeout(() => { __dismiss(); }, duration);
-	} catch (e) {
-		// fallback
-		setTimeout(() => { __dismiss(); }, duration);
-	}
+		if (popup.__centeredPopupTimer) {
+			window.__uiClearTimeout(popup.__centeredPopupTimer);
+			popup.__centeredPopupTimer = null;
+		}
+	} catch (e) {}
+	popup.__centeredPopupTimer = window.__uiSetTimeout(() => {
+		popup.style.display = "none";
+	}, duration);
 };
-;
 
 window.updateSkillOverlay = function() {
 	const el = document.getElementById('skillOverlay');
@@ -1550,11 +1493,19 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 			const handle = dock.querySelector('.dock-drag-handle');
 			if (handle) handle.style.opacity = String(alpha);
 
-			const modeBtn = document.getElementById('specialModeButton');
+			
+
+			// Background transparency: adjust dock frame WITHOUT fading text
+			try{
+				const base = Number(getComputedStyle(dock).getPropertyValue('--battleDockBgBase')) || 0.66;
+				dock.style.setProperty('--battleDockBgAlpha', String(Math.max(0.06, Math.min(0.92, base * alpha))));
+			}catch(_){
+				try{ dock.style.setProperty('--battleDockBgAlpha', String(0.66 * alpha)); }catch(__){}
+			}
+const modeBtn = document.getElementById('specialModeButton');
 			const battleBtn = document.getElementById('startBattleBtn');
 			if (modeBtn && dock.contains(modeBtn)) modeBtn.style.opacity = String(alpha);
-			if (battleBtn && dock.contains(battleBtn)) battleBtn.style.opacity = String(alpha);
-
+			if (battleBtn && dock.contains(battleBtn)) battleBtn.style.opacity = '1';
 			const row = document.getElementById('battleTimeLimitRow');
 			if (row && dock.contains(row)) row.style.opacity = String(alpha);
 
@@ -2869,11 +2820,7 @@ function createMixedSkill(skillA, skillB) {
 	baseSkills.sort((a, b) => (b.isMixed ? 1 : 0) - (a.isMixed ? 1 : 0));
 
 	const includedMixed = baseSkills.filter(s => s && s.isMixed && Array.isArray(s.specialEffects) && s.specialEffects.length > 0);
-	if (includedMixed.length > 0) {
-		showCenteredPopup(`🌀 特殊スキルの特殊効果が継承されました！<br>
-<span style="font-size: 10px; color: #ffcc99;">※特殊効果の書かれていない特殊スキルは特殊効果無効です</span>`);
-		window.withmix = true;
-	}
+	
 
 	// --- レベル・名前準備 ---
 	const totalLevel = baseSkills.reduce((sum, s) => sum + (s.level || 1), 0);

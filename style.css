@@ -3741,7 +3741,8 @@ canvas {
   max-width: 92vw;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(18,18,22,0.66);
+  background: rgba(18,18,22, var(--battleDockBgAlpha, 0.66));
+  --battleDockBgBase: 0.66;
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 12px 34px rgba(0,0,0,0.36);
