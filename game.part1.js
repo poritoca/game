@@ -1593,6 +1593,63 @@ window.__battleDockPulseMiniBar = window.__battleDockPulseMiniBar || function(){
 	}catch(_){}
 };
 
+// ---------------------------------------------------------
+// Auto-minimize notice (tap to dismiss, auto-hide)
+// - Centered in the current viewport (iPhone Safari safe)
+// ---------------------------------------------------------
+window.__showAutoMinimizeNotice = window.__showAutoMinimizeNotice || function(){
+	try{
+		// Rate-limit to avoid spam on continuous scroll
+		const now = Date.now();
+		const last = Number(window.__autoMinimizeNoticeLastAt || 0);
+		if (now - last < 1200) return;
+		window.__autoMinimizeNoticeLastAt = now;
+
+		let toast = document.getElementById('autoMinimizeToast');
+		if (!toast) {
+			toast = document.createElement('div');
+			toast.id = 'autoMinimizeToast';
+			toast.setAttribute('role','status');
+			toast.setAttribute('aria-live','polite');
+			toast.innerHTML =
+				'<div class="main">UIを最小化しました</div>' +
+				'<span class="sub">下のバーをタップで復元できます（タップで閉じる）</span>';
+			try{ document.body.appendChild(toast); }catch(_e){}
+		}
+
+		// show
+		try{ toast.style.display = 'block'; }catch(_e){}
+		try{ toast.classList.add('is-show'); }catch(_e){}
+
+		// clear previous timers
+		try{
+			if (toast.__hideTimer) {
+				if (typeof window.__uiClearTimeout === 'function') window.__uiClearTimeout(toast.__hideTimer);
+				else clearTimeout(toast.__hideTimer);
+			}
+		}catch(_e){}
+
+		const hide = () => {
+			try{ toast.classList.remove('is-show'); }catch(_e){}
+			try{ toast.style.display = 'none'; }catch(_e){}
+			try{
+				toast.removeEventListener('click', hide);
+				toast.removeEventListener('touchstart', hide);
+			}catch(_e){}
+		};
+
+		// tap-to-dismiss
+		try{
+			toast.addEventListener('click', hide, { once: true });
+			toast.addEventListener('touchstart', hide, { once: true, passive: true });
+		}catch(_e){}
+
+		// auto-hide after 2s (UI timer wrapper; NOT canceled by battle visual cancels)
+		const setT = (typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout;
+		toast.__hideTimer = setT(hide, 2000);
+	}catch(_e){}
+};
+
 
 
 window.__initBattleControlDock = window.__initBattleControlDock || function() {
@@ -1750,6 +1807,8 @@ if (dy < threshold) {
 }
 // Enough scroll: minimize (scroll-triggered effect)
 window.__setBattleDockMinimized && window.__setBattleDockMinimized(true);
+					// Notify user (tap-to-dismiss, auto-hide) - centered in viewport
+					window.__showAutoMinimizeNotice && window.__showAutoMinimizeNotice();
 window.__battleDockPulseMiniBar && window.__battleDockPulseMiniBar();
 window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
 window.__battleDockScrollStartY = null;
