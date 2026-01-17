@@ -432,6 +432,10 @@ canvas#enemyImg {
 #battleLog {
   font-family: 'Press Start 2P', system-ui;
 
+  /* 文字サイズスライダーで動的に上書きされる（JSが --battlelog-font を設定） */
+  --battlelog-font: 12px;
+  font-size: var(--battlelog-font);
+
   background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
   color: #fff;
   padding: 10px;
@@ -449,6 +453,34 @@ canvas#enemyImg {
 
   max-height: 120vh; /* ← 高さを変更したい場合ここを変更 */
   animation: glow 2s ease-in-out infinite alternate;
+}
+
+/* =========================================================
+   Battle log font-size scaling
+   - Slider updates #battleLog font-size, but some pushed lines/spans may set inline font-size.
+   - Force everything inside battleLog to inherit the container size.
+   ========================================================= */
+#battleLog,
+#battleLog * {
+  font-size: inherit !important;
+}
+
+/* =========================================================
+   Battle log details (戦闘経過 / ステータス) font-size scaling
+   - ここは過去のUI改善で個別に font-size(px) を指定しているため、
+     スライダーで #battleLog の font-size を変えても反映されないことがある。
+   - --battlelog-font を基準にして、確実に追従させる。
+   ========================================================= */
+#battleLog .turn-stats-header,
+#battleLog .turn-stats-row .side,
+#battleLog .turn-stats-card .stat,
+#battleLog .turn-stats-card .stat .k,
+#battleLog .turn-stats-card .stat .v,
+#battleLog .turn-stats-card .stat .delta,
+#battleLog .turn-banner,
+#battleLog .turn-hp-delta,
+#battleLog .turn-events-content,
+#battleLog .turn-status-content{
 }
 
 @keyframes glow {
@@ -585,6 +617,50 @@ button:active {
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
+/* =========================================================
+   スキル交換ボタン（HPチャートの下）
+   ========================================================= */
+.skill-exchange-panel{
+  width: 90%;
+  max-width: 600px;
+  margin: 8px auto 0;
+  padding: 10px 10px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(18,18,24,0.55);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+
+.skill-exchange-btn{
+  width: 100%;
+  border-radius: 12px;
+  padding: 12px 10px;
+  border: 1px solid rgba(140,220,255,0.35);
+  background: rgba(10,60,90,0.55);
+  color: rgba(230,250,255,0.95);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2) inset, 0 6px 16px rgba(0,0,0,0.28);
+}
+
+.skill-exchange-btn:active{
+  transform: translateY(1px);
+}
+
+.skill-exchange-btn:disabled{
+  opacity: 0.5;
+  filter: saturate(70%);
+}
+
+.skill-exchange-desc{
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(235,245,255,0.82);
 }
 
 /* メタル光沢アニメーション */
@@ -2504,7 +2580,6 @@ canvas {
 }
 
 #battleLog .turn-stats-card .stat .k{
-  font-size:9px !important;
   font-weight:900 !important;
   letter-spacing:.10em !important;
   opacity:0.98 !important;
@@ -2513,7 +2588,6 @@ canvas {
 }
 
 #battleLog .turn-stats-card .stat .v{
-  font-size:12px !important;
   font-weight:900 !important;
   font-variant-numeric: tabular-nums;
   text-align:right !important;
@@ -2524,7 +2598,6 @@ canvas {
 }
 
 #battleLog .turn-stats-card .stat .delta{
-  font-size:10px !important;
   font-weight:900 !important;
   opacity:0.95 !important;
   color: rgba(215,225,245,0.75) !important;
@@ -2559,7 +2632,6 @@ canvas {
     grid-template-columns: 40px minmax(0, 1fr) auto;
   }
   #battleLog .turn-stats-card .stat .v{
-    font-size:11px !important;
   }
 }
 
@@ -2592,7 +2664,6 @@ canvas {
   background: linear-gradient(135deg, rgba(30, 30, 38, 0.95), rgba(8, 8, 12, 0.95));
   color: #f3f6ff !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 11px;
   letter-spacing: 0.2px;
   text-shadow: 0 0 6px rgba(0,0,0,0.55);
 }
@@ -2631,7 +2702,6 @@ canvas {
 }
 
 #battleLog .turn-stats-row .side {
-  font-size: 10px;
   opacity: 0.95;
   color: rgba(245,245,255,0.9) !important;
   text-align: center;
@@ -2657,7 +2727,6 @@ canvas {
   background: rgba(0,0,0,0.40);
   box-shadow: inset 0 0 12px rgba(255,255,255,0.03);
 
-  font-size: 10px;
   line-height: 1.15;
   min-width: 0;
 }
@@ -2713,9 +2782,9 @@ canvas {
 
 /* 画面が極端に狭い場合でも崩れにくくする */
 @media (max-width: 420px) {
-  #battleLog .turn-stats-header { font-size: 10px; }
+  #battleLog .turn-stats-header { }
   #battleLog .turn-stats-row { grid-template-columns: 24px 1fr; }
-  #battleLog .turn-stats-card .stat { grid-template-columns: 40px 1fr auto; font-size: 9.5px; }
+  #battleLog .turn-stats-card .stat { grid-template-columns: 40px 1fr auto; }
 }
 
 
@@ -2790,7 +2859,7 @@ canvas {
 }
 
 
-/* --- Battle Log controls (speed slider + acceleration buttons) --- */
+/* --- Battle Log controls (speed slider + font size slider) --- */
 #battleLogControls.battle-log-controls{
   display:flex;
   flex-wrap:wrap;
@@ -2827,36 +2896,32 @@ canvas {
   opacity: 0.95;
   white-space:nowrap;
 }
-#battleLogControls .battle-log-accel{
+
+#battleLogControls .battle-log-font{
   display:flex;
   align-items:center;
   gap:8px;
+  min-width: 200px;
 }
-#battleLogControls .battle-log-accel-label{
+
+#battleLogControls .battle-log-font label{
   font-size: 12px;
   font-weight: 800;
   opacity: 0.92;
   white-space:nowrap;
 }
-#battleLogControls .battle-log-accel-buttons{
-  display:flex;
-  gap:6px;
+
+#battleLogControls #logFontSlider{
+  width: 140px;
+  max-width: 48vw;
 }
-#battleLogControls .log-accel-btn{
-  height: 28px;
-  padding: 0 10px;
+
+#battleLogControls .battle-log-font-value{
   font-size: 12px;
   font-weight: 900;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.25);
-  color: rgba(255,255,255,0.92);
-  cursor:pointer;
-}
-#battleLogControls .log-accel-btn.active{
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.32);
-  box-shadow: 0 0 0 2px rgba(120,160,255,0.18) inset;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+  white-space:nowrap;
 }
 
 
@@ -2920,7 +2985,6 @@ canvas {
 
 #battleLog .turn-hp-delta{
   padding: 6px 10px 10px 10px;
-  font-size: 10px;
   line-height: 1.25;
   color: rgba(235,245,255,0.92) !important;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -2967,7 +3031,6 @@ canvas {
 #battleLog .turn-event-line{
   padding: 6px 10px;
   border-top: 1px solid rgba(255,255,255,0.06);
-  font-size: 11px;
   line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;

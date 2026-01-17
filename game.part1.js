@@ -1039,28 +1039,35 @@ function rebuildPlayerSkillsFromMemory(player, sslot = 0) {
 
 
 // ======================================================
-// Battle Log speed / acceleration settings (UI + persist)
+// Battle Log settings (UI + persist)
+//  - log speed slider (delay ms)
+//  - log font size slider (px)
 // ======================================================
 // 表示間隔（ms）：小さいほど速い
 window.__BATTLE_LOG_BASE_DELAY_MS = Number(window.__BATTLE_LOG_BASE_DELAY_MS || 20);
 
-// 加速度モード：0=OFF, 1=弱, 2=強
-window.__BATTLE_LOG_ACCEL_MODE = Number.isFinite(Number(window.__BATTLE_LOG_ACCEL_MODE)) ?
-	Number(window.__BATTLE_LOG_ACCEL_MODE) : 1;
+// 文字サイズ（px）
+window.__BATTLE_LOG_FONT_PX = Number(window.__BATTLE_LOG_FONT_PX || 12);
 
 function __loadBattleLogSpeedSettings() {
+	// 互換維持のため関数名はそのまま（中身は設定全般）
 	try {
 		const ms = Number(localStorage.getItem('battleLogBaseDelayMs'));
 		if (Number.isFinite(ms) && ms >= 1) window.__BATTLE_LOG_BASE_DELAY_MS = ms;
-		const am = Number(localStorage.getItem('battleLogAccelMode'));
-		if (Number.isFinite(am) && am >= 0) window.__BATTLE_LOG_ACCEL_MODE = am;
+	} catch (_e) {}
+	try {
+		const px = Number(localStorage.getItem('battleLogFontPx'));
+		if (Number.isFinite(px) && px >= 5) window.__BATTLE_LOG_FONT_PX = px;
 	} catch (_e) {}
 }
 
 function __saveBattleLogSpeedSettings() {
+	// 互換維持のため関数名はそのまま（中身は設定全般）
 	try {
 		localStorage.setItem('battleLogBaseDelayMs', String(window.__BATTLE_LOG_BASE_DELAY_MS));
-		localStorage.setItem('battleLogAccelMode', String(window.__BATTLE_LOG_ACCEL_MODE));
+		localStorage.setItem('battleLogFontPx', String(window.__BATTLE_LOG_FONT_PX));
+		// 旧：加速度はUI削除につき破棄（残っていても無視される）
+		try { localStorage.removeItem('battleLogAccelMode'); } catch (_e2) {}
 	} catch (_e) {}
 }
 
@@ -1073,38 +1080,22 @@ function __clamp(n, a, b) {
 function __getBattleLogDelayMs(lineIndex, totalLines) {
 	// base: スライダーで設定した遅延
 	const base = __clamp(window.__BATTLE_LOG_BASE_DELAY_MS, 1, 2000);
-
-	// 加速度：ログが進むにつれて少しずつ速くなる（読みやすさ維持のため下限あり）
-	const mode = __clamp(window.__BATTLE_LOG_ACCEL_MODE, 0, 2);
-
-	// 体感チューニング（3段階）
-	// - OFF: 常に base
-	// - 弱 : 進行度に応じて最大 ~2.0倍速（遅延は半分程度まで）
-	// - 強 : 進行度に応じて最大 ~3.5倍速（遅延は約1/3程度まで）
-	if (mode <= 0) return base;
-
-	const t = (totalLines > 1) ? (lineIndex / Math.max(1, totalLines - 1)) : 1; // 0..1
-	const maxSpeed = (mode === 1) ? 2.0 : 3.5; // 速度倍率
-	const curveK = (mode === 1) ? 1.2 : 1.8; // 立ち上がり
-	const speedMul = 1.0 + (maxSpeed - 1.0) * Math.pow(t, curveK);
-
-	const minDelay = (mode === 1) ? 8 : 5;
-	return Math.max(minDelay, Math.floor(base / speedMul));
+	return base;
 }
 
 function __applyBattleLogControlsUI() {
 	const slider = document.getElementById('logSpeedSlider');
 	const valueEl = document.getElementById('logSpeedValue');
-	const b0 = document.getElementById('logAccelBtn0');
-	const b1 = document.getElementById('logAccelBtn1');
-	const b2 = document.getElementById('logAccelBtn2');
-	if (!slider || !valueEl || !b0 || !b1 || !b2) return;
+	const fontSlider = document.getElementById('logFontSlider');
+	const fontValueEl = document.getElementById('logFontValue');
+	const logEl = document.getElementById('battleLog');
+	const controls = document.getElementById('battleLogControls');
+	if (!slider || !valueEl || !fontSlider || !fontValueEl || !logEl || !controls) return;
 
 
-	// 戦闘経過トグルボタン（加速度ボタン右）
+	// 戦闘経過トグルボタン（コントロール右）
 	try {
-		const container = (b0 && b0.parentElement) ? b0.parentElement : null;
-		if (container && !document.getElementById('battleLogToggleBtn')) {
+		if (!document.getElementById('battleLogToggleBtn')) {
 			const btn = document.createElement('button');
 			btn.type = 'button';
 			btn.id = 'battleLogToggleBtn';
@@ -1120,20 +1111,52 @@ function __applyBattleLogControlsUI() {
 					localStorage.setItem('battleLogDetailDefaultOpen', window.__battleLogDetailDefaultOpen ? 'open' : 'closed');
 				} catch (e) {}
 			});
-			container.appendChild(btn);
+			controls.appendChild(btn);
 		}
 	} catch (e) {}
 	// 初期反映
 	slider.value = String(__clamp(window.__BATTLE_LOG_BASE_DELAY_MS, Number(slider.min || 5), Number(slider.max || 200)));
 	valueEl.textContent = `${slider.value}ms`;
 
-	const setActive = () => {
-		const m = __clamp(window.__BATTLE_LOG_ACCEL_MODE, 0, 2);
-		b0.classList.toggle('active', m === 0);
-		b1.classList.toggle('active', m === 1);
-		b2.classList.toggle('active', m === 2);
+	const applyFontPx = (px) => {
+		const v = __clamp(px, Number(fontSlider.min || 10), Number(fontSlider.max || 18));
+		window.__BATTLE_LOG_FONT_PX = v;
+		try {
+			// 基本のログ文字サイズ
+			logEl.style.setProperty("font-size", `${v}px`, "important");
+			// 追加：詳細UI（戦闘経過/ステータス）など、個別に font-size が固定されている要素を
+			// CSS側で上書きできるように変数も設定する
+			logEl.style.setProperty('--battlelog-font', `${v}px`);
+			
+			// 追加："戦闘経過" / "ステータス" を開いた中身が CSS の個別 font-size によって
+			// #battleLog の font-size 変更に追従しないケースがあるため、既存DOMにも強制反映する。
+			// （新しくpushされる要素はCSSの固定指定を削ってinheritさせるので、基本は自動追従）
+			try {
+				// Force-apply font-size to detail UIs (turn history/status)
+				const sel = [
+					"#battleLog .turn-block",
+					"#battleLog .turn-block *",
+					".turn-stats-header",
+					".turn-stats-title",
+					".turn-stats-arrow",
+					".turn-stats-content",
+					".turn-stats-row .side",
+					".turn-stats-card .stat",
+					".turn-stats-card .stat .k",
+					".turn-stats-card .stat .v",
+					".turn-stats-card .stat .delta",
+					".turn-event-line",
+					".turn-banner"
+				].join(",");
+				document.querySelectorAll(sel).forEach(el => {
+					try { el.style.setProperty("font-size", `${v}px`, "important"); } catch(_e3) {}
+				});
+			} catch(_e) {}
+			
+
+		} catch (_e) {}
+		fontValueEl.textContent = `${v}px`;
 	};
-	setActive();
 
 	// 速度スライダー
 	slider.addEventListener('input', () => {
@@ -1143,27 +1166,15 @@ function __applyBattleLogControlsUI() {
 		__saveBattleLogSpeedSettings();
 	});
 
-	// 加速度ボタン
-	b0.addEventListener('click', () => {
-		window.__BATTLE_LOG_ACCEL_MODE = 0;
-		setActive();
-		__saveBattleLogSpeedSettings();
-	});
-	b1.addEventListener('click', () => {
-		window.__BATTLE_LOG_ACCEL_MODE = 1;
-		setActive();
-		__saveBattleLogSpeedSettings();
-	});
-	b2.addEventListener('click', () => {
-		window.__BATTLE_LOG_ACCEL_MODE = 2;
-		setActive();
+	// 文字サイズスライダー
+	fontSlider.addEventListener('input', () => {
+		applyFontPx(fontSlider.value);
 		__saveBattleLogSpeedSettings();
 	});
 
-	// モバイルでの誤タップ対策（必要最低限）
-  [b0, b1, b2].forEach(btn => {
-		btn.addEventListener('touchstart', (e) => { try { e.stopPropagation(); } catch (_e) {} }, { passive: true });
-	});
+	// 文字サイズ 初期反映（既存ログにも即時反映）
+	fontSlider.value = String(__clamp(window.__BATTLE_LOG_FONT_PX, Number(fontSlider.min || 10), Number(fontSlider.max || 18)));
+	applyFontPx(fontSlider.value);
 }
 
 
@@ -3805,11 +3816,7 @@ function setupToggleButtons() {
 		window.allowGrowthEvent = !window.allowGrowthEvent;
 		updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
 	};
-
-	skillDelBtn.onclick = () => {
-		window.allowSkillDeleteEvent = !window.allowSkillDeleteEvent;
-		updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキル削除イベント: 発生", "スキル削除イベント: 発生しない");
-	};
+	　
 
 	itemBtn.onclick = () => {
 		window.allowItemInterrupt = !window.allowItemInterrupt;
@@ -3825,7 +3832,7 @@ function setupToggleButtons() {
 	}
 
 	updateButtonState(growthBtn, window.allowGrowthEvent, "成長イベント: 発生", "成長イベント: 発生しない");
-	updateButtonState(skillDelBtn, window.allowSkillDeleteEvent, "スキルイベント: 発生", "スキルイベント: 発生しない");
+
 	updateButtonState(itemBtn, window.allowItemInterrupt, "魔道具入手: 進行を停止する", "魔道具入手: 進行を停止しない");
 	if (autoSaveBtn) {
 		updateButtonState(autoSaveBtn, window.autoSaveEnabled, "自動保存: ON（10戦ごと）", "自動保存: OFF（10戦ごと）");

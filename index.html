@@ -258,6 +258,17 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         戦闘はターン制で進行し、プレイヤーと敵が交互にスキルを使用し合います。相手のHPを0にすると勝利です。所持スキルの中から自動的に複数のスキルが選出され同時に発動します（必ず固有スキルが最低1つと、攻撃スキルが最低1つ含まれます）。
     </p>
 
+				<h3>スキル交換（魔通貨500枚）</h3>
+				<p>
+					HPチャートの下にある<strong>「スキル交換」</strong>ボタンで、スキル構成を入れ替えられます。
+					魔通貨を<strong>500枚</strong>消費して、<strong>現在所持していない通常スキル</strong>をスキルメモリーから<strong>2つ完全削除（Lvも初期化）</strong>し、
+					未修得の通常スキルから<strong>1つ</strong>をランダムに新規習得します。
+					<strong>特殊スキルは必ず対象外</strong>で、<strong>現在所持中の攻撃スキルが消えることはありません</strong>。
+				</p>
+				<p class="subnote">
+					※発生条件：通常スキル（特殊スキル除外）をメモリーに<strong>5つ以上</strong>持ち、かつ「所持中以外」の削除候補が<strong>2つ以上</strong>あるときに実行できます。所持していない時を見計らってスキルの入れ替えをするのがオススメです。
+				</p>
+
     <h3>ボス戦について</h3>
     <p>
         一定回数ごとに<strong>ボス戦</strong>が発生します。
@@ -659,13 +670,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
               <input id="logSpeedSlider" type="range" min="5" max="200" step="1" value="20" />
               <span id="logSpeedValue" class="battle-log-speed-value">20ms</span>
             </div>
-            <div class="battle-log-accel">
-              <span class="battle-log-accel-label">加速度</span>
-              <div class="battle-log-accel-buttons">
-                <button type="button" id="logAccelBtn0" class="log-accel-btn">OFF</button>
-                <button type="button" id="logAccelBtn1" class="log-accel-btn">弱</button>
-                <button type="button" id="logAccelBtn2" class="log-accel-btn">強</button>
-              </div>
+            <div class="battle-log-font">
+              <label for="logFontSlider">文字</label>
+              <input id="logFontSlider" type="range" min="5" max="18" step="1" value="12" />
+              <span id="logFontValue" class="battle-log-font-value">12px</span>
             </div>
           </div>
 
@@ -684,6 +692,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       <!-- <button id="mixedEffectListBtn" class="normal-mode">混合効果一覧</button>-->
 			<div class="subnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
 			<canvas id="hpChart" width="600" height="100"></canvas>
+
+
 
 
 
@@ -713,11 +723,23 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <ul id="itemMemoryList"></ul>
 </div>
 
+
+
 <!-- スキルメモリー -->
 <h4>スキルメモリー</h4>
 <div class="subnote">※3つ選択して最上部へ移動可能。スキル再構成時、上から数件を選出。</div>
 <div id="skillMemoryContainer" style="display: block;">
   <ul id="skillMemoryList"></ul>
+	
+				<!-- スキル交換（魔通貨で手動発動） -->
+			<div id="skillExchangePanel" class="skill-exchange-panel">
+				<button id="skillExchangeBtn" class="skill-exchange-btn" type="button">スキル交換（魔通貨500枚）</button>
+				<div class="skill-exchange-desc">
+					所持中以外の<strong>通常スキル</strong>をメモリーから<strong>2つ完全削除</strong>し、
+					未修得の通常スキルから<strong>1つ</strong>をランダムに習得します（特殊スキルは対象外）。
+				</div>
+			</div>
+			
 </div>
 
 
@@ -750,7 +772,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <h4>イベント設定</h4>
     <div id="autoStopControls">
       <button id="toggleGrowthEvents" class="toggle-btn">成長イベント: 発生</button>
-      <button id="toggleSkillDeleteEvents" class="toggle-btn">スキル削除イベント: 発生</button>
+
       <button id="toggleItemInterrupt" class="toggle-btn">魔道具入手: 進行を停止する</button>
     </div>
 

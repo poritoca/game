@@ -98,10 +98,253 @@ window.deleteRandomWhiteSkills = function(count) {
 
 window.eventTriggered = false; // イベント発生フラグを初期化
 
+// ============================================================================
+// スキル交換（2→1）
+// - ボタン（魔通貨500枚）で手動実行できる
+// - ランダムイベントとしても発生（確率は「スキル習得」より少し低い）
+// - 特殊スキルは必ず除外
+// - 削除対象は「いま所持しているスキル以外」からのみ
+// ============================================================================
+
+// 調整ポイント：最低メモリー数 / コスト / 乱数イベント倍率
+window.__SKILL_EXCHANGE_MIN_MEMORY = window.__SKILL_EXCHANGE_MIN_MEMORY || 5;
+window.__SKILL_EXCHANGE_COST = window.__SKILL_EXCHANGE_COST || 500;
+window.__SKILL_EXCHANGE_RANDOM_RATE_MUL = window.__SKILL_EXCHANGE_RANDOM_RATE_MUL || 0.85;
+
+// Resolve current player reference safely.
+// In this project, `player` may exist as a script-scope variable (not attached to window).
+function __getPlayerRef() {
+	try {
+		if (window.__activePlayerRef && typeof window.__activePlayerRef === 'object') return window.__activePlayerRef;
+	} catch (e) {}
+	try {
+		// eslint-disable-next-line no-undef
+		if (typeof player !== 'undefined' && player && typeof player === 'object') return player;
+	} catch (e) {}
+	try {
+		if (window.player && typeof window.player === 'object') return window.player;
+	} catch (e) {}
+	return null;
+}
+
+function __isMixedSkillName(name) {
+	try {
+		const n = String(name || '');
+		if (!n) return true;
+		const p = __getPlayerRef();
+		// player.mixedSkills に名前が存在する
+		if (p && Array.isArray(p.mixedSkills)) {
+			if (p.mixedSkills.some(ms => ms && ms.isMixed && ms.name === n)) return true;
+		}
+		// player.skills 側の isMixed フラグ
+		if (p && Array.isArray(p.skills)) {
+			const sk = p.skills.find(s => s && s.name === n);
+			if (sk && sk.isMixed) return true;
+		}
+		// skillPool の category
+		if (Array.isArray(window.skillPool)) {
+			const def = window.skillPool.find(s => s && s.name === n);
+			if (def && def.category === 'mixed') return true;
+		}
+	} catch (e) {}
+	return false;
+}
+
+function __computeSkillGainChanceLikeAcquire() {
+	try {
+		// 既存の「新スキル習得」ロジックと同等（enemy.rarity と currentStreak を参照）
+		const e = window.enemy;
+		const streak = (typeof window.currentStreak === 'number') ? window.currentStreak : 0;
+		const r = (e && typeof e.rarity === 'number') ? e.rarity : 0;
+		const rarity = r * (0.02 + streak * 0.002);
+		let skillGainChance = Math.min(1.0, 0.01 * rarity);
+		if (window.specialMode === 'brutal') {
+			skillGainChance = 0.02;
+		}
+		return Math.max(0, Math.min(1, skillGainChance));
+	} catch (e) {
+		return 0;
+	}
+}
+
+function __pickRandomDistinct(arr, count) {
+	const a = Array.isArray(arr) ? arr.slice() : [];
+	for (let i = a.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		const tmp = a[i];
+		a[i] = a[j];
+		a[j] = tmp;
+	}
+	return a.slice(0, Math.max(0, count));
+}
+
+function __computeSkillExchangePools() {
+	const p = __getPlayerRef();
+	if (!p || !p.skillMemory || !p.skills) {
+		return { ok: false, reason: 'プレイヤーデータが未初期化です' };
+	}
+	const minMem = Number(window.__SKILL_EXCHANGE_MIN_MEMORY || 5);
+	const memoryNames = Object.keys(p.skillMemory || {}).filter(n => n && !__isMixedSkillName(n));
+	if (memoryNames.length < minMem) {
+		return { ok: false, reason: `通常スキルのメモリーが${minMem}個以上必要です` };
+	}
+	const ownedSet = new Set((p.skills || []).map(s => s && s.name).filter(Boolean));
+	let removable = memoryNames.filter(n => !ownedSet.has(n));
+	if (window.initialAndSlotSkills && Array.isArray(window.initialAndSlotSkills)) {
+		removable = removable.filter(n => !window.initialAndSlotSkills.includes(n));
+	}
+	if (removable.length < 2) {
+		return { ok: false, reason: '所持中以外の削除候補が2つ以上必要です' };
+	}
+	let unlearned = [];
+	if (Array.isArray(window.skillPool)) {
+		unlearned = window.skillPool
+			.filter(s => s && s.name && !__isMixedSkillName(s.name))
+			.map(s => s.name)
+			.filter(n => !p.skillMemory[n]);
+	}
+	if (unlearned.length === 0) {
+		return { ok: false, reason: '未修得の通常スキルがありません' };
+	}
+	return { ok: true, memoryNames, removable, unlearned };
+}
+
+function __applySkillExchange(toDelete, gainName) {
+	const p = __getPlayerRef();
+	if (!p || !p.skillMemory || !p.skills) return;
+	// 2つを skillMemory から完全削除（Lvも初期化扱い）
+	for (const n of (toDelete || [])) {
+		try { delete p.skillMemory[n]; } catch (e) {}
+	}
+	// 新スキルを獲得（未修得扱い → Lv1）
+	p.skillMemory[gainName] = 1;
+	try {
+		p.skills.push({ name: gainName, level: 1, uses: 0 });
+	} catch (e) {}
+
+	try {
+		const def = (Array.isArray(window.skillPool) ? window.skillPool.find(s => s && s.name === gainName) : null);
+		if (def && typeof window.onSkillAcquired === 'function') window.onSkillAcquired(def);
+	} catch (e) {}
+
+	try { if (typeof drawSkillMemoryList === 'function') drawSkillMemoryList(); } catch (e) {}
+	try { syncSkillsUI && syncSkillsUI(); } catch (e) {}
+	try { updateStats && updateStats(); } catch (e) {}
+}
+
+function __showSkillExchangeConfirmUI(opts) {
+	const pools = __computeSkillExchangePools();
+	if (!pools.ok) {
+		try { showCustomAlert(pools.reason, 2200); } catch (e) {}
+		return false;
+	}
+
+	// 事前に候補を決めて、選択後も同じ内容で処理する（途中で変わらないように）
+	const toDelete = __pickRandomDistinct(pools.removable, 2);
+	const gainName = pools.unlearned[Math.floor(Math.random() * pools.unlearned.length)];
+
+	const isPaid = !!opts?.paid;
+	const cost = Number(window.__SKILL_EXCHANGE_COST || 500);
+	const title = isPaid ? 'スキル交換（2→1）' : 'スキル交換';
+	const labelDo = isPaid ? `交換する（魔通貨${cost}枚）` : 'スキル 2 → 1 交換する';
+
+	const descLines = [
+		'',
+`削除: ${toDelete.join(' / ')}` + '\n\n' +
+`獲得: ${gainName} (Lv1)`
+	];
+
+	showEventOptions(title, [
+		{ label: labelDo, value: 'do' },
+		{ label: 'やめる', value: 'none' }
+	], (choice) => {
+		try {
+			if (choice !== 'do') {
+				try { showCustomAlert('今回はスキル交換しませんでした', 1800); } catch (e) {}
+				return;
+			}
+
+			// 支払い（ボタン実行のみ）
+			if (isPaid) {
+				const coins = Number(window.faceCoins || 0);
+				if (coins < cost) {
+					try { showCustomAlert(`魔通貨が${cost}枚必要です（現在: ${coins}枚）`, 2400); } catch (e) {}
+					return;
+				}
+				window.faceCoins = coins - cost;
+				try { update魔通貨Display && update魔通貨Display(); } catch (e) {}
+			}
+
+			__applySkillExchange(toDelete, gainName);
+			try { showCustomAlert(descLines.join('\n'), 3200); } catch (e) {}
+		} finally {
+			// ボタン/ランダムどちらでも、選択後は次の操作ができるようフラグを戻す
+			try { window.eventTriggered = false; } catch (e) {}
+			try { clearEventPopup(false); } catch (e) {}
+		}
+	});
+
+	return true;
+}
+
+function __maybeTriggerSkillExchangeEventRandom() {
+	// NOTE:
+	// スキル2→1交換は、HPチャート下のボタン（openSkillExchange）からのみ発生させる。
+	// ランダム発生はユーザー要望により無効化。
+	return false;
+	/*
+	try {
+		if (window.eventTriggered) return false;
+		if (!window.allowSkillDeleteEvent) return false; // 「スキルイベント」トグルで一括ON/OFF
+
+		const pools = __computeSkillExchangePools();
+		if (!pools.ok) return false;
+
+		const baseChance = __computeSkillGainChanceLikeAcquire();
+		const mul = Number(window.__SKILL_EXCHANGE_RANDOM_RATE_MUL || 0.85);
+		const exchangeChance = Math.max(0, Math.min(1, baseChance * mul));
+		if (!(Math.random() < exchangeChance)) return false;
+
+		window.eventTriggered = true;
+		try { stopAutoBattle && stopAutoBattle(); } catch (e) {}
+		return __showSkillExchangeConfirmUI({ paid: false });
+	} catch (e) {
+		return false;
+	}
+	*/
+}
+
+// ボタンからの手動実行（魔通貨消費）
+window.openSkillExchange = function() {
+	try {
+		try { if (typeof window.__ensureActivePlayerRefOnce === 'function') window.__ensureActivePlayerRefOnce(); } catch (e) {}
+		const p0 = __getPlayerRef();
+		if (!p0 || !p0.skillMemory || !p0.skills) {
+			try { showCustomAlert('ゲーム開始後に使用できます', 2200); } catch (e) {}
+			try { window.eventTriggered = false; } catch (_) {}
+			return;
+		}
+		// オートバトル中は誤爆しやすいので止める（手動押下は可能だが、UIの衝突を避ける）
+		try { stopAutoBattle && stopAutoBattle(); } catch (e) {}
+		// 他イベント表示中は二重起動しない
+		if (window.eventTriggered) {
+			try { showCustomAlert('イベント表示中です', 1500); } catch (e) {}
+			return;
+		}
+		window.eventTriggered = true;
+		const ok = __showSkillExchangeConfirmUI({ paid: true });
+		if (!ok) window.eventTriggered = false;
+	} catch (e) {
+		try { window.eventTriggered = false; } catch (_) {}
+	}
+};
+
 // 【バトル後にイベント発生を判定して処理する】
 window.maybeTriggerEvent = function() {
 	if (window.eventTriggered) return;
 	if (!window.allowSkillDeleteEvent) return;
+
+	// スキル交換イベントはランダム発生させない（ボタンからのみ）
 
 	const whiteSkills = player.skills.filter(s => {
 		const found = skillPool.find(sk => sk.name === s.name);
@@ -374,9 +617,30 @@ window.drawHPGraph = function() {
 //  forceClear  : true にすると他のアラートを即座に消してから表示（デフォルト false）
 
 window.showCustomAlert = function(message, duration = 3000, background = "#222", color = "#fff", forceClear = false) {
-	const container = document.getElementById('customAlertContainer');
+	let container = document.getElementById('customAlertContainer');
+	// If missing for any reason, create it (more robust on different pages/states).
+	if (!container) {
+		try {
+			container = document.createElement('div');
+			container.id = 'customAlertContainer';
+			document.body.appendChild(container);
+		} catch (e) {
+			container = null;
+		}
+	}
 
-	if (container) { container.style.display = 'block'; }
+	if (container) {
+		// Make container cover the visible viewport so we can place alerts at the center reliably.
+		container.style.display = 'block';
+		container.style.position = 'fixed';
+		container.style.top = '0';
+		container.style.left = '0';
+		container.style.width = '100%';
+		container.style.height = '100%';
+		container.style.transform = 'none';
+		container.style.pointerEvents = 'none';
+		container.style.zIndex = '9999';
+	}
 
 	// ★ forceClear = true の場合、すでに表示中のアラートをすべて削除
 	if (forceClear && container) {
@@ -397,10 +661,24 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
 	alert.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
 	alert.style.opacity = '0';
 	alert.style.transition = 'opacity 0.3s';
-	alert.style.position = 'absolute';
-	alert.style.top = '0';
-	alert.style.left = '50%';
-	alert.style.transform = 'translateX(-50%)';
+	alert.style.position = 'fixed';
+	// Place at visible viewport center (iPhone Safari friendly)
+	try {
+		const vv = window.visualViewport;
+		if (vv && typeof vv.width === 'number' && typeof vv.height === 'number') {
+			const cx = (vv.offsetLeft || 0) + (vv.width / 2);
+			const cy = (vv.offsetTop || 0) + (vv.height / 2);
+			alert.style.left = cx + 'px';
+			alert.style.top = cy + 'px';
+		} else {
+			alert.style.left = '50%';
+			alert.style.top = '50%';
+		}
+	} catch (e) {
+		alert.style.left = '50%';
+		alert.style.top = '50%';
+	}
+	alert.style.transform = 'translate(-50%, -50%)';
 	alert.style.pointerEvents = 'auto';
 	alert.style.minWidth = '200px';
 	alert.style.maxWidth = '80vw';
@@ -409,7 +687,11 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
 
 	alert.innerHTML = message;
 
-	container.appendChild(alert);
+	if (container) {
+		container.appendChild(alert);
+	} else {
+		try { document.body.appendChild(alert); } catch (e) {}
+	}
 
 	// フェードイン
 	window.__uiSetTimeout(() => {
@@ -420,12 +702,17 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
 	window.__uiSetTimeout(() => {
 		alert.style.opacity = '0';
 		window.__uiSetTimeout(() => {
-			if (alert.parentElement) {
-				container.removeChild(alert);
-			}
-			if (container.children.length === 0) {
-				container.style.display = 'none';
-			}
+			try{
+				if (alert.parentElement) {
+					try {
+						if (container && alert.parentElement === container) container.removeChild(alert);
+						else alert.parentElement.removeChild(alert);
+					} catch (e) {}
+				}
+				if (container && container.children.length === 0) {
+					container.style.display = 'none';
+				}
+			}catch(e){}
 		}, 300); // フェードアウト待機時間
 	}, duration);
 };
@@ -713,6 +1000,44 @@ window.populateItemElementList = function() {
 		}
 	};
 })();
+
+// =====================================================
+// スキル交換ボタン（HPチャート下）
+// =====================================================
+window.addEventListener('DOMContentLoaded', () => {
+	try {
+		const btn = document.getElementById('skillExchangeBtn');
+		if (!btn) return;
+		if (btn.dataset && btn.dataset.bound === '1') return;
+		if (btn.dataset) btn.dataset.bound = '1';
+
+		btn.addEventListener('click', () => {
+			try {
+				if (typeof window.openSkillExchange === 'function') window.openSkillExchange();
+			} catch (e) {}
+		});
+
+		const refresh = () => {
+			try {
+				const cost = Number(window.__SKILL_EXCHANGE_COST || 500);
+				const coins = Number(window.faceCoins || 0);
+				const p = __getPlayerRef();
+				if (!p || !p.skillMemory || !p.skills) {
+					btn.disabled = true;
+					btn.textContent = `スキル交換（ゲーム開始後）`;
+					return;
+				}
+				btn.disabled = (coins < cost);
+				btn.textContent = `スキル交換（魔通貨${cost}枚）`;
+			} catch (e) {}
+		};
+
+		refresh();
+		window.__uiSetInterval && window.__uiSetInterval(refresh, 1000);
+		// __uiSetInterval が無い環境でも動くよう保険
+		if (!window.__uiSetInterval) setInterval(refresh, 1000);
+	} catch (e) {}
+});
 
 function updatePlayerDisplay(player) {
 	const nameEl = document.getElementById('playerName');

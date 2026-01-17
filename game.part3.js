@@ -539,6 +539,9 @@ window.startBattle = function() {
 	let __battleStartMaxHp_player = 0;
 	let __battleStartMaxHp_enemy = 0;
 
+		const __MAX_TURNS = 15;
+		let __battleFinalTurn = 1;
+
 	while (true) {
 		// 基準状態に戻してから、倍率を適用して“新しい戦闘開始状態”を作る
 		if (__retryIndex > 0 && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
@@ -564,7 +567,6 @@ window.startBattle = function() {
 		if (Number.isFinite(enemy.maxHp)) enemy.maxHp = Math.max(0, Math.floor(enemy.maxHp * __hpMult));
 
 		let turn = 1;
-		const __MAX_TURNS = 15;
 		hpHistory = [];
 		player.hp = player.maxHp;
 		enemy.hp = enemy.maxHp;
@@ -912,16 +914,16 @@ window.startBattle = function() {
 				if (!isFinite(raw)) return 0;
 				return Math.max(0, Math.min(1, raw));
 			};
-			const playerRatio = Math.ceil(safeRatio(player.hp, player.maxHp) * 10);
-			const enemyRatio = Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 10);
+			const playerRatio = Math.ceil(safeRatio(player.hp, (__battleStartMaxHp_player || player.maxHp)) * 10);
+			const enemyRatio = Math.ceil(safeRatio(enemy.hp, (__battleStartMaxHp_enemy || enemy.maxHp)) * 10);
 			const bar = (filled, total = 10) => {
 				const safeFilled = Math.max(0, Math.min(total, filled));
 				const filledPart = "■".repeat(safeFilled);
 				const emptyPart = "□".repeat(total - safeFilled);
 				return filledPart + emptyPart;
 			};
-			log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, player.maxHp) * 100)}%`);
-			log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, enemy.maxHp) * 100)}%`);
+			log.push(`自:[${bar(playerRatio)}] ${Math.ceil(safeRatio(player.hp, (__battleStartMaxHp_player || player.maxHp)) * 100)}%`);
+			log.push(`敵:[${bar(enemyRatio)}] ${Math.ceil(safeRatio(enemy.hp, (__battleStartMaxHp_enemy || enemy.maxHp)) * 100)}%`);
 
 			// ターン終了：コンパクトなステータス一覧（CSS装飾）
 			pushTurnEndStatsLog(log, player, enemy);
@@ -929,6 +931,7 @@ window.startBattle = function() {
 			recordHP();
 			turn++;
 		}
+			__battleFinalTurn = turn;
 
 
 
@@ -994,11 +997,11 @@ window.startBattle = function() {
 	let __hpShareEnemy = null;    // 優劣バーの赤(敵)の長さ(0..1)
 	let __hpShareDiff = null;     // (青-赤)
 
-	if (player.hp > 0 && enemy.hp > 0 && typeof __MAX_TURNS === 'number' && turn > __MAX_TURNS) {
+	if (player.hp > 0 && enemy.hp > 0 && typeof __MAX_TURNS === 'number' && __battleFinalTurn > __MAX_TURNS) {
 		__endedByTurnLimit = true;
 
-		const pMax = Math.max(1, (player.maxHp || player.hp || 1));
-		const eMax = Math.max(1, (enemy.maxHp || enemy.hp || 1));
+		const pMax = Math.max(1, (__battleStartMaxHp_player || player.maxHp || player.hp || 1));
+		const eMax = Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || enemy.hp || 1));
 
 		// 残りHP割合（ツールチップ/表示用）
 		__hpRatioPlayer = Math.max(0, player.hp) / pMax;
@@ -1320,7 +1323,7 @@ window.startBattle = function() {
 		const rarity = enemy.rarity * (0.02 + currentStreak * 0.002);
 		let skillGainChance = Math.min(1.0, 0.01 * rarity);
 		if (window.specialMode === 'brutal') {
-			skillGainChance = 0.02; // 鬼畜モードで変更する
+			skillGainChance = 0.005; // 鬼畜モードで変更する
 		}
 		// log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
 		if (Math.random() < skillGainChance) {
@@ -2462,6 +2465,79 @@ window.showEventOptions = function(title, options, onSelect) {
 	popup.style.display = 'block';
 	popup.style.visibility = 'visible';
 	popup.style.position = 'fixed';
+	// Ensure no stale positioning remains
+	try{ popup.style.marginTop=''; popup.style.marginLeft=''; }catch(_e){}
+
+	// Place popup at the *visible* viewport center (iPhone Safari friendly).
+	// On iOS, visualViewport helps us target the truly visible area (address bar/zoom/keyboard).
+	// Also keep it centered while visualViewport changes (scroll/resize/keyboard).
+	function __placeEventPopupCenter() {
+		// Clean up prior listeners if any
+		try{
+			if (popup.__eventPopupCenterCleanup) {
+				try{ popup.__eventPopupCenterCleanup(); }catch(_e){}
+				popup.__eventPopupCenterCleanup = null;
+			}
+		}catch(_e){}
+
+		try {
+			const vv = window.visualViewport;
+			if (vv && typeof vv.width === 'number' && typeof vv.height === 'number') {
+				const cx = (vv.offsetLeft || 0) + (vv.width / 2);
+				const cy = (vv.offsetTop || 0) + (vv.height / 2);
+				popup.style.left = cx + 'px';
+				popup.style.top = cy + 'px';
+				popup.style.transform = 'translate(-50%, -50%)';
+				// Keep centered on vv changes
+				try{
+					const onVV = () => {
+						try{
+							if (popup.style.display === 'none' || popup.style.visibility === 'hidden') return;
+							const vv2 = window.visualViewport;
+							if (!vv2) return;
+							const cx2 = (vv2.offsetLeft || 0) + (vv2.width / 2);
+							const cy2 = (vv2.offsetTop || 0) + (vv2.height / 2);
+							popup.style.left = cx2 + 'px';
+							popup.style.top = cy2 + 'px';
+							popup.style.transform = 'translate(-50%, -50%)';
+						}catch(__e){}
+					};
+					vv.addEventListener('resize', onVV);
+					vv.addEventListener('scroll', onVV);
+					window.addEventListener('scroll', onVV, { passive:true });
+					window.addEventListener('resize', onVV, { passive:true });
+					popup.__eventPopupCenterCleanup = () => {
+						try{ vv.removeEventListener('resize', onVV); }catch(_e){}
+						try{ vv.removeEventListener('scroll', onVV); }catch(_e){}
+						try{ window.removeEventListener('scroll', onVV, { passive:true }); }catch(_e){}
+						try{ window.removeEventListener('resize', onVV, { passive:true }); }catch(_e){}
+					};
+				}catch(e){}
+				return;
+			}
+		} catch (e) {}
+		// Fallback (non-iOS / older browsers)
+		popup.style.left = '50%';
+		popup.style.top = '50%';
+		popup.style.transform = 'translate(-50%, -50%)';
+		// Keep centered on normal viewport changes
+		try{
+			const onWin = () => {
+				try{
+					if (popup.style.display === 'none' || popup.style.visibility === 'hidden') return;
+					popup.style.left = '50%';
+					popup.style.top = '50%';
+					popup.style.transform = 'translate(-50%, -50%)';
+				}catch(_e){}
+			};
+			window.addEventListener('resize', onWin, { passive:true });
+			window.addEventListener('scroll', onWin, { passive:true });
+			popup.__eventPopupCenterCleanup = () => {
+				try{ window.removeEventListener('resize', onWin, { passive:true }); }catch(_e){}
+				try{ window.removeEventListener('scroll', onWin, { passive:true }); }catch(_e){}
+			};
+		}catch(e){}
+	}
 
 	if (isGrowthCompact) {
 		// ✅ Compact growth selector: right-middle dock
@@ -2477,10 +2553,8 @@ window.showEventOptions = function(title, options, onSelect) {
 		try{ window.__ensureGrowthPopupDraggable(popup); }catch(e){}
 		try{ window.__applyGrowthPopupSavedPos(popup); }catch(e){}
 	} else {
-		// default: centered
-		popup.style.top = '50%';
-		popup.style.left = '50%';
-		popup.style.transform = 'translate(-50%, -50%)';
+		// default: centered (visible viewport center)
+		__placeEventPopupCenter();
 	}
 
 	// title
