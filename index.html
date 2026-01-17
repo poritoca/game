@@ -260,7 +260,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
 				<h3>スキル交換（魔通貨500枚）</h3>
 				<p>
-					HPチャートの下にある<strong>「スキル交換」</strong>ボタンで、スキル構成を入れ替えられます。
+					【魔道具・スキル】<strong>「スキル交換」</strong>ボタンで、スキル構成を入れ替えられます。
 					魔通貨を<strong>500枚</strong>消費して、<strong>現在所持していない通常スキル</strong>をスキルメモリーから<strong>2つ完全削除（Lvも初期化）</strong>し、
 					未修得の通常スキルから<strong>1つ</strong>をランダムに新規習得します。
 					<strong>特殊スキルは必ず対象外</strong>で、<strong>現在所持中の攻撃スキルが消えることはありません</strong>。
@@ -309,7 +309,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
         <h4 class="guide-h4">ボス戦利品の「修飾語（形容詞）」の絞り込み</h4>
         <p class="guide-paragraph">
-          ボス戦利品は「中程度以上のレア寄り」を狙うため、形容詞は <code>dropRate ≤ <span id="guideBossAdjThreshold">-</span></code> の候補から選ばれます（実装どおり）。
+          ボス戦利品は「中程度以上のレア寄り」　となります。
         </p>
         <div class="guide-two-col">
           <div>
@@ -360,7 +360,6 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		<ul>
 		  <li>特殊スキルの <strong>発動率</strong> や <strong>特殊効果の効果値</strong> に、スキルレベルに応じたボーナス補正が加わります。</li>
 		  <li>補正値は最大で <strong>+10%</strong> 程度。</li>
-		  <li>強いプレイヤーほどレアスキルを得やすくなります。</li>
 		</ul>
 		
 		<h4>💎 魔メイクのレア排出率UP</h4>
@@ -391,7 +390,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
     <h3>スキルについて（特殊スキルは別記）</h3>
     <p>
-			スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、発動率に影響する順番をドラッグで調整できます。
+			スキルは戦闘やイベントを通じて習得します。習得したスキルは「スキルメモリー」に記録され、敗北ごとのスキル再選出に影響する順番を「3つのスキルを選択し、スキルメモリー上部に移動すること」で調整できます。
     </p>
 		
 		<h3>特殊スキルについて</h3>
@@ -422,9 +421,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		</p>
 		
 		<p>
-		  保護設定は特殊スキルの一覧からスキル名を<strong>2回クリック</strong>することで行えます。<br>
-		  既に別のスキルが保護されている場合は、そちらを<strong>明示的に解除しない限り新たな保護はできません</strong>。<br>
-		  なお、<strong>保護された特殊スキルはレベルが成長しない</strong>ため、<strong>効果が物足りないと感じた場合は、新たに生成し直す</strong>のが現実的な選択肢となります。
+		  保護設定は特殊スキルの一覧からスキルを<strong>選択</strong>することで行えます。<br>
+		  既に別のスキルが保護されている場合は、そちらを<strong>解除しない限り新たな保護はできません</strong>。<br>
 		</p>
 		
 		<p>
@@ -469,7 +467,6 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		<h4>視覚的なランク表示</h4>
 		<ul>
 		  <li>★の数や色でスキルの<strong>総合評価（S〜Dランク）</strong>が分かります</li>
-		  <li>接頭語の組み合わせによって、スキルの<strong>強さ・発動しやすさ</strong>が直感的に把握できます</li>
 		</ul>
 
     <h3>所持魔道具</h3>

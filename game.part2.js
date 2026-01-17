@@ -1470,7 +1470,7 @@ const FACE_COIN_DROP_RATE = 0.5;
 const FACE_GACHA_COST = 1000;
 // ランクごとの出現確率 (合計1.00になるよう調整)
 
-window.faceCoins = 20000;
+window.faceCoins = 10000;
 window.faceItemsOwned = []; // 例: ['face/S/face1.png', ...]
 window.faceItemEquipped = null; // 例: 'face/A/face3.png'
 window.lastChosenSkillNames = []; // 戦闘ごとの抽選結果
