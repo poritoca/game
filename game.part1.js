@@ -286,6 +286,14 @@ window.updateScoreOverlay = function() {
 		return;
 	}
 
+	// Guard: when the battle dock is minimized, never auto-show overlays
+	try {
+		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+			try { overlay.style.display = 'none'; } catch(e){}
+			return;
+		}
+	} catch(_e) {}
+
 	if (!overlay || !window.maxScores) return;
 
 	let html = '';
@@ -357,6 +365,14 @@ window.updateSkillOverlay = function() {
 		return;
 	}
 
+	// Guard: when the battle dock is minimized, never auto-show overlays
+	try {
+		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+			try { el.style.display = 'none'; } catch(e){}
+			return;
+		}
+	} catch(_e) {}
+
 	if (!el || !player || !Array.isArray(player.skills)) return;
 
 	const lines = player.skills.map(s => `${s.name} Lv${s.level}`);
@@ -375,6 +391,14 @@ window.updateItemOverlay = function() {
 		return;
 	}
 
+	// Guard: when the battle dock is minimized, never auto-show overlays
+	try {
+		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+			try { el.style.display = 'none'; } catch(e){}
+			return;
+		}
+	} catch(_e) {}
+
 	if (!el || !player || !Array.isArray(player.itemMemory)) return;
 
 	const lines = player.itemMemory.map(i => {
@@ -389,6 +413,19 @@ window.updateItemOverlay = function() {
 		el.style.display = 'block';
 	}
 };
+
+// Hide overlays (skill/score/item) forcefully (used when battle dock is minimized)
+window.__hideBattleOverlays = window.__hideBattleOverlays || function() {
+	try {
+		const ids = ['skillOverlay','scoreOverlay','itemOverlay'];
+		for (const id of ids) {
+			const el = document.getElementById(id);
+			if (!el) continue;
+			el.style.setProperty('display', 'none', 'important');
+		}
+	} catch (_) {}
+};
+
 window.renderUniqueSkillList = function(candidates, chosenSkillName) {
 	const toggleBtn = document.getElementById('toggleUniqueSkills');
 	const listEl = document.getElementById('uniqueSkillList');
@@ -1559,10 +1596,39 @@ window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(mi
 		const v = minimized ? '1' : '0';
 		try { localStorage.setItem(window.__battleDockMinKey, v); } catch (_) {}
 		if (!minimized) { try{ window.__battleDockScrollStartY = null; }catch(_){}} 
-		window.__refreshBattleControlDock && window.__refreshBattleControlDock();
+		window.__refreshBattleControlDock && window.__refreshBattleControlDock();		// When minimized, immediately hide overlays (they must not auto-show while minimized)
+		try { if (minimized) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+
+		// When restored from minimized state, show overlays again (one-shot refresh)
+		try {
+			if (!minimized) {
+				(window.__uiSetTimeout || window.setTimeout)(() => {
+					try { window.__restoreBattleOverlaysAfterMinimize && window.__restoreBattleOverlaysAfterMinimize(); } catch(_e) {}
+				}, 0);
+			}
+		} catch(_e) {}
+
 	} catch (e) {
 		console.warn('[BattleDock] set minimized failed', e);
 	}
+};
+
+// Restore overlays (skill/score/item) after the battle dock has been restored from minimized state.
+// - Clears the forced display:none!important set by __hideBattleOverlays
+// - Then calls the overlay update functions once so they re-render.
+window.__restoreBattleOverlaysAfterMinimize = window.__restoreBattleOverlaysAfterMinimize || function() {
+	try {
+		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) return;
+		const ids = ['skillOverlay','scoreOverlay','itemOverlay'];
+		for (const id of ids) {
+			const el = document.getElementById(id);
+			if (!el) continue;
+			try { el.style.removeProperty('display'); } catch(_e) {}
+		}
+		try { if (typeof window.updateSkillOverlay === 'function') window.updateSkillOverlay(); } catch(_e) {}
+		try { if (typeof window.updateScoreOverlay === 'function') window.updateScoreOverlay(); } catch(_e) {}
+		try { if (typeof window.updateItemOverlay === 'function') window.updateItemOverlay(); } catch(_e) {}
+	} catch(_e) {}
 };
 
 // Mini bar follow mode: 'viewport' (fixed to visible screen bottom) or 'page' (absolute, follows page scroll)
@@ -1593,65 +1659,81 @@ window.__battleDockPulseMiniBar = window.__battleDockPulseMiniBar || function(){
 	}catch(_){}
 };
 
-// ---------------------------------------------------------
-// Auto-minimize notice (tap to dismiss, auto-hide)
-// - Centered in the current viewport (iPhone Safari safe)
-// ---------------------------------------------------------
-window.__showAutoMinimizeNotice = window.__showAutoMinimizeNotice || function(){
-	try{
-		// Rate-limit to avoid spam on continuous scroll
-		const now = Date.now();
-		const last = Number(window.__autoMinimizeNoticeLastAt || 0);
-		if (now - last < 1200) return;
-		window.__autoMinimizeNoticeLastAt = now;
 
-		let toast = document.getElementById('autoMinimizeToast');
-		if (!toast) {
-			toast = document.createElement('div');
-			toast.id = 'autoMinimizeToast';
-			toast.setAttribute('role','status');
-			toast.setAttribute('aria-live','polite');
-			toast.innerHTML =
-				'<div class="main">UIを最小化しました</div>' +
-				'<span class="sub">下のバーをタップで復元できます（タップで閉じる）</span>';
-			try{ document.body.appendChild(toast); }catch(_e){}
+// ---------------------------------------------------------
+
+// ---------------------------------------------------------
+// Auto-minimize notice toast (tap to dismiss, auto hide)
+// - IMPORTANT: viewport-centered (not page-centered)
+// ---------------------------------------------------------
+window.__hideAutoMinimizeNotice = window.__hideAutoMinimizeNotice || function(immediate){
+	try{
+		const el = document.getElementById('autoMinimizeToast');
+		if (!el) return;
+		// Clear timers
+		try{
+			if (el.__tHide) { (window.__uiClearTimeout || window.clearTimeout)(el.__tHide); el.__tHide = null; }
+			if (el.__tFade) { (window.__uiClearTimeout || window.clearTimeout)(el.__tFade); el.__tFade = null; }
+		} catch (_e) {}
+
+		if (immediate) {
+			el.classList.remove('is-show');
+			el.classList.add('is-hidden');
+			el.style.display = 'none';
+			return;
 		}
 
-		// show
-		try{ toast.style.display = 'block'; }catch(_e){}
-		try{ toast.classList.add('is-show'); }catch(_e){}
-
-		// clear previous timers
-		try{
-			if (toast.__hideTimer) {
-				if (typeof window.__uiClearTimeout === 'function') window.__uiClearTimeout(toast.__hideTimer);
-				else clearTimeout(toast.__hideTimer);
-			}
-		}catch(_e){}
-
-		const hide = () => {
-			try{ toast.classList.remove('is-show'); }catch(_e){}
-			try{ toast.style.display = 'none'; }catch(_e){}
-			try{
-				toast.removeEventListener('click', hide);
-				toast.removeEventListener('touchstart', hide);
-			}catch(_e){}
-		};
-
-		// tap-to-dismiss
-		try{
-			toast.addEventListener('click', hide, { once: true });
-			toast.addEventListener('touchstart', hide, { once: true, passive: true });
-		}catch(_e){}
-
-		// auto-hide after 2s (UI timer wrapper; NOT canceled by battle visual cancels)
-		const setT = (typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout;
-		toast.__hideTimer = setT(hide, 2000);
-	}catch(_e){}
+		// fade out
+		el.classList.remove('is-show');
+		el.classList.add('is-hidden');
+		el.__tFade = (window.__uiSetTimeout || window.setTimeout)(() => {
+			try { el.style.display = 'none'; } catch (_e) {}
+		}, 220);
+	} catch (_e) {}
 };
 
+window.__showAutoMinimizeNotice = window.__showAutoMinimizeNotice || function(){
+	try{
+		const now = Date.now();
+		// Simple rate limit (avoid spam while continuous scrolling)
+		if (window.__autoMinimizeToastLastAt && (now - window.__autoMinimizeToastLastAt) < 800) return;
+		window.__autoMinimizeToastLastAt = now;
 
+		let el = document.getElementById('autoMinimizeToast');
+		if (!el) {
+			el = document.createElement('div');
+			el.id = 'autoMinimizeToast';
+			el.setAttribute('role', 'status');
+			el.setAttribute('aria-live', 'polite');
+			el.style.display = 'none';
+			try { document.body.appendChild(el); } catch (_e) {}
 
+			// One-time wiring
+			el.addEventListener('click', () => {
+				try { window.__hideAutoMinimizeNotice && window.__hideAutoMinimizeNotice(true); } catch (_e) {}
+			}, { passive: true });
+		}
+
+		// Ensure visible every time (fix: 2nd time and later)
+		el.textContent = '最小化しました。下のバーをタップで復元できます（この表示はタップで閉じます）';
+		el.style.display = 'block';
+		el.classList.remove('is-hidden');
+
+		// Force reflow for transition reliability
+		try { void el.offsetWidth; } catch (_e) {}
+		el.classList.add('is-show');
+
+		// Restart timers
+		try {
+			if (el.__tHide) { (window.__uiClearTimeout || window.clearTimeout)(el.__tHide); el.__tHide = null; }
+			if (el.__tFade) { (window.__uiClearTimeout || window.clearTimeout)(el.__tFade); el.__tFade = null; }
+		} catch (_e) {}
+
+		el.__tHide = (window.__uiSetTimeout || window.setTimeout)(() => {
+			try { window.__hideAutoMinimizeNotice && window.__hideAutoMinimizeNotice(false); } catch (_e) {}
+		}, 2000);
+	} catch (_e) {}
+};
 window.__initBattleControlDock = window.__initBattleControlDock || function() {
 	try {
 		if (document.getElementById('battleOverlayDock')) return;
@@ -1806,9 +1888,8 @@ if (dy < threshold) {
 	return;
 }
 // Enough scroll: minimize (scroll-triggered effect)
-window.__setBattleDockMinimized && window.__setBattleDockMinimized(true);
-					// Notify user (tap-to-dismiss, auto-hide) - centered in viewport
-					window.__showAutoMinimizeNotice && window.__showAutoMinimizeNotice();
+	window.__setBattleDockMinimized && window.__setBattleDockMinimized(true);
+	window.__showAutoMinimizeNotice && window.__showAutoMinimizeNotice();
 window.__battleDockPulseMiniBar && window.__battleDockPulseMiniBar();
 window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
 window.__battleDockScrollStartY = null;
@@ -1856,6 +1937,9 @@ let minimized = false;
 try {
 	minimized = (localStorage.getItem(window.__battleDockMinKey) === '1');
 } catch (_) {}
+
+// If minimized, force-hide overlays so they never pop up due to other triggers
+try { if (minimized) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch(_e) {}
 
 
 		// Sync growth-compact event popup with dock minimized state (iPhone-friendly UX)

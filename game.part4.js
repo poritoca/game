@@ -1186,20 +1186,46 @@ window.addEventListener('scroll', () => {
 	clearTimeout(itemTimeout);
 	clearTimeout(faceTimeout); // ← 追加
 
+	// -----------------------------------------------------
+	// 最小化中は、skill/score/item の3つを自動復帰させない
+	// （スクロール直後のタイマー復帰で一瞬表示されるのを防止）
+	// ※ __isBattleDockMinimized が未定義でも動くよう localStorage を直読み
+	// -----------------------------------------------------
+	try {
+		const k = (window.__battleDockMinKey || 'battleDockMinimized');
+		const minimizedNow = (localStorage.getItem(k) === '1');
+		if (minimizedNow) {
+			try { if (typeof window.__hideBattleOverlays === 'function') window.__hideBattleOverlays(); } catch (_) {}
+			return;
+		}
+	} catch (_e) {}
+
 	// スコア：1秒後に再表示
 	scoreTimeout = window.__battleSetTimeout(() => {
+		try {
+			const k = (window.__battleDockMinKey || 'battleDockMinimized');
+			if (localStorage.getItem(k) === '1') { try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {} return; }
+		} catch (_e) {}
 		if (battleEl) battleEl.style.opacity = '1';
 		if (scoreEl) scoreEl.style.opacity = '1';
 	}, 1500);
 
 	// スキル：1.5秒後に再表示
 	skillTimeout = window.__battleSetTimeout(() => {
+		try {
+			const k = (window.__battleDockMinKey || 'battleDockMinimized');
+			if (localStorage.getItem(k) === '1') { try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {} return; }
+		} catch (_e) {}
 		if (typeof updateSkillOverlay === 'function') updateSkillOverlay();
 		if (skillEl) skillEl.style.opacity = '1';
 	}, 1500);
 
 	// 魔道具：1.5秒後に再表示
 	itemTimeout = window.__battleSetTimeout(() => {
+		try {
+			const k = (window.__battleDockMinKey || 'battleDockMinimized');
+			if (localStorage.getItem(k) === '1') { try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {} return; }
+		} catch (_e) {}
 		updateItemOverlay();
 		if (itemEl) itemEl.style.opacity = '1';
 	}, 1500);
