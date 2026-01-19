@@ -1495,10 +1495,16 @@ window.seededRandom = function(seed) {
 };
 
 // ゲーム内で表示する名前（敵の場合はランダムカナ名に変換）
+// ゲーム内で表示する名前（敵の場合は名前プールから割当）
 window.displayName = function(name) {
 	if (typeof name !== 'string') return '？？？';
-
 	if (name.startsWith('敵')) {
+		try {
+			if (typeof window.__assignEnemyDisplayName === 'function') {
+				return window.__assignEnemyDisplayName(name);
+			}
+		} catch (_) {}
+		// フォールバック（重い生成器が読み込まれていない/例外時）
 		const kana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモラリルレロヤユヨワン';
 		let seed = 0;
 		for (let i = 0; i < name.length; i++) seed += name.charCodeAt(i);
@@ -1817,13 +1823,26 @@ window.startNewGame = function(name) {
 		}
 		// ★ 初期化処理ここまで
 
-		// 初回の戦闘を開始
 
-		updateStats();
-
-		window.startBattle();
-
-		updateFaceUI();
+		// 初回の戦闘を開始（敵名プールを必要数ぶん事前生成：重い版）
+		const __startFirstBattle = () => {
+			updateStats();
+			window.startBattle();
+			updateFaceUI();
+		};
+		try {
+			if (typeof window.__resetEnemyNamePool === 'function') window.__resetEnemyNamePool();
+			if (typeof window.__initEnemyNamePool === 'function') {
+				const desired = (window.targetBattles && Number.isFinite(window.targetBattles))
+					? (Math.max(0, window.targetBattles) + 220)
+					: 520; // unlimited等
+				window.__initEnemyNamePool(desired, { showOverlay: true }).then(__startFirstBattle).catch(__startFirstBattle);
+			} else {
+				__startFirstBattle();
+			}
+		} catch (_) {
+			__startFirstBattle();
+		}
 
 	}, 500);
 

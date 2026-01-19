@@ -267,7 +267,7 @@ window.startBattle = function() {
 
 	// 特殊スキルの戦闘開始時特殊効果を付与（必ずログを出す）
 	// 元の名前から安全なカタカナ部分を抽出
-	const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン]/g, '');
+	const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴァィゥェォャュョッー]/g, '');
 
 	const specialSkillThreshold = 999;
 	const maxSpecialSkillLevel = 5000;

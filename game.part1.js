@@ -1619,15 +1619,21 @@ window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(mi
 window.__restoreBattleOverlaysAfterMinimize = window.__restoreBattleOverlaysAfterMinimize || function() {
 	try {
 		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) return;
-		const ids = ['skillOverlay','scoreOverlay','itemOverlay'];
+		// Restore overlays + the top-right battle status (remaining battles / streak),
+		// because scroll fade-out may have left the streak counter invisible while minimized.
+		const ids = ['skillOverlay','scoreOverlay','itemOverlay','remainingBattlesDisplay'];
 		for (const id of ids) {
 			const el = document.getElementById(id);
 			if (!el) continue;
 			try { el.style.removeProperty('display'); } catch(_e) {}
+			// If scroll handler previously faded it out, bring it back.
+			try { el.style.opacity = '1'; } catch(_e) {}
 		}
 		try { if (typeof window.updateSkillOverlay === 'function') window.updateSkillOverlay(); } catch(_e) {}
 		try { if (typeof window.updateScoreOverlay === 'function') window.updateScoreOverlay(); } catch(_e) {}
 		try { if (typeof window.updateItemOverlay === 'function') window.updateItemOverlay(); } catch(_e) {}
+		// Refresh the streak / remaining-battles text and ensure it's visible when the user restores.
+		try { if (typeof window.updateRemainingBattleDisplay === 'function') window.updateRemainingBattleDisplay(); } catch(_e) {}
 	} catch(_e) {}
 };
 
