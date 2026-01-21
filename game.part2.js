@@ -742,6 +742,15 @@ function updateFaceUI() {
 	const listElem = document.getElementById('ownedFaceList');
 	if (!listElem) return;
 
+	// window.faceItemEquipped とローカル faceItemEquipped を同期（ロード直後などのズレ対策）
+	try {
+		if (typeof window.faceItemEquipped !== 'undefined') {
+			faceItemEquipped = window.faceItemEquipped;
+		} else {
+			window.faceItemEquipped = (typeof faceItemEquipped !== 'undefined') ? faceItemEquipped : null;
+		}
+	} catch (_e) {}
+
 	listElem.innerHTML = ''; // 既存内容をクリア
 	if (!Array.isArray(faceItemsOwned)) faceItemsOwned = [];
 
@@ -858,6 +867,7 @@ function updateFaceUI() {
 		equipBtn.addEventListener('click', () => {
 			if (faceItemEquipped === itemPath) {
 				faceItemEquipped = null;
+			try{ window.faceItemEquipped = faceItemEquipped; }catch(_e){}
 				document.getElementById('faceItemDisplayImg')?.remove();
 				document.getElementById('faceItemGlowBg')?.remove();
 			} else {
@@ -865,6 +875,7 @@ function updateFaceUI() {
 				document.getElementById('faceItemDisplayImg')?.remove();
 				document.getElementById('faceItemGlowBg')?.remove();
 				faceItemEquipped = itemPath;
+			try{ window.faceItemEquipped = faceItemEquipped; }catch(_e){}
 			}
 			updateFaceUI();
 			updatePlayerImage();
@@ -890,6 +901,7 @@ function updateFaceUI() {
 			if (idx !== -1) faceItemsOwned.splice(idx, 1);
 			if (faceItemEquipped === itemPath) {
 				faceItemEquipped = null;
+			try{ window.faceItemEquipped = faceItemEquipped; }catch(_e){}
 				document.getElementById('faceItemDisplayImg')?.remove();
 				document.getElementById('faceItemGlowBg')?.remove();
 			}
@@ -1052,6 +1064,38 @@ function startFaceItemGlowAnimation() {
 }
 
 // ------------------------
+// 右上固定：魔メイク（faceOverlay）の同期
+//  - 装備/解除・ロード復元・初回ガチャ厳選などで状態が変わっても確実に反映
+// ------------------------
+window.syncFaceOverlay = window.syncFaceOverlay || function() {
+	try {
+		const el = document.getElementById('faceOverlay');
+		if (!el) return;
+		const path = (typeof window.faceItemEquipped !== 'undefined') ? window.faceItemEquipped : null;
+		if (path) {
+			try { el.src = path; } catch (_e) {}
+			try { el.classList.remove('hidden'); } catch (_e) {}
+			try { el.style.opacity = '1'; } catch (_e) {}
+		} else {
+			try { el.classList.add('hidden'); } catch (_e) {}
+			try { el.removeAttribute('src'); } catch (_e) {}
+			try { el.style.opacity = '0'; } catch (_e) {}
+		}
+	} catch (_e) {}
+};
+
+// 初期表示も反映（ロード直後に装備があるケース）
+try {
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', () => {
+			try { window.syncFaceOverlay && window.syncFaceOverlay(); } catch (_e) {}
+		});
+	} else {
+		try { window.syncFaceOverlay && window.syncFaceOverlay(); } catch (_e) {}
+	}
+} catch (_e) {}
+
+// ------------------------
 // 画像更新関数（差し替え）
 // ------------------------
 function updatePlayerImage() {
@@ -1059,6 +1103,29 @@ function updatePlayerImage() {
 	ensureGlowBorderStyle();
 	const bg = ensureFaceItemGlowBackground(canvas);
 	startFaceItemGlowAnimation();
+
+	// -------------------------
+	// faceItemEquipped の参照ズレ対策
+	//  - window.faceItemEquipped とローカル faceItemEquipped が別参照になると
+	//    faceOverlay が表示されない（装備しているのに hidden/画像未反映）
+	// -------------------------
+	try {
+		if (typeof window.faceItemEquipped !== 'undefined') {
+			faceItemEquipped = window.faceItemEquipped;
+		} else {
+			window.faceItemEquipped = (typeof faceItemEquipped !== 'undefined') ? faceItemEquipped : null;
+		}
+	} catch (_e) {}
+
+	// =========================
+	// Face overlay（右上固定の魔メイク表示）を同期
+	//  - ガチャ/装備の状態更新時に hidden のままだと表示されないため
+	// =========================
+	try {
+		if (typeof window.syncFaceOverlay === 'function') {
+			window.syncFaceOverlay();
+		}
+	} catch (_e) {}
 
 	if (faceItemEquipped) {
 		canvas.style.display = 'none';
@@ -1093,6 +1160,13 @@ function updatePlayerImage() {
 		document.getElementById('faceItemDisplayImg')?.remove();
 		document.getElementById('faceItemGlowBg')?.remove();
 	}
+
+	// 念のため最後にも同期（装備解除時のhidden反映）
+	try {
+		if (typeof window.syncFaceOverlay === 'function') {
+			window.syncFaceOverlay();
+		}
+	} catch (_e) {}
 }
 
 // ------------------------
@@ -1103,7 +1177,7 @@ window.addEventListener('scroll', () => {
 	document.getElementById('faceOverlay')?.classList.add('hidden');
 	clearTimeout(scrollTimeout);
 	scrollTimeout = window.__battleSetTimeout(() => {
-		if (faceItemEquipped) {
+		if (((typeof window.faceItemEquipped !== 'undefined') ? window.faceItemEquipped : faceItemEquipped)) {
 			document.getElementById('faceOverlay')?.classList.remove('hidden');
 		}
 	}, 300);
@@ -1729,7 +1803,20 @@ window.startNewGame = function(name) {
 	// window.isFirstBattle = true;
 	// 自動保存は「はじめから」で必ずOFF
 	window.autoSaveEnabled = false;
-	try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catch (_) {}
+// 初回だけ「魔メイク無料引き直し（確定まで何度でも）」を許可（はじめから限定）
+	try{
+		if (typeof window.__resetFirstRerollForNewGame === 'function') {
+			window.__resetFirstRerollForNewGame();
+		} else {
+			window.__firstRerollArmed = true;
+			window.__firstRerollSelectionPhase = true;
+			window.__firstRerollState = { eligible:true, locked:false, shown:false, lastPath:null, hasDrawn:false, __bouncedOnce:false };
+			try{ if (typeof window.__showFirstRerollPanel === "function") window.__showFirstRerollPanel(true); }catch(_){}
+		}
+		window.__firstBattlePending = false;
+	}catch(_){}
+	try{ if (typeof window.__showFirstRerollPanel === "function") window.__showFirstRerollPanel(true); }catch(_){}
+try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catch (_) {}
 
 
 	// ==========================
@@ -1796,8 +1883,22 @@ window.startNewGame = function(name) {
 		if (!player) player = {};
 		if (!player.itemMemory) player.itemMemory = [];
 		document.getElementById('battleLog').classList.remove('hidden');
-		document.getElementById('battleArea').classList.add('hidden');
+		document.getElementById('battleArea').classList.remove('hidden');
 		document.getElementById('skillMemoryContainer').style.display = 'block';
+
+		// ★「はじめから → ゲームを開始」後は、キャラクター情報と魔メイクUIを開いた状態にする
+		try{
+			if (typeof window.toggleTopFold === 'function') {
+				window.toggleTopFold('char');
+			} else {
+				const ch = document.getElementById('charInfoFold');
+				if (ch) ch.classList.remove('hidden');
+			}
+			const faceContent = document.getElementById('faceMemoryContent');
+			const faceToggle = document.getElementById('faceMemoryToggle');
+			if (faceContent) faceContent.style.display = 'block';
+			if (faceToggle) faceToggle.textContent = '▼ 魔メイクを非表示';
+		}catch(_){ }
 
 		// ★ 戦闘回数選択の読み取りと初期化処理を追加
 		const battleBtn = document.getElementById('startBattleBtn');
@@ -1827,6 +1928,13 @@ window.startNewGame = function(name) {
 		// 初回の戦闘を開始（敵名プールを必要数ぶん事前生成：重い版）
 		const __startFirstBattle = () => {
 			updateStats();
+			// 初回魔メイク厳選フェーズ中は自動で戦闘を始めない（確定ボタンで開始）
+			if (window.__firstRerollSelectionPhase) {
+				window.__firstBattlePending = true;
+				try{ if (typeof window.__showFirstRerollPanel === 'function') window.__showFirstRerollPanel(true); }catch(_){ }
+				updateFaceUI();
+				return;
+			}
 			window.startBattle();
 			updateFaceUI();
 		};
@@ -1836,7 +1944,8 @@ window.startNewGame = function(name) {
 				const desired = (window.targetBattles && Number.isFinite(window.targetBattles))
 					? (Math.max(0, window.targetBattles) + 220)
 					: 520; // unlimited等
-				window.__initEnemyNamePool(desired, { showOverlay: true }).then(__startFirstBattle).catch(__startFirstBattle);
+				window.__enemyNamePoolInitPromise = window.__initEnemyNamePool(desired, { showOverlay: true });
+					window.__enemyNamePoolInitPromise.then(()=>{ window.__enemyNamePoolReady = true; __startFirstBattle(); }).catch(()=>{ window.__enemyNamePoolReady = false; __startFirstBattle(); });
 			} else {
 				__startFirstBattle();
 			}
@@ -3088,6 +3197,5 @@ function applyDotAbsorb(ch, dotDamage, log) {
 	if (log) log.push(`※${eff.source}の効果で${displayName(ch.name)}が毒/火傷ダメージを吸収して${heal}回復！（${Math.round(ratio*100)}%）`);
 	return true;
 }
-
 
 

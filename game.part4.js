@@ -1622,6 +1622,14 @@ window.importSaveCode = async function(code = null) {
 		// ✅ 魔メイク情報の復元とUI更新
 		window.faceCoins = parsed.faceCoins ?? 0;
 		window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
+		// ✅ faceItemsOwned（グローバル変数側）が別参照の可能性があるため同期
+		try{
+			if (typeof faceItemsOwned !== 'undefined' && Array.isArray(faceItemsOwned)) {
+				faceItemsOwned.length = 0;
+				(faceItemsOwned).push(...(window.faceItemsOwned || []));
+			}
+		}catch(_e){}
+
 		window.faceItemEquipped = parsed.faceItemEquipped ?? null;
 		window.faceItemBonusMap = (parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
 		// 念のため：所持分は必ずボーナスを用意
@@ -3103,6 +3111,23 @@ window.resetTitleNewPanel = window.resetTitleNewPanel || function() {
 
     const openPanel = () => {
       try {
+        // 初回限定：無料引き直しチケットを「はじめからパネルを開いた時点」で必ずアームする
+        // （ガチャはタイトル画面内で行われるため、startNewGame() より前に有効化しておく）
+        try{
+          if (typeof window.__resetFirstRerollForNewGame === 'function') {
+            window.__resetFirstRerollForNewGame();
+          } else {
+            window.__firstRerollArmed = true;
+            window.__firstRerollState = { eligible:true, locked:false, shown:false, lastPath:null };
+            try{
+              const b = document.getElementById('firstRerollBtn');
+              const n = document.getElementById('firstRerollNote');
+              if (b) b.classList.add('hidden');
+              if (n) n.classList.add('hidden');
+            }catch(_e){}
+          }
+        }catch(_e){}
+
         // close continue panel if open
         if (typeof window.resetTitleLoadPanel === 'function') {
           try { window.resetTitleLoadPanel(); } catch(_) {}

@@ -9,9 +9,30 @@ window.__syncActivePlayerRef = window.__syncActivePlayerRef || function(){
 };
 try{ window.__syncActivePlayerRef(); }catch(_){}
 window.startBattle = function() {
+		// 初回魔メイク厳選フェーズ中は戦闘を開始しない（確定ボタンで開始）
+		if (window.__firstRerollSelectionPhase) {
+			try{ if (typeof showCustomAlert === 'function') showCustomAlert('初回は魔メイクを確定してください（ガチャを押すと引き直し。下の「この魔メイクで開始」で確定）', 2600); }catch(_){ }
+			return;
+		}
+
 	// 既に戦闘処理中なら二重起動しない（AutoBattleのバックログ防止）
 	if (window.__battleInProgress) return;
 	window.__battleInProgress = true;
+
+	// 最初のバトルの直前のみ、戦闘ログを自動で開く（確定→初戦開始のときだけ）
+	try{
+		if (window.__openBattleLogOnNextBattle) {
+			window.__openBattleLogOnNextBattle = false;
+			const logEl = document.getElementById('quickGuideLog');
+			if (logEl && logEl.classList && logEl.classList.contains('hidden')) {
+				if (typeof window.toggleTopFold === 'function') window.toggleTopFold('log');
+			}
+		}
+	}catch(_){ }
+
+
+	// 初回限定：無料引き直しチケットは「最初の1戦開始」で終了
+	try{ if (typeof window.__lockFirstRerollTicket === 'function') window.__lockFirstRerollTicket(); }catch(_e){}
 
 	// 次の戦闘が始まったら、前回の「表示/エフェクト/遅延処理」を完全停止
 	if (typeof window.__cancelBattleVisuals === 'function') {

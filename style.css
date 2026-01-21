@@ -34,7 +34,7 @@ body {
    =============================== */
 .top-fold-panel{
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
   margin: 0 0 16px;
@@ -1615,7 +1615,8 @@ summary {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9999;
-  animation: fadeOut 1.2s forwards 2.5s;
+  /* 高速ガチャ演出（すぐ次が引ける） */
+  animation: fadeOut 0.25s forwards 0.55s;
 }
 
 .gacha-body {
@@ -1626,7 +1627,7 @@ summary {
   border-radius: 10px;
   position: relative;
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
-  animation: shake 0.6s ease;
+  animation: shake 0.25s ease;
   overflow: hidden;
 }
 
@@ -1662,7 +1663,7 @@ summary {
   left: 50%;
   transform: translateX(-50%) scale(0.5);
   bottom: 14.3%; /* ← 7分の1の高さ */
-  animation: popBall 0.5s ease-out 0.8s forwards;
+  animation: popBall 0.25s ease-out 0.10s forwards;
   z-index: 10;
 }
 
@@ -1991,7 +1992,7 @@ summary {
 
 .turn-stats-card {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -2863,12 +2864,12 @@ canvas {
 #battleLogControls.battle-log-controls{
   display:flex;
   flex-wrap:wrap;
-  gap:10px 12px;
+  gap: 4px 6px;
   align-items:center;
   justify-content:space-between;
-  padding:8px 10px;
-  margin:6px 0 8px 0;
-  border-radius:12px;
+  padding: 5px 6px;
+  margin: 4px 0 6px 0;
+  border-radius: 10px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(6px);
@@ -2876,8 +2877,8 @@ canvas {
 #battleLogControls .battle-log-speed{
   display:flex;
   align-items:center;
-  gap:8px;
-  min-width: 220px;
+  gap: 5px;
+  min-width: 180px;
 }
 #battleLogControls .battle-log-speed label{
   font-size: 12px;
@@ -2900,8 +2901,8 @@ canvas {
 #battleLogControls .battle-log-font{
   display:flex;
   align-items:center;
-  gap:8px;
-  min-width: 200px;
+  gap: 5px;
+  min-width: 180px;
 }
 
 #battleLogControls .battle-log-font label{
@@ -2923,6 +2924,45 @@ canvas {
   opacity: 0.95;
   white-space:nowrap;
 }
+
+/* --- Battle Log tools row (expand/collapse all + scroll top/bottom) --- */
+#battleLogControls .battle-log-tools-row{
+  display:flex;
+  gap: 4px;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  flex-basis:100%;
+}
+
+#battleLogControls .battle-log-tool-btn{  height: 26px;
+  padding: 0 8px;
+  font-size:11px;
+  font-weight:800;
+  border-radius: 9px;
+  border:1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  white-space:nowrap;
+}
+
+#battleLogControls .battle-log-tool-btn:active{
+  transform: translateY(1px);
+}
+
+/* Controls全体を少しだけコンパクトに */
+#battleLogControls.battle-log-controls{  gap: 4px 6px;
+  padding: 5px 6px;
+}
+
+#battleLogControls .battle-log-speed{  gap: 5px;
+  min-width: 180px;
+}
+
+#battleLogControls .battle-log-font{  gap: 5px;
+  min-width: 190px;
+}
+
 
 
 
@@ -3055,6 +3095,30 @@ canvas {
 
 /* 戦闘経過トグルボタン */
 .battle-log-toggle{margin-left:8px;padding:4px 8px;font-size:12px;}
+
+
+/* 戦闘ログ：一括操作（全て開閉 / 上下スクロール） */
+.battle-log-tools-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:4px;
+}
+.battle-log-tools-row .battle-log-tool-btn{
+  height:28px;
+  padding:0 10px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  font-size:11px;
+  font-weight:800;
+  line-height:1.1;
+  white-space:nowrap;
+}
+.battle-log-tools-row .battle-log-tool-btn:active{
+  transform: translateY(1px);
+}
 
 /* 戦闘経過トグルボタン（表示安定版） */
 .battle-log-toggle {
@@ -3274,7 +3338,7 @@ canvas {
 
 .guide-two-col {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3358,7 +3422,7 @@ canvas {
 /* ===== Fold + Panel layout (added) ===== */
 .panel-grid{
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
@@ -3446,7 +3510,7 @@ canvas {
 }
 
 .load-panel .load-panel-inner {
-  padding: 10px;
+  padding: 8px;
 }
 
 .load-panel.is-collapsed {
@@ -3467,8 +3531,8 @@ canvas {
 
 .load-panel-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .load-tile {
@@ -4672,3 +4736,484 @@ body::before{
 @media (max-width: 420px){
   #autoMinimizeToast{ font-size: 12px; padding: 11px 12px; }
 }
+
+
+/* =========================
+   Mini flow guide (How to play - overview)
+   ========================= */
+.mini-flow-guide{
+  margin: 10px 0 16px;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(10,14,20,0.72), rgba(10,14,20,0.48));
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  backdrop-filter: blur(10px);
+}
+.mini-flow-title{
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.92);
+  margin-bottom: 8px;
+  text-shadow: 0 1px 10px rgba(0,0,0,0.55);
+}
+.mini-flow-steps{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.mini-flow-step{
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(0,0,0,0.22));
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.mini-flow-badge{
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 12px;
+  color: rgba(0,0,0,0.88);
+  background: linear-gradient(135deg, rgba(255,215,90,0.95), rgba(120,255,255,0.85));
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.08), 0 10px 18px rgba(0,0,0,0.35);
+}
+.mini-flow-text{
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(240,245,255,0.92);
+}
+.mini-flow-text b{
+  color: rgba(255,255,255,0.98);
+  text-shadow: 0 0 10px rgba(120,255,255,0.10);
+}
+.mini-flow-note{
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(210,220,235,0.88);
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.22);
+  border: 1px dashed rgba(255,255,255,0.14);
+}
+
+/* =========================
+   First reroll button (Free once after New Game)
+   ========================= */
+.first-reroll-btn{
+  margin-left: 6px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 10px;
+  cursor: pointer;
+  color: rgba(0,0,0,0.90);
+  background: linear-gradient(135deg, rgba(255,215,90,0.95), rgba(255,120,235,0.82));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.05), 0 12px 24px rgba(0,0,0,0.40);
+  transform: translateZ(0);
+  position: relative;
+  overflow: hidden;
+}
+.first-reroll-btn::after{
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 60%;
+  height: 180%;
+  transform: rotate(25deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.42), rgba(255,255,255,0.0));
+  opacity: 0.75;
+  animation: firstRerollShine 1.6s ease-in-out infinite;
+}
+@keyframes firstRerollShine{
+  0%{ left: -60%; opacity: 0.0; }
+  25%{ opacity: 0.7; }
+  55%{ opacity: 0.35; }
+  100%{ left: 140%; opacity: 0.0; }
+}
+.first-reroll-btn.is-bouncy{
+  animation: firstRerollBounce 0.95s ease-in-out infinite;
+}
+.first-reroll-btn.is-waiting{
+  animation: firstRerollWait 0.8s ease-in-out 1;
+}
+.first-reroll-btn.is-waiting::after{
+  animation-duration: 0.9s;
+  opacity: 0.45;
+}
+@keyframes firstRerollWait{
+  0%{ transform: scale(1); }
+  50%{ transform: scale(0.98); }
+  100%{ transform: scale(1); }
+}
+@keyframes firstRerollBounce{
+  0%{ transform: translateY(0) scale(1); }
+  55%{ transform: translateY(-2px) scale(1.03); }
+  100%{ transform: translateY(0) scale(1); }
+}
+.first-reroll-btn:disabled{
+  opacity: 0.55;
+  filter: grayscale(0.35);
+  cursor: default;
+}
+.first-reroll-note{
+  margin-top: 6px;
+  max-width: 340px;
+}
+
+
+/* First reroll panel (continuous reroll UI for the very first New Game) */
+.first-reroll-panel{
+  margin-top: 8px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  background: rgba(10,12,18,0.58);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 14px 28px rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+}
+.first-reroll-panel.is-attention{
+  animation: firstRerollPanelPulse 1.35s ease-in-out infinite;
+}
+@keyframes firstRerollPanelPulse{
+  0%{ box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 14px 28px rgba(0,0,0,0.45); }
+  50%{ box-shadow: 0 0 0 2px rgba(120,255,255,0.14), 0 18px 34px rgba(0,0,0,0.55); }
+  100%{ box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 14px 28px rgba(0,0,0,0.45); }
+}
+.first-reroll-title{
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 0 12px rgba(255,255,255,0.10);
+  margin-bottom: 8px;
+}
+.first-reroll-actions{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.first-reroll-confirm-btn{
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  border-radius: 10px;
+  cursor: pointer;
+  color: rgba(0,0,0,0.90);
+  background: linear-gradient(135deg, rgba(120,255,255,0.92), rgba(60,200,255,0.85));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.05), 0 12px 24px rgba(0,0,0,0.40);
+  position: relative;
+  overflow: hidden;
+}
+.first-reroll-confirm-btn::after{
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 60%;
+  height: 180%;
+  transform: rotate(25deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.36), rgba(255,255,255,0.0));
+  opacity: 0.65;
+  animation: firstRerollShine 2.1s ease-in-out infinite;
+}
+.first-reroll-confirm-btn:disabled{
+  opacity: 0.55;
+  filter: grayscale(0.35);
+  cursor: default;
+}
+
+
+/* --- 初回魔メイク厳選：同じガチャボタンで引き直し（確定まで） --- */
+#faceGachaBtn.gacha-reroll-mode{
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  border-radius: 10px;
+  cursor: pointer;
+  color: rgba(0,0,0,0.90);
+  background: linear-gradient(135deg, rgba(255,215,90,0.96), rgba(120,255,255,0.86));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.05), 0 12px 24px rgba(0,0,0,0.40);
+  position: relative;
+  overflow: hidden;
+}
+#faceGachaBtn.gacha-reroll-mode::after{
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 60%;
+  height: 180%;
+  transform: rotate(25deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.42), rgba(255,255,255,0.0));
+  opacity: 0.75;
+  animation: firstRerollShine 1.6s ease-in-out infinite;
+}
+#faceGachaBtn.gacha-reroll-mode.is-bouncy{
+  animation: firstRerollBounce 0.95s ease-in-out infinite;
+}
+
+
+/* 初回魔メイク厳選中：キャラ情報の未読み込み部分を隠す */
+body.first-face-selecting #charInfoFold details:nth-of-type(1) .status-area{display:none !important;}
+body.first-face-selecting #charInfoFold details:nth-of-type(2){display:none !important;}
+body.first-face-selecting #firstFaceSelectingNote{display:block !important;}
+#firstFaceSelectingNote{margin-top:10px; padding:10px 12px; border:1px solid rgba(0,255,255,0.35); border-radius:10px; background:rgba(0,0,0,0.35); color:#dff; font-size:12.5px; line-height:1.45; box-shadow:0 0 0 1px rgba(255,255,255,0.06) inset;}
+#firstFaceSelectingNote.hidden{display:none;}
+
+/* 初回ガチャ確定まで：余計なUIを隠す（確定後に自動復帰） */
+body.first-face-selecting .top-fold-panel{display:none !important;}
+body.first-face-selecting .quick-guide-wrapper{display:none !important;}
+body.first-face-selecting #uniqueSkillSection{display:none !important;}
+body.first-face-selecting #startBattleBtn{display:none !important;}
+body.first-face-selecting #specialModeButton{display:none !important;}
+body.first-face-selecting #firstFaceHideSubnote{display:none !important;}
+body.first-face-selecting #hpChart{display:none !important;}
+
+/* ==============================
+   Battle Log extra tools (expand/collapse + scroll) - compact layout
+   ============================== */
+#battleLogControls.battle-log-controls{  gap: 4px 6px;
+  padding: 5px 6px;
+  margin: 4px 0 6px 0;
+}
+#battleLogControls .battle-log-speed{  gap: 5px;
+  min-width: 180px;
+}
+#battleLogControls .battle-log-font{  gap: 5px;
+  min-width: 180px;
+}
+#battleLogControls #logSpeedSlider{
+  width: 150px;
+}
+#battleLogControls #logFontSlider{
+  width: 130px;
+}
+#battleLogControls .battle-log-tools-row{
+  flex: 1 0 100%;
+  display:flex;
+  flex-wrap:wrap;
+  gap: 4px;
+  margin-top:4px;
+}
+#battleLogControls .battle-log-tool-btn{
+  font-size: 11px;
+  line-height: 1.15;
+  padding: 0 8px;
+  border-radius: 9px;
+  border:1px solid rgba(255,255,255,0.18);
+  background: rgba(20,20,28,0.32);
+  color:#fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#battleLogControls .battle-log-tool-btn:active{
+  transform: translateY(1px);
+}
+#battleLogControls .battle-log-expand-all{
+  flex: 1 1 190px;
+}
+
+
+
+/* =====================================================
+   Battle Log controls: iconified + slim sliders (2026-01)
+   - Keep text for screen readers via .sr-only
+   ===================================================== */
+#battleLogControls .sr-only{
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0,0,0,0) !important;
+  white-space:nowrap !important;
+  border:0 !important;
+}
+
+#battleLogControls .bl-ic-label{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(20,20,28,0.28);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  user-select:none;
+}
+#battleLogControls .bl-ic-label > span[aria-hidden="true"]{
+  font-size: 16px;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+#battleLogControls .bl-badge{
+  font-size: 10px !important;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  min-width: 44px;
+  text-align: right;
+  opacity: 0.92;
+}
+
+#battleLogControls .battle-log-speed,
+#battleLogControls .battle-log-font{
+  display:flex;
+  align-items:center;
+  gap: 6px;
+  min-width: 160px;
+  flex: 1 1 230px;
+}
+
+/* Slim sliders */
+#battleLogControls input[type="range"]{
+  -webkit-appearance:none;
+  appearance:none;
+  height: 18px;
+  background: transparent;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 110px;
+}
+#battleLogControls input[type="range"]:focus{
+  outline:none;
+}
+
+/* WebKit track & thumb */
+#battleLogControls input[type="range"]::-webkit-slider-runnable-track{
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+#battleLogControls input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.75);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  margin-top: -5px; /* center thumb on 4px track */
+}
+
+/* Firefox track & thumb */
+#battleLogControls input[type="range"]::-moz-range-track{
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+#battleLogControls input[type="range"]::-moz-range-thumb{
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.75);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+/* Icon buttons (toggle + tool buttons) */
+#battleLogControls .bl-icon-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 34px;
+  height: 34px;
+  padding: 0 !important;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(20,20,28,0.28);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 16px !important;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+#battleLogControls .bl-icon-btn:active{
+  transform: translateY(1px);
+}
+#battleLogControls .battle-log-toggle.bl-icon-btn{
+  margin-left: 0; /* moved into tools dock */
+}
+
+/* Tools row: icon dock */
+#battleLogControls .battle-log-tools-row{
+  display:flex;
+  gap: 6px;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  flex-basis:100%;
+  margin-top: 4px;
+}
+
+/* Stateful toggle badge (戦闘経過：既定 開/閉) */
+#battleLogControls .battle-log-toggle.bl-stateful{
+  position: relative;
+  overflow: visible;
+}
+#battleLogControls .battle-log-toggle.bl-stateful .bl-ic{
+  display:block;
+  transform: translateY(1px);
+}
+#battleLogControls .battle-log-toggle.bl-stateful .bl-mini-state{
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1.1;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(0,0,0,0.55);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+  letter-spacing: 0.02em;
+}
+#battleLogControls .battle-log-toggle.bl-stateful[data-state="open"]{
+  border-color: rgba(120, 255, 255, 0.28);
+  box-shadow: 0 0 0 2px rgba(120,255,255,0.10), 0 10px 18px rgba(0,0,0,0.22);
+}
+#battleLogControls .battle-log-toggle.bl-stateful[data-state="open"] .bl-mini-state{
+  background: linear-gradient(180deg, rgba(120,255,255,0.40), rgba(0,0,0,0.55));
+}
+#battleLogControls .battle-log-toggle.bl-stateful[data-state="closed"]{
+  opacity: 0.9;
+  filter: grayscale(0.12);
+}
+#battleLogControls .battle-log-toggle.bl-stateful[data-state="closed"] .bl-mini-state{
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.55));
+}
+

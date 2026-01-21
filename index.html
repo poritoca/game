@@ -248,6 +248,40 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		<div class="quick-guide-wrapper">
 			<div id="quickGuideContent" class="quick-guide-content hidden">
 
+    <!-- ★進め方（ざっくりガイド） -->
+    <div class="mini-flow-guide" role="note" aria-label="ゲームの進め方（概略）">
+      <div class="mini-flow-title">🚀 進め方（ざっくり）</div>
+      <div class="mini-flow-steps">
+        <div class="mini-flow-step">
+          <div class="mini-flow-badge">1</div>
+          <div class="mini-flow-text">
+			<b>まずは【はじめから】→「ゲームを開始」</b> → 画面上の<b>【キャラクター情報】</b> → <b>「魔メイクを表示」</b>で<b>ガチャ</b>（<b>初回だけ</b>、<b>確定するまで同じガチャで何度でも引き直しOK</b>）
+          </div>
+        </div>
+        <div class="mini-flow-step">
+          <div class="mini-flow-badge">2</div>
+          <div class="mini-flow-text">
+            <b>通常モード</b>で連勝＆スコアを伸ばす（スコアが伸びるほど後半がラク）
+          </div>
+        </div>
+        <div class="mini-flow-step">
+          <div class="mini-flow-badge">3</div>
+          <div class="mini-flow-text">
+            <b>鬼畜モード</b>で強敵に挑み、<b>魔通貨</b>や<b>魔道具</b>を狙う（装備/保護も活用）
+          </div>
+        </div>
+        <div class="mini-flow-step">
+          <div class="mini-flow-badge">4</div>
+          <div class="mini-flow-text">
+            鬼畜で勝てない時は <b>特殊スキル厳選</b> / <b>スキルLv</b> / <b>魔通貨でスキル交換</b> で土台づくり
+          </div>
+        </div>
+      </div>
+      <div class="mini-flow-note">
+        ※鬼畜モードの敵ステータスは、<b>あなたの基礎＋成長ステータス</b>を基準に強化されます（「鍛えてから鬼畜」より、<b>鬼畜で集めつつ通常で伸ばす</b>イメージが有効）。
+      </div>
+    </div>
+
     <h3>このゲームの目的</h3>
     <p>
         本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたびにキャラクターが成長し、新たなスキルを習得して強くなります。高い連勝記録やハイスコアの更新を目指しましょう。
@@ -586,11 +620,18 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   <div id="faceMemoryContent" style="display: none; margin-top: 10px;">
     <!-- 魔通貨と魔メイク -->
     <div id="faceCoinInfo" style="margin-bottom: 10px;">
-      魔通貨: <span id="faceCoinCount">0</span> 枚 
+            魔通貨: <span id="faceCoinCount">0</span> 枚 
 		<button id="faceGachaBtn" disabled>ガチャ</button>
-		
+
+		<div id="firstRerollPanel" class="first-reroll-panel hidden">
+			<div class="first-reroll-title">初回魔メイク厳選（確定まで無料）</div>
+			<div class="first-reroll-actions"><button id="firstRerollConfirmBtn" class="first-reroll-confirm-btn" type="button" disabled>この魔メイクで開始</button>
+			</div>
+			<div id="firstRerollNote" class="subnote first-reroll-note">※「はじめから」初回のみ。ガチャ→気に入らなければ<b>無料で何度でも</b>引き直しOK。<br>※確定すると戦闘が始まり、無料引き直しは終了します。</div>
+		</div>
+
 		<br>
-		
+
 		<div class="subnote">※現在の連勝数が多いほど高レア排出率UP</div>
 			
 			
@@ -622,6 +663,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
       padding-left: 0;
 
     "></ul>
+    <div id="firstFaceSelectingNote" class="first-face-selecting-note hidden">初回厳選中：魔メイクを<strong>確定</strong>すると、ステータス/敵情報が表示されます。</div>
+
 		
 		
   </div>
@@ -661,16 +704,22 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		<div class="quick-guide-wrapper">
 			<div id="quickGuideLog" class="quick-guide-content hidden">
           
-          <div id="battleLogControls" class="battle-log-controls">
+                    <div id="battleLogControls" class="battle-log-controls">
             <div class="battle-log-speed">
-              <label for="logSpeedSlider">ログ速度</label>
+              <label for="logSpeedSlider" class="bl-ic-label" title="ログ速度">
+                <span aria-hidden="true">⏱</span>
+                <span class="sr-only">ログ速度</span>
+              </label>
               <input id="logSpeedSlider" type="range" min="5" max="200" step="1" value="20" />
-              <span id="logSpeedValue" class="battle-log-speed-value">20ms</span>
+              <span id="logSpeedValue" class="battle-log-speed-value bl-badge">20ms</span>
             </div>
             <div class="battle-log-font">
-              <label for="logFontSlider">文字</label>
+              <label for="logFontSlider" class="bl-ic-label" title="文字サイズ">
+                <span aria-hidden="true">🔤</span>
+                <span class="sr-only">文字サイズ</span>
+              </label>
               <input id="logFontSlider" type="range" min="5" max="18" step="1" value="12" />
-              <span id="logFontValue" class="battle-log-font-value">12px</span>
+              <span id="logFontValue" class="battle-log-font-value bl-badge">12px</span>
             </div>
           </div>
 
@@ -687,7 +736,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			<!--<button id="startBattleOnceBtn" class="normal-mode">単発バトル</button>-->
       <button id="startBattleBtn" class="normal-mode">バトル！</button>
       <!-- <button id="mixedEffectListBtn" class="normal-mode">混合効果一覧</button>-->
-			<div class="subnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
+			<div id="firstFaceHideSubnote" class="subnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
 			<canvas id="hpChart" width="600" height="100"></canvas>
 
 

@@ -568,6 +568,7 @@ window.showConfirmationPopup = function(messageHtml, onConfirm, options = {}) {
 				if (typeof onConfirm === "function") onConfirm();
 			}, fadeOutMs);
 		};
+
 		optionsEl.appendChild(okBtn);
 	}
 	// 一時的に表示してサイズ取得
@@ -1130,27 +1131,157 @@ function __applyBattleLogControlsUI() {
 	if (!slider || !valueEl || !fontSlider || !fontValueEl || !logEl || !controls) return;
 
 
-	// 戦闘経過トグルボタン（コントロール右）
+// 戦闘経過トグルボタン（既定の開閉：状態が分かるようバッジ表示 / 下段ドックに移動）
+const __refreshBattleLogToggleBtn = (btn) => {
+	if (!btn) return;
+	const isOpen = !!window.__battleLogDetailDefaultOpen;
+	try { btn.dataset.state = isOpen ? 'open' : 'closed'; } catch (_e) {}
+	try { btn.classList.toggle('is-open', isOpen); btn.classList.toggle('is-closed', !isOpen); } catch (_e) {}
+	const title = isOpen ? '戦闘経過：既定=開（タップで切替）' : '戦闘経過：既定=閉（タップで切替）';
+	btn.title = title;
+	try { btn.setAttribute('aria-label', title); } catch (_e) {}
+	// アイコン + 状態バッジ（開/閉）
+	btn.innerHTML = `<span class="bl-ic" aria-hidden="true">📜</span><span class="bl-mini-state" aria-hidden="true">${isOpen ? '開' : '閉'}</span>`;
+};
+
+const __getOrCreateBattleLogToggleBtn = () => {
+	let btn = document.getElementById('battleLogToggleBtn');
+	if (!btn) {
+		btn = document.createElement('button');
+		btn.type = 'button';
+		btn.id = 'battleLogToggleBtn';
+		btn.className = 'battle-log-toggle bl-icon-btn bl-stateful';
+		controls.appendChild(btn); // 一旦ここへ（後でtoolsRowへ移動）
+		btn.addEventListener('click', () => {
+			window.__battleLogDetailDefaultOpen = !window.__battleLogDetailDefaultOpen;
+			__refreshBattleLogToggleBtn(btn);
+			try {
+				localStorage.setItem('battleLogDetailDefaultOpen', window.__battleLogDetailDefaultOpen ? 'open' : 'closed');
+			} catch (_e) {}
+		});
+	}
+	__refreshBattleLogToggleBtn(btn);
+	return btn;
+};
+
+let __battleLogToggleBtnRef = null;
+try { __battleLogToggleBtnRef = __getOrCreateBattleLogToggleBtn(); } catch (_e) {}
+
+	// 追加：ログ操作ツール（全開/全閉 + 上/下スクロール）※文字サイズバーの下
 	try {
-		if (!document.getElementById('battleLogToggleBtn')) {
-			const btn = document.createElement('button');
-			btn.type = 'button';
-			btn.id = 'battleLogToggleBtn';
-			btn.className = 'battle-log-toggle';
-			const refreshLabel = () => {
-				btn.textContent = window.__battleLogDetailDefaultOpen ? '📜 戦闘経過：開' : '📜 戦闘経過：閉';
-			};
-			refreshLabel();
-			btn.addEventListener('click', () => {
-				window.__battleLogDetailDefaultOpen = !window.__battleLogDetailDefaultOpen;
-				refreshLabel();
+		if (!document.getElementById('battleLogToolsRow')) {
+			const toolsRow = document.createElement('div');
+			toolsRow.id = 'battleLogToolsRow';
+			toolsRow.className = 'battle-log-tools-row';
+
+			// 戦闘経過：既定の開閉トグル（状態表示つき）を下段ドックへ
+			try {
+				const tbtn = __battleLogToggleBtnRef || document.getElementById('battleLogToggleBtn');
+				if (tbtn) toolsRow.appendChild(tbtn);
+			} catch (_e) {}
+
+
+			const btnAll = document.createElement('button');
+			btnAll.type = 'button';
+			btnAll.id = 'battleLogExpandAllBtn';
+			btnAll.className = 'battle-log-tool-btn bl-icon-btn';
+			btnAll.textContent = '📂';
+			try { btnAll.title = '表示済みログを全て開く'; btnAll.setAttribute('aria-label', btnAll.title); } catch (_e) {}
+
+			const btnTop = document.createElement('button');
+			btnTop.type = 'button';
+			btnTop.id = 'battleLogScrollTopBtn';
+			btnTop.className = 'battle-log-tool-btn bl-icon-btn';
+			btnTop.textContent = '⤒';
+			try { btnTop.title = 'ログの一番上へ'; btnTop.setAttribute('aria-label', btnTop.title); } catch (_e) {}
+
+			const btnBottom = document.createElement('button');
+			btnBottom.type = 'button';
+			btnBottom.id = 'battleLogScrollBottomBtn';
+			btnBottom.className = 'battle-log-tool-btn bl-icon-btn';
+			btnBottom.textContent = '⤓';
+			try { btnBottom.title = 'ログの一番下へ'; btnBottom.setAttribute('aria-label', btnBottom.title); } catch (_e) {}
+
+			const getSections = () => {
 				try {
-					localStorage.setItem('battleLogDetailDefaultOpen', window.__battleLogDetailDefaultOpen ? 'open' : 'closed');
-				} catch (e) {}
+					return Array.from(logEl.querySelectorAll('.turn-events-content, .turn-status-content'));
+				} catch (_e) {
+					return [];
+				}
+			};
+
+			const setOpen = (contentEl) => {
+				if (!contentEl) return;
+				try {
+					contentEl.style.maxHeight = 'none';
+					contentEl.style.overflow = 'hidden';
+					contentEl.setAttribute('aria-hidden', 'false');
+
+					const headerEl = contentEl.previousElementSibling;
+					if (headerEl && headerEl.classList) {
+						headerEl.classList.add('open');
+						const arrowEl = headerEl.querySelector('.turn-stats-arrow');
+						if (arrowEl) arrowEl.textContent = '▼';
+					}
+				} catch (_e) {}
+			};
+
+			const setClose = (contentEl) => {
+				if (!contentEl) return;
+				try {
+					contentEl.style.maxHeight = '0px';
+					contentEl.style.overflow = 'hidden';
+					contentEl.setAttribute('aria-hidden', 'true');
+
+					const headerEl = contentEl.previousElementSibling;
+					if (headerEl && headerEl.classList) {
+						headerEl.classList.remove('open');
+						const arrowEl = headerEl.querySelector('.turn-stats-arrow');
+						if (arrowEl) arrowEl.textContent = '▶';
+					}
+				} catch (_e) {}
+			};
+
+			btnAll.addEventListener('click', () => {
+				const sections = getSections();
+				if (!sections.length) return;
+
+				// どれか1つでも閉じていれば → 全部開く / 全部開いていれば → 全部閉じる
+				const anyClosed = sections.some(el => {
+					try {
+						const aria = el.getAttribute('aria-hidden');
+						return (aria === 'true') || (el.style.maxHeight === '0px') || (!el.style.maxHeight);
+					} catch (_e) {
+						return true;
+					}
+				});
+
+				if (anyClosed) {
+					sections.forEach(setOpen);
+					btnAll.textContent = '📁';
+						try { btnAll.title = '表示済みログを全て閉じる'; btnAll.setAttribute('aria-label', btnAll.title); } catch (_e) {}
+				} else {
+					sections.forEach(setClose);
+					btnAll.textContent = '📂';
+			try { btnAll.title = '表示済みログを全て開く'; btnAll.setAttribute('aria-label', btnAll.title); } catch (_e) {}
+				}
 			});
-			controls.appendChild(btn);
+
+			btnTop.addEventListener('click', () => {
+				try { logEl.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_e) { try { logEl.scrollTop = 0; } catch (_e2) {} }
+			});
+
+			btnBottom.addEventListener('click', () => {
+				try { logEl.scrollTo({ top: logEl.scrollHeight, behavior: 'smooth' }); } catch (_e) { try { logEl.scrollTop = logEl.scrollHeight; } catch (_e2) {} }
+			});
+
+			toolsRow.appendChild(btnAll);
+			toolsRow.appendChild(btnTop);
+			toolsRow.appendChild(btnBottom);
+			controls.appendChild(toolsRow);
 		}
 	} catch (e) {}
+
 	// 初期反映
 	slider.value = String(__clamp(window.__BATTLE_LOG_BASE_DELAY_MS, Number(slider.min || 5), Number(slider.max || 200)));
 	valueEl.textContent = `${slider.value}ms`;
@@ -3561,6 +3692,9 @@ function drawRandomFace(rarity) {
 }
 
 function showGachaAnimation(rarity) {
+	// 高速化：連打で多重表示しない
+	try{ const prev = document.getElementById('gachaAnimation'); if (prev) prev.remove(); }catch(_){ }
+
 	const container = document.createElement('div');
 	container.id = 'gachaAnimation';
 
@@ -3579,9 +3713,10 @@ function showGachaAnimation(rarity) {
 	container.appendChild(ball);
 	document.body.appendChild(container);
 
+	// 0.6s以内に終了（演出は残しつつ即次へ）
 	window.__battleSetTimeout(() => {
-		container.remove();
-	}, 2000);
+		try{ container.remove(); }catch(_){ }
+	}, 650);
 }
 
 
@@ -3848,6 +3983,9 @@ function __drawMagicMakeRadar(canvas, values) {
 }
 
 function performFaceGacha() {
+	// 高速連打でも処理が多重に走らないようガード
+	if (window.__faceGachaBusy) return;
+
 	if (faceCoins < FACE_GACHA_COST) {
 		alert(`魔通貨が${FACE_GACHA_COST}枚必要です！現在の魔通貨：${faceCoins}`);
 		return;
@@ -3857,6 +3995,12 @@ function performFaceGacha() {
 		alert("所持魔メイクが上限に達しています。");
 		return;
 	}
+
+	window.__faceGachaBusy = true;
+	try{
+		const btn = document.getElementById('faceGachaBtn');
+		if (btn) btn.disabled = true;
+	}catch(_){ }
 
 	// 魔通貨消費
 	faceCoins -= FACE_GACHA_COST;
@@ -3907,6 +4051,8 @@ function performFaceGacha() {
 		const result = drawRandomFace(selectedRarity);
 		if (!result) {
 			alert(`${selectedRarity}ランクの魔メイクが読み込めませんでした`);
+			window.__faceGachaBusy = false;
+			try{ if (typeof update魔通貨Display === 'function') update魔通貨Display(); }catch(_){ }
 			return;
 		}
 
@@ -3914,8 +4060,356 @@ function performFaceGacha() {
 		faceItemsOwned.push(path);
 		__ensureFaceBonus(path);
 		updateFaceUI();
-	}, 1400);
+	
+		try{ if (typeof window.__maybeShowFirstReroll === 'function') window.__maybeShowFirstReroll(path); }catch(_e){}
+
+		// すぐ次のガチャが引けるように解放
+		window.__faceGachaBusy = false;
+		try{ if (typeof update魔通貨Display === 'function') update魔通貨Display(); }catch(_){ }
+		try{
+			const btn = document.getElementById('faceGachaBtn');
+			if (btn) btn.disabled = (faceCoins < FACE_GACHA_COST);
+		}catch(_){ }
+	}, 240);
 }
+
+// =====================================================
+// First reroll (初回だけ：確定するまで同じガチャボタンで無料引き直し可)
+//  - 「はじめから」開始後、初回の魔メイクは「確定」するまで何度でも引き直しOK（実質コストは1回分）
+//  - 1戦でも開始（確定で開始）したら終了
+//  - UI: ガチャボタン自体が「引き直し（無料）」モードに変化する
+// =====================================================
+(function(){
+	try{
+		if (window.__firstRerollPatchV2) return;
+		window.__firstRerollPatchV2 = true;
+
+
+		// 初回厳選中は、キャラクター情報の未読み込み部分を隠す（CSSで制御）
+		window.__applyFirstFaceSelectingClass = function(){
+			try{
+				const on = !!window.__firstRerollSelectionPhase;
+				document.body.classList.toggle('first-face-selecting', on);
+				const note = document.getElementById('firstFaceSelectingNote');
+				if (note){ note.classList.toggle('hidden', !on); }
+			}catch(_){}
+		};
+
+
+		const getPanel   = () => document.getElementById('firstRerollPanel');
+		const getGacha   = () => document.getElementById('faceGachaBtn');
+		const getConfirm = () => document.getElementById('firstRerollConfirmBtn');
+
+		function safeText(el, s){
+			try{ if (el) el.textContent = String(s); }catch(_){}
+		}
+
+		function setGachaModeUI(){
+			try{
+				const st = window.__firstRerollState;
+				const g = getGacha();
+				if (!g) return;
+
+				// default label
+				if (!st || !st.eligible || st.locked || !window.__firstRerollSelectionPhase) {
+					g.classList.remove('gacha-reroll-mode');
+					g.classList.remove('is-bouncy');
+					if (g.dataset && g.dataset.__origLabel) safeText(g, g.dataset.__origLabel);
+					return;
+				}
+
+				// store original label once
+				try{
+					if (g.dataset && !g.dataset.__origLabel) g.dataset.__origLabel = g.textContent || 'ガチャ';
+				}catch(_){}
+
+				g.classList.add('gacha-reroll-mode');
+				// まだ1回も引いてない → 通常の「ガチャ」
+				if (!st.hasDrawn) {
+					safeText(g, 'ガチャ（初回厳選）');
+				} else {
+					safeText(g, '引き直す（無料）');
+					// attention: first time after draw
+					try{
+						if (!st.__bouncedOnce) {
+							st.__bouncedOnce = true;
+							g.classList.add('is-bouncy');
+							setTimeout(()=>{ try{ g.classList.remove('is-bouncy'); }catch(_){} }, 9500);
+						}
+					}catch(_){}
+				}
+			}catch(_){}
+		}
+
+		function updateConfirmState(){
+			try{
+				const c = getConfirm();
+				if (!c) return;
+				const owned = Array.isArray(window.faceItemsOwned) ? window.faceItemsOwned.length : 0;
+				c.disabled = !(owned > 0);
+			}catch(_){}
+		}
+
+		function showPanel(attention){
+			try{
+				const panel = getPanel();
+				if (panel) {
+					panel.classList.remove('hidden');
+					if (attention) {
+						panel.classList.add('is-attention');
+						setTimeout(()=>{ try{ panel.classList.remove('is-attention'); }catch(_){ } }, 12000);
+					}
+				}
+			}catch(_){}
+			try{ setGachaModeUI(); }catch(_){}
+			try{ updateConfirmState(); }catch(_){}
+		}
+
+		function hideUI(){
+			try{
+				const panel = getPanel();
+				if (panel) { panel.classList.add('hidden'); panel.classList.remove('is-attention'); }
+			}catch(_){}
+			try{ setGachaModeUI(); }catch(_){}
+			try{
+				const c = getConfirm();
+				if (c) c.disabled = true;
+			}catch(_){}
+		}
+
+		// 1戦でも開始したら、初回引き直しチケットは終了
+		window.__lockFirstRerollTicket = function(){
+			try{
+				const st = window.__firstRerollState;
+				if (!st) return;
+				st.locked = true;
+				st.eligible = false;
+				window.__firstRerollArmed = false;
+				window.__firstRerollSelectionPhase = false;
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+				st.lastPath = null;
+				hideUI();
+			}catch(_){}
+		};
+
+		// startNewGame から呼べるように公開
+		window.__showFirstRerollPanel = function(attention){ try{ showPanel(!!attention); }catch(_){ } };
+		window.__updateFirstRerollConfirmState = function(){ try{ updateConfirmState(); }catch(_){ } };
+
+		// 初回限定チケットの状態
+		window.__firstRerollState = window.__firstRerollState || {
+			eligible: false,
+			locked: false,
+			shown: false,
+			lastPath: null,
+			hasDrawn: false,
+			__bouncedOnce: false
+		};
+
+		window.__resetFirstRerollForNewGame = function(){
+			try{
+				window.__firstRerollArmed = true;
+				window.__firstRerollSelectionPhase = true;
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+
+				const st = window.__firstRerollState || (window.__firstRerollState = {});
+				st.eligible = true;
+				st.locked = false;
+				st.shown = false;
+				st.lastPath = null;
+				st.hasDrawn = false;
+				st.__bouncedOnce = false;
+
+				hideUI();
+				// パネルは最初から出しておく（確定はガチャ後に有効化）
+				try{ showPanel(true); }catch(_){}
+			}catch(_){}
+		};
+
+		function refundCost(){
+			try{
+				const cost = (typeof FACE_GACHA_COST === 'number' && Number.isFinite(FACE_GACHA_COST)) ? FACE_GACHA_COST : 1000;
+				window.faceCoins = (typeof window.faceCoins === 'number' ? window.faceCoins : 0) + cost;
+				if (typeof update魔通貨Display === 'function') update魔通貨Display();
+			}catch(_){}
+		}
+
+		function removeFace(path){
+			try{
+				if (!path) return;
+
+				const removeAll = (arr) => {
+					try{
+						if (!Array.isArray(arr)) return;
+						for (let i = arr.length - 1; i >= 0; i--) {
+							if (arr[i] === path) arr.splice(i, 1);
+						}
+					}catch(_){}
+				};
+
+				// 重要：ゲーム内の参照が window.faceItemsOwned と faceItemsOwned の両方に分かれている場合があるため、
+				// 両方から確実に削除する。
+				removeAll(window.faceItemsOwned);
+				try{ if (typeof faceItemsOwned !== 'undefined') removeAll(faceItemsOwned); }catch(_){}
+
+				try{ if (window.equippedFaceItem === path) window.equippedFaceItem = null; }catch(_){}
+				try{ if (window.faceItemBonusMap && window.faceItemBonusMap[path]) delete window.faceItemBonusMap[path]; }catch(_){}
+			}catch(_){}
+		}
+
+		window.__doFirstReroll = function(){
+			try{
+				const st = window.__firstRerollState;
+				if (!st || !st.eligible || st.locked) return;
+
+				const path = st.lastPath;
+				if (!path) return;
+
+				removeFace(path);
+				refundCost();
+
+				// Refresh UI
+				try{ if (typeof updateFaceUI === 'function') updateFaceUI(); }catch(_){}
+				try{ if (typeof updateStats === 'function') updateStats(); }catch(_){}
+
+				// clear lastPath so double click won't delete twice
+				st.lastPath = null;
+
+				try{
+					if (typeof showCustomAlert === 'function') {
+						//showCustomAlert('✨ 無料引き直し！直前の魔メイクを取り消しました。もう一度ガチャできます（確定するまで何度でもOK）', 2400);
+					}
+				}catch(_){}
+			}catch(_){}
+		};
+
+		window.__confirmFirstRerollAndStart = function(){
+			try{
+				const owned = Array.isArray(window.faceItemsOwned) ? window.faceItemsOwned.length : 0;
+				if (!(owned > 0)) {
+					try{ if (typeof showCustomAlert === 'function') showCustomAlert('先に魔メイクをガチャしてください', 2200); }catch(_){}
+					return;
+				}
+
+				// end selection phase + lock ticket
+				window.__firstRerollSelectionPhase = false;
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+				try{ if (typeof window.__lockFirstRerollTicket === 'function') window.__lockFirstRerollTicket(); }catch(_){}
+				try{ hideUI(); }catch(_){}
+
+				const safeStart = () => {
+					// 確定した魔メイクを、最初の戦闘開始前に自動装備
+					try{
+						const st = window.__firstRerollState;
+						let path = (st && st.lastPath) ? st.lastPath : null;
+						if (!path && Array.isArray(window.faceItemsOwned) && window.faceItemsOwned.length > 0) {
+							path = window.faceItemsOwned[window.faceItemsOwned.length - 1];
+						}
+						if (path) {
+							try{ if (typeof window.__ensureFaceBonus === 'function') window.__ensureFaceBonus(path); }catch(_){}
+							try{ window.faceItemEquipped = path; }catch(_){}
+							try{ window.equippedFaceItem = path; }catch(_){}
+							try{ if (typeof updateFaceUI === 'function') updateFaceUI(); }catch(_){}
+							try{ if (typeof updatePlayerImage === 'function') updatePlayerImage(); }catch(_){}
+							try{ if (typeof window.syncFaceOverlay === 'function') window.syncFaceOverlay(); }catch(_){}
+						}
+					}catch(_){}
+					try{ if (typeof updateStats === 'function') updateStats(); }catch(_){}
+					// 最初のバトル直前のみ、戦闘ログを自動で開く（startBattle側で実行）
+					try{ window.__openBattleLogOnNextBattle = true; }catch(_){}
+					try{ if (typeof window.startBattle === 'function') window.startBattle(); }catch(_){}
+					try{ if (typeof updateFaceUI === 'function') updateFaceUI(); }catch(_){}
+				};
+
+				try{
+					if (window.__enemyNamePoolInitPromise && typeof window.__enemyNamePoolInitPromise.then === 'function') {
+						window.__enemyNamePoolInitPromise.then(()=>{ safeStart(); });
+					} else {
+						safeStart();
+					}
+				}catch(_){
+					safeStart();
+				}
+			}catch(_){}
+		};
+
+		window.__maybeShowFirstReroll = function(lastPath){
+			try{
+				const st = window.__firstRerollState || (window.__firstRerollState = { eligible:false, locked:false, shown:false, lastPath:null, hasDrawn:false, __bouncedOnce:false });
+				if (st.locked) return;
+
+				// armedなら復旧
+				if (!st.eligible && window.__firstRerollArmed) st.eligible = true;
+				if (!st.eligible) return;
+
+				if (!lastPath) return;
+
+				st.lastPath = lastPath;
+				st.hasDrawn = true;
+				window.__firstRerollSelectionPhase = true;
+				try{ if (typeof window.__applyFirstFaceSelectingClass === 'function') window.__applyFirstFaceSelectingClass(); }catch(_){}
+
+				showPanel(!st.shown);
+				st.shown = true;
+				updateConfirmState();
+				setGachaModeUI();
+			}catch(_){}
+		};
+
+		// ガチャボタンを「引き直し（無料）」に変えるため、clickをcaptureでフック
+		function installGachaCapture(){
+			try{
+				if (window.__firstRerollGachaCaptureInstalled) return;
+				const g = getGacha();
+				if (!g) return;
+				window.__firstRerollGachaCaptureInstalled = true;
+
+				g.addEventListener('click', function(){
+					try{
+						const st = window.__firstRerollState;
+						if (!st || !st.eligible || st.locked) return;
+						if (!window.__firstRerollSelectionPhase) return;
+
+						// 1回目は通常のガチャ（削除/返金しない）
+						if (!st.hasDrawn) {
+							// UI反映だけ
+							setTimeout(()=>{ try{ setGachaModeUI(); }catch(_){ } }, 0);
+							return;
+						}
+
+						// 2回目以降：直前の結果を消して返金 → 通常のガチャ処理に流す（=実質無料引き直し）
+						if (st.lastPath) {
+							try{ window.__doFirstReroll(); }catch(_){}
+						}
+					}catch(_){}
+				}, true);
+
+				// 初期UI
+				try{ setGachaModeUI(); }catch(_){}
+			}catch(_){}
+		}
+
+		// confirm button binding
+		function installConfirm(){
+			try{
+				if (window.__firstRerollConfirmBound) return;
+				const c = getConfirm();
+				if (!c) return;
+				window.__firstRerollConfirmBound = true;
+				c.addEventListener('click', (e)=>{ e.preventDefault(); window.__confirmFirstRerollAndStart(); });
+			}catch(_){}
+		}
+
+		// install on DOM ready
+		const boot = () => { try{ installGachaCapture(); }catch(_){ } try{ installConfirm(); }catch(_){ } };
+		if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+		else boot();
+
+	}catch(_e){}
+})();;
+
 
 
 function showSubtitle(message, duration = 2000) {
