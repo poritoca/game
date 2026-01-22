@@ -1149,7 +1149,9 @@ function updatePlayerImage() {
 			});
 			bg.appendChild(img);
 		} else {
-			canvas.style.display = 'block';
+			// 既に魔メイク画像がある場合でも、下の素体(canvas)は表示しない。
+			// （ここが 'block' だと、魔メイク画像(①)の下に素体画像(②)が重なって二重表示になる）
+			canvas.style.display = 'none';
 		}
 
 		img.src = faceItemEquipped;
