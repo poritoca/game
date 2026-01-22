@@ -106,7 +106,7 @@ window.startBattle = function() {
 						if (m && m[1]) r = m[1];
 					}
 				} catch(_e) { r = 'D'; }
-				showFaceRevealAnimation(window.bossFacePath, r);
+				showFaceRevealAnimation(window.bossFacePath, r, 'boss');
 			}
 		} catch(_e) { }
 

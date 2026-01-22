@@ -1712,7 +1712,10 @@ summary {
 }
 
 /* =====================================================
-   魔メイク画像「ズバーン」演出（ガチャ結果）
+   魔メイク画像「ズバーン」演出（ガチャ/ボス共通）
+   - reveal-gacha: 白っぽい光が差す綺麗系
+   - reveal-boss : 禍々しい系
+   - rarity-*: レア度で派手さが明確に変わる
    ===================================================== */
 #faceRevealOverlay.face-reveal-overlay{
   position: fixed;
@@ -1722,113 +1725,243 @@ summary {
   align-items: center;
   justify-content: center;
   pointer-events: none; /* 操作を邪魔しない */
+  overflow: hidden;
+  /* iOS Safari の合成落ち対策 */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
-#faceRevealOverlay .face-reveal-fx{
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.0) 55%, rgba(0,0,0,0.0) 100%);
+/* ===== 共通レイヤ ===== */
+#faceRevealOverlay .face-reveal-theme,
+#faceRevealOverlay .face-reveal-aura{
+  position:absolute;
+  inset:0;
   opacity: 0;
-  transform: scale(0.98);
-  animation: faceRevealFx 0.85s ease-out forwards;
+  transform: translateZ(0);
 }
 
+/* 画像本体（最大80%） */
 #faceRevealOverlay .face-reveal-img{
   width: min(80vw, 80vh);
   height: min(80vw, 80vh);
   object-fit: contain;
   opacity: 0;
-  transform: translateY(18px) scale(0.70);
-  filter: drop-shadow(0 14px 42px rgba(0,0,0,0.55));
-  animation: faceRevealImg 0.85s cubic-bezier(.2,.9,.2,1) forwards;
+  will-change: transform, opacity, filter;
+  filter: drop-shadow(0 18px 56px rgba(0,0,0,0.62));
+  transform: translate3d(0,18px,0) scale(0.72);
 }
 
-/* 読み込み済みなら初動のチラつきが減る */
-#faceRevealOverlay.loaded .face-reveal-img{
-  image-rendering: auto;
-}
-
-/* ===== ランク別の高級感 ===== */
-#faceRevealOverlay.rarity-D .face-reveal-img{
-  opacity: 0.00; /* 初期はアニメで上げる */
-  filter: drop-shadow(0 12px 34px rgba(0,0,0,0.50)) saturate(0.95);
-}
-#faceRevealOverlay.rarity-C .face-reveal-img{
-  filter: drop-shadow(0 14px 38px rgba(0,0,0,0.55)) saturate(1.00);
-}
-#faceRevealOverlay.rarity-B .face-reveal-img{
-  filter: drop-shadow(0 16px 46px rgba(0,0,0,0.60)) saturate(1.05);
-}
-#faceRevealOverlay.rarity-A .face-reveal-img{
-  filter: drop-shadow(0 18px 54px rgba(0,0,0,0.65)) saturate(1.10) contrast(1.02);
-}
-#faceRevealOverlay.rarity-S .face-reveal-img{
-  filter: drop-shadow(0 20px 68px rgba(0,0,0,0.70)) saturate(1.18) contrast(1.05);
-}
-
-/* 背景FX：高ランクほど眩しい */
-#faceRevealOverlay.rarity-D .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(160,160,160,0.12) 0%, rgba(0,0,0,0) 60%); }
-#faceRevealOverlay.rarity-C .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(140,190,255,0.16) 0%, rgba(0,0,0,0) 60%); }
-#faceRevealOverlay.rarity-B .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(200,255,220,0.18) 0%, rgba(0,0,0,0) 62%); }
-#faceRevealOverlay.rarity-A .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(255,220,170,0.20) 0%, rgba(0,0,0,0) 64%); }
-#faceRevealOverlay.rarity-S .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(255,240,210,0.24) 0%, rgba(0,0,0,0) 66%); }
-
-/* 追加のキラッ：A/Sだけ薄く入れる（派手すぎ防止） */
-#faceRevealOverlay.rarity-A::before,
-#faceRevealOverlay.rarity-S::before{
-  content:"";
-  position:absolute;
-  inset:-20%;
-  background:
-    linear-gradient(115deg,
-      rgba(255,255,255,0.00) 0%,
-      rgba(255,255,255,0.00) 35%,
-      rgba(255,255,255,0.10) 50%,
-      rgba(255,255,255,0.00) 65%,
-      rgba(255,255,255,0.00) 100%);
-  transform: translateX(-12%) rotate(8deg);
-  opacity: 0;
-  mix-blend-mode: screen;
-  animation: faceRevealShine 0.85s ease-out forwards;
-}
-
-#faceRevealOverlay.rarity-S::after{
-  content:"";
+/* 粒子 */
+#faceRevealOverlay .face-reveal-particles{
   position:absolute;
   inset:0;
-  background: radial-gradient(circle at 50% 55%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 70%);
+  pointer-events:none;
+  overflow:hidden;
   opacity: 0;
+}
+#faceRevealOverlay .face-reveal-particles .p{
+  position:absolute;
+  width: var(--pSize, 4px);
+  height: var(--pSize, 4px);
+  border-radius: 999px;
+  opacity: 0;
+  transform: translate3d(0,0,0) scale(1);
+  will-change: transform, opacity, filter;
+}
+#faceRevealOverlay .face-reveal-particles .p.sparkle{
+  background: rgba(255,255,255,0.95);
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.55));
+}
+#faceRevealOverlay .face-reveal-particles .p.ember{
+  background: rgba(255,120,70,0.92);
+  filter: drop-shadow(0 0 10px rgba(255,80,60,0.55));
+}
+
+/* ===== 起動（loaded） ===== */
+#faceRevealOverlay.loaded .face-reveal-img{
+  animation: faceRevealEnterImg 0.55s cubic-bezier(.18,.92,.2,1) forwards;
+}
+#faceRevealOverlay.loaded .face-reveal-theme{
+  animation: faceRevealEnterTheme 0.55s ease-out forwards;
+}
+#faceRevealOverlay.loaded .face-reveal-aura{
+  animation: faceRevealEnterAura 0.55s ease-out forwards;
+}
+#faceRevealOverlay.loaded .face-reveal-particles{
+  animation: faceRevealEnterParticles 0.40s ease-out forwards;
+}
+#faceRevealOverlay.loaded .face-reveal-particles .p{
+  animation: faceRevealParticle var(--pDur, 760ms) ease-out forwards;
+  animation-delay: var(--pDelay, 0ms);
+}
+
+/* ===== 退出（exit） ===== */
+#faceRevealOverlay.exit .face-reveal-img{
+  animation: faceRevealExitImg 0.65s ease-in forwards;
+}
+#faceRevealOverlay.exit .face-reveal-theme{
+  animation: faceRevealExitTheme 0.65s ease-in forwards;
+}
+#faceRevealOverlay.exit .face-reveal-aura{
+  animation: faceRevealExitTheme 0.65s ease-in forwards;
+}
+#faceRevealOverlay.exit .face-reveal-particles{
+  animation: faceRevealExitTheme 0.65s ease-in forwards;
+}
+
+/* =====================================================
+   テーマ別エフェクト
+   ===================================================== */
+/* ガチャ：白っぽい光が差す綺麗エフェクト */
+#faceRevealOverlay.reveal-gacha .face-reveal-theme{
+  background:
+    radial-gradient(circle at 50% 55%, rgba(255,255,255,0.14) 0%, rgba(0,0,0,0) 62%),
+    conic-gradient(from 210deg at 50% 55%,
+      rgba(255,255,255,0.00) 0deg,
+      rgba(255,255,255,0.10) 28deg,
+      rgba(255,255,255,0.00) 60deg,
+      rgba(255,255,255,0.08) 120deg,
+      rgba(255,255,255,0.00) 160deg,
+      rgba(255,255,255,0.10) 220deg,
+      rgba(255,255,255,0.00) 360deg);
   mix-blend-mode: screen;
-  animation: faceRevealPulse 0.85s ease-out forwards;
+  filter: blur(0.3px);
+  animation: gachaLightSweep 1.05s ease-out infinite;
 }
 
-@keyframes faceRevealImg{
-  0%   { opacity: 0; transform: translateY(18px) scale(0.70); }
-  18%  { opacity: 0.78; }
-  55%  { opacity: 0.55; transform: translateY(0px) scale(1.02); }
-  100% { opacity: 0.00; transform: translateY(-4px) scale(1.06); }
+/* ボス：禍々しいエフェクト（暗い霧＋赤紫パルス＋走査線） */
+#faceRevealOverlay.reveal-boss .face-reveal-theme{
+  background:
+    radial-gradient(circle at 50% 55%, rgba(180,40,80,0.18) 0%, rgba(0,0,0,0.00) 55%),
+    radial-gradient(circle at 50% 50%, rgba(40,0,60,0.50) 0%, rgba(0,0,0,0.10) 56%, rgba(0,0,0,0.70) 100%),
+    repeating-linear-gradient(0deg, rgba(255,40,40,0.00) 0px, rgba(255,40,40,0.03) 2px, rgba(0,0,0,0.00) 6px);
+  mix-blend-mode: normal;
+  animation: bossMiasma 0.95s ease-in-out infinite;
+  filter: saturate(1.06);
 }
 
-@keyframes faceRevealFx{
-  0%   { opacity: 0; transform: scale(0.98); }
-  20%  { opacity: 1; }
-  70%  { opacity: 0.55; transform: scale(1.00); }
-  100% { opacity: 0; transform: scale(1.02); }
+/* =====================================================
+   レア度：派手さ（明確に分かるように）
+   ===================================================== */
+#faceRevealOverlay.rarity-D{ --aura: rgba(200,200,200,0.18); --ring: rgba(200,200,200,0.20); --glow: rgba(255,255,255,0.25); }
+#faceRevealOverlay.rarity-C{ --aura: rgba(140,190,255,0.22); --ring: rgba(140,190,255,0.30); --glow: rgba(160,220,255,0.35); }
+#faceRevealOverlay.rarity-B{ --aura: rgba(160,255,200,0.24); --ring: rgba(160,255,200,0.36); --glow: rgba(190,255,220,0.40); }
+#faceRevealOverlay.rarity-A{ --aura: rgba(255,210,150,0.26); --ring: rgba(255,210,150,0.42); --glow: rgba(255,230,190,0.45); }
+#faceRevealOverlay.rarity-S{ --aura: rgba(255,245,220,0.30); --ring: rgba(255,245,220,0.52); --glow: rgba(255,255,255,0.58); }
+
+#faceRevealOverlay .face-reveal-aura{
+  background:
+    radial-gradient(circle at 50% 56%, var(--aura, rgba(255,255,255,0.18)) 0%, rgba(0,0,0,0) 60%),
+    radial-gradient(circle at 50% 56%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%);
+}
+#faceRevealOverlay .face-reveal-aura::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:56%;
+  width: min(88vw, 88vh);
+  height: min(88vw, 88vh);
+  transform: translate(-50%,-50%) scale(0.92);
+  border-radius: 999px;
+  border: 2px solid var(--ring, rgba(255,255,255,0.25));
+  box-shadow: 0 0 40px var(--glow, rgba(255,255,255,0.35));
+  opacity: 0.0;
+  filter: drop-shadow(0 0 18px rgba(0,0,0,0.30));
+}
+#faceRevealOverlay.loaded .face-reveal-aura::before{ opacity: 1; transition: opacity 0.35s ease-out; }
+#faceRevealOverlay.exit .face-reveal-aura::before{ opacity: 0; transition: opacity 0.55s ease-in; }
+
+/* S はさらに “高級感” の光輪を追加 */
+#faceRevealOverlay.rarity-S .face-reveal-aura::after{
+  content:"";
+  position:absolute;
+  inset:-15%;
+  background:
+    conic-gradient(from 180deg at 50% 56%,
+      rgba(255,255,255,0.00) 0deg,
+      rgba(255,255,255,0.22) 30deg,
+      rgba(255,255,255,0.00) 70deg,
+      rgba(255,255,255,0.18) 130deg,
+      rgba(255,255,255,0.00) 190deg,
+      rgba(255,255,255,0.24) 250deg,
+      rgba(255,255,255,0.00) 360deg);
+  mix-blend-mode: screen;
+  opacity: 0;
+  filter: blur(0.2px);
+  animation: sRarityHalo 0.95s ease-out infinite;
 }
 
-@keyframes faceRevealShine{
-  0%   { opacity: 0; transform: translateX(-18%) rotate(8deg); }
-  25%  { opacity: 0.85; }
-  60%  { opacity: 0.30; transform: translateX(8%) rotate(8deg); }
-  100% { opacity: 0; transform: translateX(18%) rotate(8deg); }
-}
+/* 画像の見た目（レアほど派手） */
+#faceRevealOverlay.rarity-D .face-reveal-img{ filter: drop-shadow(0 14px 44px rgba(0,0,0,0.58)) saturate(0.98); }
+#faceRevealOverlay.rarity-C .face-reveal-img{ filter: drop-shadow(0 16px 52px rgba(0,0,0,0.62)) saturate(1.05); }
+#faceRevealOverlay.rarity-B .face-reveal-img{ filter: drop-shadow(0 18px 62px rgba(0,0,0,0.66)) saturate(1.10) contrast(1.02); }
+#faceRevealOverlay.rarity-A .face-reveal-img{ filter: drop-shadow(0 20px 78px rgba(0,0,0,0.70)) saturate(1.16) contrast(1.05); }
+#faceRevealOverlay.rarity-S .face-reveal-img{ filter: drop-shadow(0 22px 96px rgba(0,0,0,0.74)) saturate(1.26) contrast(1.08); }
 
-@keyframes faceRevealPulse{
+/* 粒子の派手さ（レアほど強い） */
+#faceRevealOverlay.rarity-D .face-reveal-particles .p{ filter: drop-shadow(0 0 7px rgba(255,255,255,0.30)); }
+#faceRevealOverlay.rarity-C .face-reveal-particles .p{ filter: drop-shadow(0 0 10px rgba(160,220,255,0.40)); }
+#faceRevealOverlay.rarity-B .face-reveal-particles .p{ filter: drop-shadow(0 0 12px rgba(190,255,220,0.45)); }
+#faceRevealOverlay.rarity-A .face-reveal-particles .p{ filter: drop-shadow(0 0 14px rgba(255,230,190,0.50)); }
+#faceRevealOverlay.rarity-S .face-reveal-particles .p{ filter: drop-shadow(0 0 18px rgba(255,255,255,0.62)); }
+
+/* =====================================================
+   Keyframes
+   ===================================================== */
+@keyframes faceRevealEnterImg{
+  0%   { opacity: 0; transform: translate3d(0,18px,0) scale(0.72); }
+  70%  { opacity: 0.72; transform: translate3d(0,0px,0) scale(1.02); }
+  100% { opacity: 0.62; transform: translate3d(0,-2px,0) scale(1.03); }
+}
+@keyframes faceRevealExitImg{
+  0%   { opacity: 0.62; transform: translate3d(0,-2px,0) scale(1.03); }
+  100% { opacity: 0; transform: translate3d(0,-10px,0) scale(1.06); }
+}
+@keyframes faceRevealEnterTheme{
   0%   { opacity: 0; }
-  20%  { opacity: 0.75; }
-  55%  { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+@keyframes faceRevealEnterAura{
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes faceRevealEnterParticles{
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes faceRevealExitTheme{
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
+@keyframes faceRevealParticle{
+  0%   { opacity: 0; transform: translate3d(0,0,0) scale(0.6); }
+  25%  { opacity: 0.95; }
+  100% { opacity: 0; transform: translate3d(0, calc(var(--pDrift, 14px) * -1), 0) scale(1.25); }
+}
+
+/* ガチャ：光が差すように流れる */
+@keyframes gachaLightSweep{
+  0%   { transform: translate3d(0,0,0) scale(1.00) rotate(0deg); opacity: 0.90; }
+  100% { transform: translate3d(0,-2px,0) scale(1.02) rotate(8deg); opacity: 1.00; }
+}
+
+/* ボス：禍々しい脈動 */
+@keyframes bossMiasma{
+  0%   { opacity: 0.85; transform: translate3d(0,0,0) scale(1.00); filter: saturate(1.03); }
+  50%  { opacity: 1.00; transform: translate3d(0,0,0) scale(1.02); filter: saturate(1.10); }
+  100% { opacity: 0.85; transform: translate3d(0,0,0) scale(1.00); filter: saturate(1.03); }
+}
+
+/* S の光輪 */
+@keyframes sRarityHalo{
+  0%   { opacity: 0.00; transform: scale(0.98); }
+  25%  { opacity: 0.62; }
+  60%  { opacity: 0.22; transform: scale(1.02); }
+  100% { opacity: 0.00; transform: scale(1.04); }
+}
+
 
 
 .rarity-s {

@@ -3793,9 +3793,13 @@ function showGachaAnimation(rarity) {
 //  - 画面中央に半透明で大きく表示（縦横比維持、最大80%）
 //  - 既存の進行を邪魔しない（pointer-events:none）
 // =====================================================
-function showFaceRevealAnimation(facePath, rarity) {
+function showFaceRevealAnimation(facePath, rarity, mode) {
+	// mode: 'gacha' | 'boss' （省略時は gacha）
+	const m = (mode === 'boss') ? 'boss' : 'gacha';
+	const r = String(rarity || 'D').toUpperCase();
+
+	// 多重表示防止
 	try {
-		// 連打で多重表示しない
 		const prev = document.getElementById('faceRevealOverlay');
 		if (prev) prev.remove();
 	} catch(_){}
@@ -3803,11 +3807,20 @@ function showFaceRevealAnimation(facePath, rarity) {
 	try {
 		const overlay = document.createElement('div');
 		overlay.id = 'faceRevealOverlay';
-		overlay.className = `face-reveal-overlay rarity-${String(rarity || 'D')}`;
+		overlay.className = `face-reveal-overlay reveal-${m} rarity-${r}`;
 
-		const fx = document.createElement('div');
-		fx.className = 'face-reveal-fx';
-		overlay.appendChild(fx);
+		// theme / aura / particles / image
+		const theme = document.createElement('div');
+		theme.className = 'face-reveal-theme';
+		overlay.appendChild(theme);
+
+		const aura = document.createElement('div');
+		aura.className = 'face-reveal-aura';
+		overlay.appendChild(aura);
+
+		const particles = document.createElement('div');
+		particles.className = 'face-reveal-particles';
+		overlay.appendChild(particles);
 
 		const img = document.createElement('img');
 		img.className = 'face-reveal-img';
@@ -3815,21 +3828,54 @@ function showFaceRevealAnimation(facePath, rarity) {
 		img.src = String(facePath || '');
 		overlay.appendChild(img);
 
+		// レア度で粒数・強さを調整（派手さが分かるように）
+		const countByR = { D: 10, C: 14, B: 18, A: 26, S: 36 };
+		const n = (countByR[r] != null) ? countByR[r] : 12;
+
+		for (let i = 0; i < n; i++) {
+			const sp = document.createElement('span');
+			sp.className = (m === 'boss') ? 'p ember' : 'p sparkle';
+			// ばらけ具合：中央寄り〜全体。端は少し減らす
+			const x = 10 + Math.random() * 80;
+			const y = 12 + Math.random() * 76;
+			const size = (m === 'boss') ? (2 + Math.random() * 4) : (2 + Math.random() * 5);
+			const dur = (m === 'boss') ? (520 + Math.random() * 420) : (560 + Math.random() * 520);
+			const delay = Math.random() * 180;
+			const drift = (m === 'boss') ? (10 + Math.random() * 22) : (8 + Math.random() * 20);
+			sp.style.left = x.toFixed(2) + '%';
+			sp.style.top  = y.toFixed(2) + '%';
+			sp.style.setProperty('--pSize', size.toFixed(2) + 'px');
+			sp.style.setProperty('--pDur', dur.toFixed(0) + 'ms');
+			sp.style.setProperty('--pDelay', delay.toFixed(0) + 'ms');
+			sp.style.setProperty('--pDrift', drift.toFixed(2) + 'px');
+			particles.appendChild(sp);
+		}
+
 		document.body.appendChild(overlay);
 
-		// 画像読み込みタイミングで僅かに確実化（読み込み遅延でも見た目が崩れにくい）
-		img.onload = () => {
+		// iOS Safari 対策：画像読込に依存せず rAF で確実に開始
+		const startAnim = () => {
 			try { overlay.classList.add('loaded'); } catch(_){}
 		};
-		// 既にキャッシュ済みでも onload が走らないケースがあるため
-		try { if (img.complete) overlay.classList.add('loaded'); } catch(_){}
+		try { requestAnimationFrame(() => requestAnimationFrame(startAnim)); }
+		catch(_){ try { startAnim(); } catch(__){} }
 
-		// 演出終了で除去（テンポ維持）
-		window.__battleSetTimeout(() => {
+		// 保持時間（iPhone Safari でも「一瞬」にならないよう少し長め）
+		const holdMs = (m === 'boss') ? 1350 : 1500;
+		const exitMs = 650;
+
+		const _set = (typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout;
+
+		_set(() => {
+			try { overlay.classList.add('exit'); } catch(_){}
+		}, holdMs);
+
+		_set(() => {
 			try { overlay.remove(); } catch(_){}
-		}, 900);
+		}, holdMs + exitMs + 60);
 	} catch(_){}
 }
+
 
 
 
@@ -4228,7 +4274,7 @@ function performFaceGacha() {
 
 // ガチャ結果の「ズバーン」表示（進行を邪魔しない軽量演出）
 try{
-	if (typeof showFaceRevealAnimation === 'function') showFaceRevealAnimation(path, selectedRarity);
+	if (typeof showFaceRevealAnimation === 'function') showFaceRevealAnimation(path, selectedRarity, 'gacha');
 }catch(_){}
 
 faceItemsOwned.push(path);
