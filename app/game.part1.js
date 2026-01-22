@@ -1278,9 +1278,78 @@ try { __battleLogToggleBtnRef = __getOrCreateBattleLogToggleBtn(); } catch (_e) 
 			toolsRow.appendChild(btnAll);
 			toolsRow.appendChild(btnTop);
 			toolsRow.appendChild(btnBottom);
+
+				const btnMini = document.createElement('button');
+				btnMini.type = 'button';
+				btnMini.id = 'battleLogUltraMiniToggleBtn';
+				btnMini.className = 'battle-log-tool-btn bl-icon-btn bl-ultramini-toggle';
+				btnMini.textContent = '▁';
+				try { btnMini.title = 'ログ操作部を超縮小'; btnMini.setAttribute('aria-label', btnMini.title); } catch (_e) {}
+				toolsRow.appendChild(btnMini);
 			controls.appendChild(toolsRow);
 		}
 	} catch (e) {}
+
+		// 追加：ログ操作部の『超縮小』トグル（バー状態で省スペース）
+		try {
+			const ULTRA_KEY = 'battleLogUltraMini';
+			const barId = 'battleLogUltraMiniBar';
+			const btnId = 'battleLogUltraMiniToggleBtn';
+
+			const ensureBar = () => {
+				let bar = document.getElementById(barId);
+				if (!bar) {
+					bar = document.createElement('div');
+					bar.id = barId;
+					bar.className = 'battle-log-ultramini-bar';
+					bar.innerHTML = '<span class="battle-log-ultramini-hint">タップで戻す</span>';
+					controls.appendChild(bar);
+				}
+				return bar;
+			};
+
+			const setMini = (isMini) => {
+				try { controls.classList.toggle('is-ultramini', !!isMini); } catch (_e) {}
+				try { localStorage.setItem(ULTRA_KEY, isMini ? '1' : '0'); } catch (_e) {}
+			};
+
+			const barEl = ensureBar();
+			let btnMini = document.getElementById(btnId);
+			if (!btnMini) {
+				// 旧版互換：toolsRowだけある場合にもボタンを追加
+				const toolsRow = document.getElementById('battleLogToolsRow');
+				if (toolsRow) {
+					btnMini = document.createElement('button');
+					btnMini.type = 'button';
+					btnMini.id = btnId;
+					btnMini.className = 'battle-log-tool-btn bl-icon-btn bl-ultramini-toggle';
+					btnMini.textContent = '▁';
+					try { btnMini.title = 'ログ操作部を超縮小'; btnMini.setAttribute('aria-label', btnMini.title); } catch (_e) {}
+					toolsRow.appendChild(btnMini);
+				}
+			}
+
+			if (btnMini && !btnMini.dataset.boundUltraMini) {
+				btnMini.dataset.boundUltraMini = '1';
+				btnMini.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					const next = !controls.classList.contains('is-ultramini');
+					setMini(next);
+				});
+			}
+
+			if (barEl && !barEl.dataset.boundUltraMini) {
+				barEl.dataset.boundUltraMini = '1';
+				barEl.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					setMini(false);
+				});
+			}
+
+			let initMini = false;
+			try { initMini = localStorage.getItem(ULTRA_KEY) === '1'; } catch (_e) {}
+			setMini(initMini);
+		} catch (_e) {}
 
 	// 初期反映
 	slider.value = String(__clamp(window.__BATTLE_LOG_BASE_DELAY_MS, Number(slider.min || 5), Number(slider.max || 200)));
@@ -3719,6 +3788,52 @@ function showGachaAnimation(rarity) {
 	}, 650);
 }
 
+// =====================================================
+// 魔メイク画像「ズバーン」演出（高ランクほど豪華）
+//  - 画面中央に半透明で大きく表示（縦横比維持、最大80%）
+//  - 既存の進行を邪魔しない（pointer-events:none）
+// =====================================================
+function showFaceRevealAnimation(facePath, rarity) {
+	try {
+		// 連打で多重表示しない
+		const prev = document.getElementById('faceRevealOverlay');
+		if (prev) prev.remove();
+	} catch(_){}
+
+	try {
+		const overlay = document.createElement('div');
+		overlay.id = 'faceRevealOverlay';
+		overlay.className = `face-reveal-overlay rarity-${String(rarity || 'D')}`;
+
+		const fx = document.createElement('div');
+		fx.className = 'face-reveal-fx';
+		overlay.appendChild(fx);
+
+		const img = document.createElement('img');
+		img.className = 'face-reveal-img';
+		img.alt = '魔メイク';
+		img.src = String(facePath || '');
+		overlay.appendChild(img);
+
+		document.body.appendChild(overlay);
+
+		// 画像読み込みタイミングで僅かに確実化（読み込み遅延でも見た目が崩れにくい）
+		img.onload = () => {
+			try { overlay.classList.add('loaded'); } catch(_){}
+		};
+		// 既にキャッシュ済みでも onload が走らないケースがあるため
+		try { if (img.complete) overlay.classList.add('loaded'); } catch(_){}
+
+		// 演出終了で除去（テンポ維持）
+		window.__battleSetTimeout(() => {
+			try { overlay.remove(); } catch(_){}
+		}, 900);
+	} catch(_){}
+}
+
+
+
+
 
 
 // =====================================================
@@ -3727,6 +3842,15 @@ function showGachaAnimation(rarity) {
 //  - ボーナスは faceItemBonusMap[path] に保持し、セーブにも含める
 // =====================================================
 window.faceItemBonusMap = window.faceItemBonusMap || {}; // { [path]: { rarity, growthRates, dropRateMultiplier, protectSkillAdd, protectItemAdd } }
+// 魔メイク効果（成長率）アルゴリズムのバージョン
+// 旧セーブの faceItemBonusMap をそのまま使うと倍率が固定されるため、更新時は作り直す
+window.faceBonusAlgoVersion = 2;
+window.faceItemBonusAlgoVersion = (typeof window.faceItemBonusAlgoVersion === 'number') ? window.faceItemBonusAlgoVersion : window.faceBonusAlgoVersion;
+if (window.faceItemBonusAlgoVersion !== window.faceBonusAlgoVersion) {
+	window.faceItemBonusMap = {};
+	window.faceItemBonusAlgoVersion = window.faceBonusAlgoVersion;
+}
+
 
 function __getRarityFromFacePath(path) {
 	// expected: face/<RARITY>/<filename>
@@ -3743,29 +3867,73 @@ function __randSigned(amount) {
 }
 
 function __genGrowthRatesByRarity(rarity) {
-	// レアほど「最低値」も「期待値」も高い、完全片側分布
-	// すべて 1.000 以上を保証
-	const cfg = {
-		D: { min: 0.02, max: 0.1 },  // 1.02〜1.06
-		C: { min: 0.08, max: 0.25 },  // 1.06〜1.12
-		B: { min: 0.2, max: 0.4 },  // 1.10〜1.18
-		A: { min: 0.3, max: 0.7 },  // 1.16〜1.70
-		S: { min: 0.5, max: 0.99 },  // 1.24〜1.99
-	}[rarity] || { min: 0.02, max: 0.06 };
+	// 魔メイク成長率（ATK/DEF/SPD/HP）
+	//  - 各ステータスの倍率は 0.50〜2.00 の間で大きくバラつく
+	//  - レアほど「平均値」は高いが、同じ魔メイク内で 2.0 も 0.5 も起こり得る
+	//  - 4ステ合計（平均）はレアごとの mean に寄るように、最後に軽く正規化する
+	const cfg = ({
+		D: { mean: 0.95, sigma: 0.55, spikeP: 0.14, spikeBand: 0.10 },
+		C: { mean: 1.00, sigma: 0.52, spikeP: 0.14, spikeBand: 0.10 },
+		B: { mean: 1.07, sigma: 0.50, spikeP: 0.14, spikeBand: 0.10 },
+		A: { mean: 1.15, sigma: 0.48, spikeP: 0.14, spikeBand: 0.10 },
+		S: { mean: 1.25, sigma: 0.46, spikeP: 0.14, spikeBand: 0.10 },
+	})[rarity] || { mean: 1.00, sigma: 0.52, spikeP: 0.14, spikeBand: 0.10 };
+	const MIN = 0.50;
+	const MAX = 2.00;
 
-	// 高めに寄るように軽くバイアス
-	const roll = () => {
-		const r = Math.pow(Math.random(), 0.85); // <1 で高め寄り
-		return Number((1 + cfg.min + r * (cfg.max - cfg.min)).toFixed(3));
+	const clamp = (v) => {
+		v = Number(v);
+		if (!Number.isFinite(v)) return 1.0;
+		return Math.max(MIN, Math.min(MAX, v));
 	};
+
+	// 標準正規乱数（Box-Muller）
+	const randn = () => {
+		let u = 0, v = 0;
+		while (u === 0) u = Math.random();
+		while (v === 0) v = Math.random();
+		return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+	};
+
+	// ログ正規分布で倍率を生成（両側に広く散る）
+	const rollBase = () => {
+		const v = Math.exp(Math.log(cfg.mean) + cfg.sigma * randn());
+		return clamp(v);
+	};
+
+	// たまに 0.5 付近 / 2.0 付近を強制して「尖り」を作る
+	const rollSpiky = () => {
+		let v = rollBase();
+		if (Math.random() < cfg.spikeP) {
+			if (Math.random() < 0.5) {
+				v = MIN + Math.random() * cfg.spikeBand;
+			} else {
+				v = MAX - Math.random() * cfg.spikeBand;
+			}
+		}
+		return clamp(v);
+	};
+
+	// まず独立に4つ生成
+	const raw = {
+		attack: rollSpiky(),
+		defense: rollSpiky(),
+		speed: rollSpiky(),
+		maxHp: rollSpiky(),
+	};
+
+	// 4ステ平均が cfg.mean 付近になるようにスケール（バラつきは残す）
+	const avg = (raw.attack + raw.defense + raw.speed + raw.maxHp) / 4;
+	const scale = (avg > 0) ? (cfg.mean / avg) : 1;
 
 	return {
-		attack:  roll(),
-		defense: roll(),
-		speed:   roll(),
-		maxHp:   roll(),
+		attack:  Number(clamp(raw.attack  * scale).toFixed(3)),
+		defense: Number(clamp(raw.defense * scale).toFixed(3)),
+		speed:   Number(clamp(raw.speed   * scale).toFixed(3)),
+		maxHp:   Number(clamp(raw.maxHp   * scale).toFixed(3)),
 	};
 }
+
 
 function __maybeExtraDropMultiplier(rarity) {
 	// 1.0〜1.5 未満、低い倍率がつきやすい（r^3で偏らせる）
@@ -4057,9 +4225,19 @@ function performFaceGacha() {
 		}
 
 		const { path, name } = result;
-		faceItemsOwned.push(path);
-		__ensureFaceBonus(path);
-		updateFaceUI();
+
+// ガチャ結果の「ズバーン」表示（進行を邪魔しない軽量演出）
+try{
+	if (typeof showFaceRevealAnimation === 'function') showFaceRevealAnimation(path, selectedRarity);
+}catch(_){}
+
+faceItemsOwned.push(path);
+__ensureFaceBonus(path);
+
+// 直後に詳細を自動展開（初回厳選/通常どちらでも、レーダー等が見える）
+try{ window.__magicMakeOpenDetailPath = path; }catch(_){}
+
+updateFaceUI();
 	
 		try{ if (typeof window.__maybeShowFirstReroll === 'function') window.__maybeShowFirstReroll(path); }catch(_e){}
 

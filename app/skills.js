@@ -553,7 +553,7 @@ const skillPool = [
   {
     "name": "狂戦士",
     "category": "berserk",
-    "duration": 2,
+    "duration": 1,
     "description": "攻撃力を大幅上昇させるが防御力が低下（一定ターン）"
   },
   {

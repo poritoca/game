@@ -91,6 +91,25 @@ window.startBattle = function() {
 		}
 	}
 
+		// =====================================================
+		// ボス戦開始演出：敵画像を「ズバーン」表示（レアほど豪華）
+		//  - ガチャ演出と同じ仕組みを転用
+		//  - ボスの画像ランク（rarity）に応じてエフェクトを変える
+		// =====================================================
+		try {
+			if (window.isBossBattle && window.bossFacePath && typeof showFaceRevealAnimation === 'function') {
+				let r = 'D';
+				try {
+					if (typeof __getRarityFromFacePath === 'function') r = __getRarityFromFacePath(window.bossFacePath);
+					else {
+						const m = String(window.bossFacePath || '').match(/face\/(S|A|B|C|D)\//);
+						if (m && m[1]) r = m[1];
+					}
+				} catch(_e) { r = 'D'; }
+				showFaceRevealAnimation(window.bossFacePath, r);
+			}
+		} catch(_e) { }
+
 	if (player.baseStats && player.growthBonus) {
 		player.attack = player.baseStats.attack + player.growthBonus.attack;
 		player.defense = player.baseStats.defense + player.growthBonus.defense;

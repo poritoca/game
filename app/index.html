@@ -55,15 +55,17 @@
 	
 	<script>
 let IMAGE_LIST_BY_RANK = {};
+
 async function loadFaceManifest() {
   try {
-    // app/index.html から見て face は一つ上の階層
     const response = await fetch('../face/faceManifest.json');
     if (!response.ok) throw new Error(`HTTP error ${response.status}`);
     const data = await response.json();
     IMAGE_LIST_BY_RANK = data;
+    //console.log('Face manifest loaded:', IMAGE_LIST_BY_RANK);
   } catch (error) {
     console.error('Failed to load face manifest:', error);
+    // フォールバック処理：JSON読み込み失敗時はデフォルトまたは空のリストを設定
     IMAGE_LIST_BY_RANK = { S: [], A: [], B: [], C: [], D: [] };
   }
 }

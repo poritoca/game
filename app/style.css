@@ -1711,6 +1711,126 @@ summary {
   100% { filter: drop-shadow(0 0 5px violet); }
 }
 
+/* =====================================================
+   魔メイク画像「ズバーン」演出（ガチャ結果）
+   ===================================================== */
+#faceRevealOverlay.face-reveal-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 10050; /* 既存UIより上 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* 操作を邪魔しない */
+}
+
+#faceRevealOverlay .face-reveal-fx{
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.0) 55%, rgba(0,0,0,0.0) 100%);
+  opacity: 0;
+  transform: scale(0.98);
+  animation: faceRevealFx 0.85s ease-out forwards;
+}
+
+#faceRevealOverlay .face-reveal-img{
+  width: min(80vw, 80vh);
+  height: min(80vw, 80vh);
+  object-fit: contain;
+  opacity: 0;
+  transform: translateY(18px) scale(0.70);
+  filter: drop-shadow(0 14px 42px rgba(0,0,0,0.55));
+  animation: faceRevealImg 0.85s cubic-bezier(.2,.9,.2,1) forwards;
+}
+
+/* 読み込み済みなら初動のチラつきが減る */
+#faceRevealOverlay.loaded .face-reveal-img{
+  image-rendering: auto;
+}
+
+/* ===== ランク別の高級感 ===== */
+#faceRevealOverlay.rarity-D .face-reveal-img{
+  opacity: 0.00; /* 初期はアニメで上げる */
+  filter: drop-shadow(0 12px 34px rgba(0,0,0,0.50)) saturate(0.95);
+}
+#faceRevealOverlay.rarity-C .face-reveal-img{
+  filter: drop-shadow(0 14px 38px rgba(0,0,0,0.55)) saturate(1.00);
+}
+#faceRevealOverlay.rarity-B .face-reveal-img{
+  filter: drop-shadow(0 16px 46px rgba(0,0,0,0.60)) saturate(1.05);
+}
+#faceRevealOverlay.rarity-A .face-reveal-img{
+  filter: drop-shadow(0 18px 54px rgba(0,0,0,0.65)) saturate(1.10) contrast(1.02);
+}
+#faceRevealOverlay.rarity-S .face-reveal-img{
+  filter: drop-shadow(0 20px 68px rgba(0,0,0,0.70)) saturate(1.18) contrast(1.05);
+}
+
+/* 背景FX：高ランクほど眩しい */
+#faceRevealOverlay.rarity-D .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(160,160,160,0.12) 0%, rgba(0,0,0,0) 60%); }
+#faceRevealOverlay.rarity-C .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(140,190,255,0.16) 0%, rgba(0,0,0,0) 60%); }
+#faceRevealOverlay.rarity-B .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(200,255,220,0.18) 0%, rgba(0,0,0,0) 62%); }
+#faceRevealOverlay.rarity-A .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(255,220,170,0.20) 0%, rgba(0,0,0,0) 64%); }
+#faceRevealOverlay.rarity-S .face-reveal-fx{ background: radial-gradient(circle at 50% 55%, rgba(255,240,210,0.24) 0%, rgba(0,0,0,0) 66%); }
+
+/* 追加のキラッ：A/Sだけ薄く入れる（派手すぎ防止） */
+#faceRevealOverlay.rarity-A::before,
+#faceRevealOverlay.rarity-S::before{
+  content:"";
+  position:absolute;
+  inset:-20%;
+  background:
+    linear-gradient(115deg,
+      rgba(255,255,255,0.00) 0%,
+      rgba(255,255,255,0.00) 35%,
+      rgba(255,255,255,0.10) 50%,
+      rgba(255,255,255,0.00) 65%,
+      rgba(255,255,255,0.00) 100%);
+  transform: translateX(-12%) rotate(8deg);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: faceRevealShine 0.85s ease-out forwards;
+}
+
+#faceRevealOverlay.rarity-S::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(circle at 50% 55%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 70%);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: faceRevealPulse 0.85s ease-out forwards;
+}
+
+@keyframes faceRevealImg{
+  0%   { opacity: 0; transform: translateY(18px) scale(0.70); }
+  18%  { opacity: 0.78; }
+  55%  { opacity: 0.55; transform: translateY(0px) scale(1.02); }
+  100% { opacity: 0.00; transform: translateY(-4px) scale(1.06); }
+}
+
+@keyframes faceRevealFx{
+  0%   { opacity: 0; transform: scale(0.98); }
+  20%  { opacity: 1; }
+  70%  { opacity: 0.55; transform: scale(1.00); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
+@keyframes faceRevealShine{
+  0%   { opacity: 0; transform: translateX(-18%) rotate(8deg); }
+  25%  { opacity: 0.85; }
+  60%  { opacity: 0.30; transform: translateX(8%) rotate(8deg); }
+  100% { opacity: 0; transform: translateX(18%) rotate(8deg); }
+}
+
+@keyframes faceRevealPulse{
+  0%   { opacity: 0; }
+  20%  { opacity: 0.75; }
+  55%  { opacity: 0.25; }
+  100% { opacity: 0; }
+}
+
+
 .rarity-s {
   animation: rainbowGlow 2s infinite;
 }
@@ -2948,6 +3068,46 @@ canvas {
 
 #battleLogControls .battle-log-tool-btn:active{
   transform: translateY(1px);
+}
+
+/* --- Battle Log controls: ultra mini (bar) --- */
+#battleLogControls .bl-ultramini-toggle,
+#battleLogControls .bl-ultramini-toggle.bl-icon-btn{
+  margin-left: auto;
+}
+
+#battleLogUltraMiniBar.battle-log-ultramini-bar{
+  display:none;
+  width:100%;
+  flex-basis:100%;
+  height:18px;
+  align-items:center;
+  justify-content:center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+}
+
+#battleLogUltraMiniBar .battle-log-ultramini-hint{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+  user-select: none;
+}
+
+#battleLogControls.is-ultramini{
+  padding: 2px 6px !important;
+  margin: 2px 0 4px 0 !important;
+}
+
+#battleLogControls.is-ultramini > :not(#battleLogUltraMiniBar){
+  display:none !important;
+}
+
+#battleLogControls.is-ultramini #battleLogUltraMiniBar{
+  display:flex;
 }
 
 /* Controls全体を少しだけコンパクトに */

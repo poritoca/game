@@ -1396,6 +1396,7 @@ window.saveToLocalStorage = async function() {
 		faceCoins: window.faceCoins || 0,
 		faceItemsOwned: window.faceItemsOwned || [],
 		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemBonusAlgoVersion: (typeof window.faceItemBonusAlgoVersion === 'number') ? window.faceItemBonusAlgoVersion : ((typeof window.faceBonusAlgoVersion === 'number') ? window.faceBonusAlgoVersion : 0),
 		faceItemBonusMap: window.faceItemBonusMap || {},
 		// 制限時間（タイムアタック）状態
 		timeLimitState: (typeof window.__serializeTimeLimitState === 'function') ? window.__serializeTimeLimitState() : null,
@@ -1631,7 +1632,16 @@ window.importSaveCode = async function(code = null) {
 		}catch(_e){}
 
 		window.faceItemEquipped = parsed.faceItemEquipped ?? null;
+		// 魔メイク効果（成長率）のアルゴリズム更新に備えたバージョン管理
+		// 旧セーブの faceItemBonusMap は保持されるため、アルゴリズムが変わった場合は安全に作り直す
+		const __MM_ALGO_V = (typeof window.faceBonusAlgoVersion === 'number') ? window.faceBonusAlgoVersion : 0;
+		const __MM_LOADED_V = Number((parsed && (parsed.faceItemBonusAlgoVersion ?? parsed.faceBonusAlgoVersion)) ?? 0) || 0;
+		window.faceItemBonusAlgoVersion = __MM_LOADED_V;
 		window.faceItemBonusMap = (parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
+		if (__MM_ALGO_V && window.faceItemBonusAlgoVersion !== __MM_ALGO_V) {
+			window.faceItemBonusMap = {};
+			window.faceItemBonusAlgoVersion = __MM_ALGO_V;
+		}
 		// 念のため：所持分は必ずボーナスを用意
 		try { (window.faceItemsOwned || []).forEach(p => __ensureFaceBonus(p)); } catch(e) {}
 
