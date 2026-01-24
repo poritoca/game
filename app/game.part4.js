@@ -2685,6 +2685,23 @@ window.__initTitleContinuePanel = window.__initTitleContinuePanel || function() 
 
 		const openPanel = () => {
 			try {
+				// If "はじめから" panel is open, close it when opening "つづきから".
+				try{
+					// If "はじめから" panel is open, close it when opening "つづきから"
+					const newBtn = document.getElementById('startNewMenuBtn');
+					const newPanel = document.getElementById('newPanel');
+					if (newPanel){
+						newPanel.classList.add('is-collapsed');
+						newPanel.classList.remove('is-open');
+						newPanel.setAttribute('aria-hidden', 'true');
+					}
+					// Restore the "はじめから" button if it was swapped out
+					if (newBtn){
+						newBtn.classList.remove('is-swapping');
+						newBtn.style.display = '';
+					}
+				}catch(_){ }
+
 				// swap animation: fade/blur out the single button, then reveal panel
 				btn.classList.add('is-swapping');
 

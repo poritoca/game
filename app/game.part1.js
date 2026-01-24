@@ -1883,7 +1883,7 @@ window.__uiOpacityKey = window.__uiOpacityKey || 'rpg_ui_opacity_percent';
 window.__getUIOpacityPercent = window.__getUIOpacityPercent || function(){
 	try{
 		const v = Number(localStorage.getItem(window.__uiOpacityKey));
-		if (Number.isFinite(v) && v >= 20 && v <= 100) return v;
+		if (Number.isFinite(v) && v >= 0 && v <= 100) return v;
 	}catch(_){}
 	return 100;
 };
@@ -1891,7 +1891,7 @@ window.__setUIOpacityPercent = window.__setUIOpacityPercent || function(p){
 	try{
 		let v = Number(p);
 		if (!Number.isFinite(v)) v = 100;
-		v = Math.max(20, Math.min(100, Math.round(v)));
+		v = Math.max(0, Math.min(100, Math.round(v)));
 		try{ localStorage.setItem(window.__uiOpacityKey, String(v)); }catch(_){}
 		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_){}
 		return v;
@@ -1901,7 +1901,7 @@ window.__setUIOpacityPercent = window.__setUIOpacityPercent || function(p){
 };
 window.__getUIOpacityAlpha = window.__getUIOpacityAlpha || function(){
 	const p = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100;
-	return Math.max(0.2, Math.min(1, p/100));
+	return Math.max(0, Math.min(1, p/100));
 };
 
 // Create/move the slider into battle dock (above mode button)
@@ -1918,7 +1918,7 @@ window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattl
 			wrap.className = 'ui-opacity-control';
 			wrap.innerHTML = `
 				<label id="uiOpacityLabel" for="uiOpacityRange">透過度(<span id="uiOpacityValue">100</span>%)</label>
-				<input id="uiOpacityRange" type="range" min="20" max="100" step="5" value="100" />
+				<input id="uiOpacityRange" type="range" min="0" max="100" step="5" value="100" />
 			`;
 		}
 
@@ -1967,56 +1967,135 @@ window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattl
 window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 	try{
 		const alpha = window.__getUIOpacityAlpha ? window.__getUIOpacityAlpha() : 1;
+		const pe = (alpha <= 0.001) ? 'none' : '';
+
 
 		// Battle dock: affect handle + main buttons/rows, but NOT the slider itself
 		const dock = document.getElementById('battleOverlayDock');
-		if (dock){
-			const handle = dock.querySelector('.dock-drag-handle');
-			if (handle) handle.style.opacity = String(alpha);
-
-			
-
-			// Background transparency: adjust dock frame WITHOUT fading text
+				if (dock){
+			// Background transparency: fade dock surface
 			try{
 				const base = Number(getComputedStyle(dock).getPropertyValue('--battleDockBgBase')) || 0.66;
-				dock.style.setProperty('--battleDockBgAlpha', String(Math.max(0.06, Math.min(0.92, base * alpha))));
+				dock.style.setProperty('--battleDockBgAlpha', String(Math.max(0, Math.min(0.92, base * alpha))));
 			}catch(_){
-				try{ dock.style.setProperty('--battleDockBgAlpha', String(0.66 * alpha)); }catch(__){}
+				try{ dock.style.setProperty('--battleDockBgAlpha', String(Math.max(0, 0.66 * alpha))); }catch(__){}
 			}
-const modeBtn = document.getElementById('specialModeButton');
+
+			// Fade the dock frame (border + shadow)
+			try{
+				const borderBase = 0.14;
+				dock.style.borderColor = `rgba(255,255,255,${borderBase * alpha})`;
+				const shadowBase = 0.36;
+				dock.style.boxShadow = `0 12px 34px rgba(0,0,0,${shadowBase * alpha})`;
+			}catch(_){}
+
+			// When opacity is 0%, make the dock itself compact (only Battle + slider remain)
+			const p = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : Math.round(alpha * 100);
+			const isZero = (p <= 0 || alpha <= 0.001);
+			try{ dock.classList.toggle('dock-opacity-zero', !!isZero); }catch(_){}
+
 			const battleBtn = document.getElementById('startBattleBtn');
-			if (modeBtn && dock.contains(modeBtn)) modeBtn.style.opacity = String(alpha);
-			if (battleBtn && dock.contains(battleBtn)) battleBtn.style.opacity = '1';
-			const row = document.getElementById('battleTimeLimitRow');
-			if (row && dock.contains(row)) row.style.opacity = String(alpha);
-
-			const result = document.getElementById('battleDockResultWindow');
-			if (result && dock.contains(result)) result.style.opacity = String(alpha);
-
-			// Ensure the opacity control itself is always visible
 			const ctrl = document.getElementById('uiOpacityControl');
-			if (ctrl && dock.contains(ctrl)) ctrl.style.opacity = '1';
+
+			const shouldSkip = (el) => {
+				try{
+					// Drag handle should NEVER be faded (always keep opaque)
+					try{ if (el.classList && el.classList.contains('dock-drag-handle')) return true; }catch(_){ }
+					try{ if (el.closest && el.closest('.dock-drag-handle')) return true; }catch(_){ }
+
+					if (!el) return true;
+
+					// Keep Battle button fully visible (and avoid fading any ancestor containers)
+					if (battleBtn){
+						if (el === battleBtn || el.closest('#startBattleBtn')) return true;
+						if (typeof el.contains === 'function' && el.contains(battleBtn)) return true;
+					}
+
+					// Opacity control: keep the range input visible (label/value should fade),
+					// and avoid fading any ancestor containers that would multiply opacity.
+					if (ctrl){
+						if (el === ctrl || el.closest('#uiOpacityControl')) {
+							if (el.id === 'uiOpacityRange') return true;
+							if (el.tagName === 'INPUT' && el.getAttribute('type') === 'range') return true;
+							if (el === ctrl) return true;
+							return false;
+						}
+						if (typeof el.contains === 'function' && el.contains(ctrl)) return true;
+					}
+				}catch(_){}
+				return false;
+			};
+
+			// Fade EVERYTHING inside the battle dock except Battle button + slider input
+			try{
+				const nodes = dock.querySelectorAll('*');
+				nodes.forEach((el) => {
+					if (shouldSkip(el)) return;
+					el.style.opacity = String(isZero ? 0 : alpha);
+					el.style.pointerEvents = pe;
+				});
+			}catch(_){}
+
+			// Ensure Battle button and slider input are always clickable/visible
+			try{
+				if (battleBtn && dock.contains(battleBtn)){
+					battleBtn.style.opacity = '1';
+					battleBtn.style.pointerEvents = '';
+				}
+			}catch(_){}
+
+			try{
+				if (ctrl && dock.contains(ctrl)){
+					ctrl.style.opacity = '1';
+					ctrl.style.pointerEvents = '';
+					const range = ctrl.querySelector('#uiOpacityRange');
+					if (range){
+						range.style.opacity = '1';
+						range.style.pointerEvents = '';
+					}
+					const lbl = ctrl.querySelector('#uiOpacityLabel') || ctrl.querySelector('label');
+					if (lbl){
+						lbl.style.opacity = String(isZero ? 0 : alpha);
+						lbl.style.pointerEvents = pe;
+					}
+					const val = ctrl.querySelector('#uiOpacityValue');
+					if (val){
+						val.style.opacity = String(isZero ? 0 : alpha);
+						val.style.pointerEvents = pe;
+					}
+				}
+			}catch(_){}
 		}
+
+		// Drag handle (つまみ): keep visible/clickable even at 0% (user may need it to move the dock)
+		try{
+			const handle = dock.querySelector('.dock-drag-handle');
+			if (handle){
+				handle.style.opacity = '1';
+				handle.style.pointerEvents = '';
+			}
+		}catch(_){ }
 
 		// Minimize controls (part of battle UI)
 		const minBtn = document.getElementById('battleDockMinimizeBtn');
-		if (minBtn) minBtn.style.opacity = String(alpha);
+		if (minBtn) { minBtn.style.opacity = String(alpha); minBtn.style.pointerEvents = pe; }
 		const miniBar = document.getElementById('battleDockMiniBar');
-		if (miniBar) miniBar.style.opacity = String(alpha);
+		// Mini bar must always remain visible/clickable so the user can restore the dock even at 0%.
+		if (miniBar) { miniBar.style.opacity = '1'; miniBar.style.pointerEvents = ''; }
 
 		// Overlays
 		const score = document.getElementById('scoreOverlay');
-		if (score) score.style.opacity = String(alpha);
+		if (score) { score.style.opacity = String(alpha); score.style.pointerEvents = pe; }
 		const skill = document.getElementById('skillOverlay');
-		if (skill) skill.style.opacity = String(alpha);
+		if (skill) { skill.style.opacity = String(alpha); skill.style.pointerEvents = pe; }
 		const item = document.getElementById('itemOverlay');
-		if (item) item.style.opacity = String(alpha);
+		if (item) { item.style.opacity = String(alpha); item.style.pointerEvents = pe; }
 
 		// Growth selection UI only (avoid affecting other event popups)
 		const popup = document.getElementById('eventPopup');
 		if (popup){
 			const isGrowth = popup.classList.contains('growth-compact-ui') || popup.classList.contains('growthbar-ui') || popup.getAttribute('data-ui-mode') === 'growth';
-			if (isGrowth) popup.style.opacity = String(alpha);
+			if (isGrowth) { popup.style.opacity = String(alpha); popup.style.pointerEvents = pe; }
 		}
 
 		// Charts: intentionally NOT affected (hpChart etc) -> do nothing

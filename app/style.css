@@ -3852,7 +3852,7 @@ canvas {
   margin: 0;
   padding: 12px 10px;
   border-radius: 12px;
-  text-align: left;
+  text-align: center;
   line-height: 1.25;
 
   background: linear-gradient(145deg, rgba(70, 74, 110, 0.35), rgba(20, 23, 40, 0.55));
@@ -4187,6 +4187,47 @@ canvas {
   box-shadow: 0 12px 34px rgba(0,0,0,0.36);
 }
 
+/* When UI opacity is 0%: make battle dock compact (Battle button + slider only) */
+#battleOverlayDock.dock-opacity-zero{
+  width: min(22vw, 140px);
+  width: min(22vw, 140px);
+  padding: 3px 3px 4px;
+  gap: 3px;
+}
+
+/* Hide everything except Battle button + opacity slider control */
+#battleOverlayDock.dock-opacity-zero > *:not(.dockContent):not(.dock-drag-handle){
+  display: none !important;
+}
+#battleOverlayDock.dock-opacity-zero .dockContent > *:not(#uiOpacityControl):not(#startBattleBtn):not(.dock-drag-handle){
+  display: none !important;
+}
+
+/* In 0% mode, keep ONLY the bar + battle button (no label, ultra-compact) */
+#battleOverlayDock.dock-opacity-zero #uiOpacityLabel,
+#battleOverlayDock.dock-opacity-zero #uiOpacityValue{
+  display: none !important;
+}
+
+/* Make the remaining UI fill the compact width */
+#battleOverlayDock.dock-opacity-zero #startBattleBtn,
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl{
+  width: 100%;
+}
+
+#battleOverlayDock.dock-opacity-zero #startBattleBtn{
+  padding: 10px 8px;
+}
+
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl input[type="range"]{
+  width: 100%;
+  margin: 0 !important;
+}
 /* Drag handle (grab here to move the battle dock) */
 #battleOverlayDock .dock-drag-handle{
   height: auto;
@@ -5792,4 +5833,27 @@ body.first-face-selecting #hpChart{display:none !important;}
 	margin-top: 10px;
 	font-size: 12px;
 	opacity: 0.72;
+}
+
+/* Ultra-compact sizing (0% opacity mode) */
+#battleOverlayDock.dock-opacity-zero #startBattleBtn{
+  width: 100% !important;
+  padding: 8px 10px !important;
+  font-size: 0.95em !important;
+}
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl{
+  width: 100% !important;
+}
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl #uiOpacityRange{
+  width: 100% !important;
+}
+#battleOverlayDock.dock-opacity-zero .dock-drag-handle,
+#battleOverlayDock.dock-opacity-zero .dock-drag-handle *{
+  opacity: 1 !important;
+}
+
+/* Drag handle should stay opaque even when UI opacity slider is reduced */
+#battleOverlayDock .dock-drag-handle,
+#battleOverlayDock .dock-drag-handle *{
+  opacity: 1 !important;
 }
