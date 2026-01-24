@@ -19,6 +19,16 @@ window.startBattle = function() {
 	if (window.__battleInProgress) return;
 	window.__battleInProgress = true;
 
+	// 非「中断」ロードで開始した場合は、growthBonus を必ずゼロに戻す（次の戦闘開始時に1回だけ適用）
+	try{
+		if (window.__forceResetGrowthBonusOnNextStart && !window.__keepGrowthBonusFromProgressSave) {
+			window.__forceResetGrowthBonusOnNextStart = false;
+			if (typeof window.__resetGrowthBonusToZero === 'function') window.__resetGrowthBonusToZero();
+		}
+	}catch(_e){}
+
+	try {
+
 	// 最初のバトルの直前のみ、戦闘ログを自動で開く（確定→初戦開始のときだけ）
 	try{
 		if (window.__openBattleLogOnNextBattle) {
@@ -91,13 +101,128 @@ window.startBattle = function() {
 		}
 	}
 
+
+
+	// =====================================================
+	// 強ボス（ランダム遭遇）
+	//  - 通常モードのみ / 400戦目以降 / 0.1% / S顔固定
+	// =====================================================
+	window.isStrongBossBattle = false;
+	window.__strongBossScale = 1;
+
+	try{
+		const enabled = !!window.STRONG_BOSS_ENABLED;
+		const isNormal = (window.specialMode !== 'brutal');
+		const minB = Number(window.STRONG_BOSS_MIN_BATTLES || 400);
+		const rate = Number(window.STRONG_BOSS_RATE || 0.001);
+		if (enabled && isNormal && !window.isBossBattle && Number(window.battlesPlayed||0) >= minB) {
+			if (Math.random() < rate) {
+				window.isStrongBossBattle = true;
+				window.isBossBattle = true;
+
+				// 強ボス遭遇時は（確実に）オートバトルを即停止してログを見られるようにする
+				try{
+					if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+						try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(700); }catch(_e){}
+						if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
+						try{ isAutoBattle = false; }catch(_e){}
+						try{ if (typeof showCustomAlert === 'function') showCustomAlert('強ボス遭遇！オートバトルを停止しました', 2200); }catch(_e){}
+					}
+				}catch(_e){}
+
+				// 強ボスはSランク顔固定
+				try{
+					if (typeof drawRandomFace === 'function') {
+						const faceInfo = drawRandomFace('S');
+						if (faceInfo && faceInfo.path) window.bossFacePath = faceInfo.path;
+					}
+				}catch(e){}
+
+				// 強制的にログを開く（閉じていると困るため）
+				try{
+					if (typeof window.ensureTopFoldOpen === 'function') window.ensureTopFoldOpen('log');
+					else if (typeof window.toggleTopFold === 'function') window.toggleTopFold('log');
+				}catch(e){}
+			}
+		}
+	}catch(e){}
+	// =====================================================
+	// 成長ボス（疑似ボス）
+	//  - 通常モードのみ。成長倍率（growthMultiplier）が高いほど、出現率↑/強さ↑
+	//  - 50戦ごとのボス（isBossBattle）とは別枠
+	// =====================================================
+	window.isGrowthBoss = false;
+	window.growthBossFacePath = null;
+	window.__growthBossScale = 1;
+	window.__growthBossRarity = 'D';
+
+	try{
+		const enabled = !!window.GROWTH_BOSS_ENABLED;
+		const isNormal = (window.specialMode !== 'brutal');
+		const gm = Number(window.growthMultiplier || 1);
+		if (enabled && isNormal && !window.isBossBattle && gm > 1) {
+			const logScale = Number(window.GROWTH_BOSS_RATE_LOG_SCALE || 100);
+			const xRaw = (gm > 1 && logScale > 1) ? (Math.log(gm) / Math.log(logScale)) : 0;
+			const x = Math.max(0, Math.min(1, xRaw));
+			const base = Number(window.GROWTH_BOSS_RATE_BASE || 0);
+			const cap = Number(window.GROWTH_BOSS_RATE_CAP || 0.3);
+			const pow = Number(window.GROWTH_BOSS_RATE_LOG_POW || 1);
+			const p = Math.max(0, Math.min(cap, base + (cap - base) * Math.pow(x, pow)));
+
+			if (Math.random() < p) {
+				window.isGrowthBoss = true;
+
+				// 強さスケール（50戦ボス補正に対して掛ける）
+				const div = Number(window.GROWTH_BOSS_STRENGTH_LOG_DIV || logScale);
+				const sxRaw = (gm > 1 && div > 1) ? (Math.log(gm) / Math.log(div)) : 0;
+				const sx = Math.max(0, Math.min(1, sxRaw));
+				const sMin = Number(window.GROWTH_BOSS_STRENGTH_MIN_SCALE || 1);
+				const sMax = Number(window.GROWTH_BOSS_STRENGTH_MAX_SCALE || 2);
+				const spow = Number(window.GROWTH_BOSS_STRENGTH_SMOOTH_POW || 1);
+				const scale = sMin + (sMax - sMin) * Math.pow(sx, spow);
+				window.__growthBossScale = scale;
+
+				// 画像ランク（強さに応じて引き上げ）
+				let r = 'D';
+				if (scale >= 2.7) r = 'S';
+				else if (scale >= 2.1) r = 'A';
+				else if (scale >= 1.6) r = 'B';
+				else if (scale >= 1.2) r = 'C';
+				window.__growthBossRarity = r;
+
+				try{
+					if (typeof drawRandomFace === 'function') {
+						const faceInfo = drawRandomFace(r);
+						if (faceInfo && faceInfo.path) {
+							window.growthBossFacePath = faceInfo.path;
+						}
+					}
+				}catch(_e){}
+			}
+		}
+	}catch(_e){}
+
+
+
 		// =====================================================
 		// ボス戦開始演出：敵画像を「ズバーン」表示（レアほど豪華）
 		//  - ガチャ演出と同じ仕組みを転用
 		//  - ボスの画像ランク（rarity）に応じてエフェクトを変える
 		// =====================================================
 		try {
+			// ボス遭遇時は（通常ボス / 成長ボスともに）オートバトルを止めて演出を見せる
+			try{
+				if ((window.isBossBattle || window.isGrowthBoss) && (typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+					try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(700); }catch(_e){}
+						if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
+					try{ isAutoBattle = false; }catch(_e){}
+					try{ if (typeof showCustomAlert === 'function') showCustomAlert(window.isGrowthBoss ? '成長ボス遭遇！オートバトルを停止しました' : 'ボス遭遇！オートバトルを停止しました', 2200); }catch(_e){}
+				}
+			}catch(_e){}
 			if (window.isBossBattle && window.bossFacePath && typeof showFaceRevealAnimation === 'function') {
+			if (window.isStrongBossBattle) {
+				try{ window.log.push('【強ボス襲来】闇より禍々しい気配が迫る…'); }catch(e){}
+			}
 				let r = 'D';
 				try {
 					if (typeof __getRarityFromFacePath === 'function') r = __getRarityFromFacePath(window.bossFacePath);
@@ -106,11 +231,20 @@ window.startBattle = function() {
 						if (m && m[1]) r = m[1];
 					}
 				} catch(_e) { r = 'D'; }
-				showFaceRevealAnimation(window.bossFacePath, r, 'boss');
+				showFaceRevealAnimation(window.bossFacePath, r, (window.isStrongBossBattle ? 'strong' : 'boss'));
+			} else if (window.isGrowthBoss && window.growthBossFacePath && typeof showFaceRevealAnimation === 'function') {
+				let r = String(window.__growthBossRarity || 'D').toUpperCase();
+				try{
+					if (!r || r === 'UNDEFINED') {
+						const m = String(window.growthBossFacePath || '').match(/face\/(S|A|B|C|D)\//);
+						if (m && m[1]) r = m[1];
+					}
+				}catch(_e){}
+				showFaceRevealAnimation(window.growthBossFacePath, r, 'growth');
 			}
 		} catch(_e) { }
 
-	if (player.baseStats && player.growthBonus) {
+	if (player && player.baseStats && player.growthBonus) {
 		player.attack = player.baseStats.attack + player.growthBonus.attack;
 		player.defense = player.baseStats.defense + player.growthBonus.defense;
 		player.speed = player.baseStats.speed + player.growthBonus.speed;
@@ -163,132 +297,30 @@ window.startBattle = function() {
 
 	const customAlertVisible = document.getElementById('eventPopup').style.display === 'block';
 
-	if (isAutoBattle && isWaitingGrowth) {
-		isWaitingGrowth = false;
-
-		// 連勝率の計算
-		const streakRatio = Math.min(window.currentStreak / window.sessionMaxStreak, 1.0);
-
-		// skipの重み（低いほどskipが優先される）
-		// streakRatioが0なら weight=10、1なら weight=1（高いほど選ばれにくく）
-		const skipWeight = 1 + 9 * (1 - streakRatio);
-		const normalWeight = 1;
-
-		const growthOptions = [
-			{ label: "攻撃を上げる", value: 'attack', weight: normalWeight },
-			{ label: "防御を上げる", value: 'defense', weight: normalWeight },
-			{ label: "速度を上げる", value: 'speed', weight: normalWeight },
-			{ label: "HPを上げる", value: 'maxHp', weight: normalWeight },
-			{
-				label: `次回成長x${window.getNextGrowthMultiplier()}`,
-				value: 'skip',
-				weight: skipWeight
-    }
-  ];
-
-		// 重み付きランダム選択（安全版：weight=0 / NaN でも落ちない）
-		const safeGrowthOptions = growthOptions.map(opt => {
-			const w = Math.max(0, Number(opt.weight) || 0);
-			return { ...opt, weight: w };
-		});
-		const totalWeight = safeGrowthOptions.reduce((sum, opt) => sum + opt.weight, 0);
-		let selected = null;
-		if (totalWeight > 0) {
-			let rand = Math.random() * totalWeight;
-			selected = safeGrowthOptions.find(opt => {
-				if (rand < opt.weight) return true;
-				rand -= opt.weight;
-				return false;
-			}) || safeGrowthOptions[safeGrowthOptions.length - 1];
-		} else {
-			// 全weightが0の場合：skip以外を優先して1つ選ぶ（なければ先頭）
-			selected = safeGrowthOptions.find(opt => opt && opt.value && opt.value !== 'skip') || safeGrowthOptions[0];
-		}
-		if (!selected) {
-			selected = { label: '（自動選択）', value: 'skip', weight: 0 };
-		}
-
-		const selectedValue = selected.value;
-
-		// UI: show growth bar briefly even on auto-pick
-		window.showGrowthAutoBar && window.showGrowthAutoBar(`選択: ${selected.label}`);
 
 
-		// ✅ 成長処理
-		if (selectedValue === 'skip') {
-			window.skipGrowth(); // 成長倍率だけを増やす
-		} else {
-			window.chooseGrowth(selectedValue); // ステータス成長処理
-		}
-
-		clearEventPopup();
-
-		const popup = document.getElementById("eventPopup");
-		const title = document.getElementById("eventPopupTitle");
-		const optionsEl = document.getElementById("eventPopupOptions");
-
-		title.innerHTML = `オートバトル中のため「${selected.label}」を自動選択しました`;
-		optionsEl.innerHTML = "";
-
-		popup.style.display = "block";
-		popup.style.visibility = "visible";
-
-		const scrollTop = window.scrollY || document.documentElement.scrollTop;
-		const popupHeight = popup.offsetHeight;
-		popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
-		popup.style.left = "50%";
-		popup.style.transform = "translateX(-50%)";
-
-		// auto-dismiss + tap-to-dismiss (does not depend on __battleSetTimeout)
-		const __hideAutoPickNotice = () => {
-			try{ popup.style.display = "none"; }catch(_){}
-			try{ popup.classList && popup.classList.remove("autoPickNotice"); }catch(_){}
-			try{
-				popup.removeEventListener("click", __hideAutoPickNotice);
-				popup.removeEventListener("touchstart", __hideAutoPickNotice);
-			}catch(_){}
-		};
+	// 成長選択待ち中は、戦闘を開始しない（AutoBattle中も停止してユーザーに選ばせる）
+	const __waitingGrowth = (typeof isWaitingGrowth !== 'undefined') && !!isWaitingGrowth;
+	if (__waitingGrowth) {
 		try{
-			popup.classList && popup.classList.add("autoPickNotice");
-			popup.addEventListener("click", __hideAutoPickNotice, { once: true });
-			popup.addEventListener("touchstart", __hideAutoPickNotice, { once: true });
-		}catch(_){}
-		setTimeout(__hideAutoPickNotice, 1300);
-		}
-
-
-
-
-
-
-	// 元のコード
-	// const name = document.getElementById('inputStr').value || 'あなた';
-
-	// 修正版: player.name が既にあるならそのまま、なければ入力欄の値またはデフォルト
-	const name = player?.name || document.getElementById('inputStr').value || 'あなた';
-	if (!player || (!isLoadedFromSave && displayName(player.name) !== name)) {
-
-		//   window.isFirstBattle = true;
-
-		const tmpChar = makeCharacter(name);
-		player = {
-			...tmpChar,
-			growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 },
-			itemMemory: []
-		};
-
-		// isFirstBattle かつ 初期スキル情報が未設定のときだけ代入
-
-		if (!player.itemMemory) {
-			player.itemMemory = [];
-		}
-
-		try {} catch (e) {}
+			if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle){
+				try{ try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(700); }catch(_e){}
+						if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle(); }catch(_e){}
+				try{ isAutoBattle = false; }catch(_e){}
+				try{ if (typeof showCustomAlert === 'function') showCustomAlert('成長選択が必要なためオートバトルを停止しました', 2200); }catch(_e){}
+			}else{
+				try{ if (typeof showCustomAlert === 'function') showCustomAlert('成長を選択してください', 1600); }catch(_e){}
+			}
+		}catch(_e){}
+		// ここで戻る場合は二重起動ガードを解除しておく（未開始なのにロックされるのを防止）
+		try{ window.__battleInProgress = false; }catch(_e){}
+		return;
 	}
+
 
 	// 初期スキル＋sslotスキルをリスト化
 	{
-		const entries = Object.entries(player.skillMemory);
+		const entries = Object.entries((player && player.skillMemory) ? player.skillMemory : {});
 		const firstThree = entries.slice(0, 3);
 		const lastX = (sslot > 0) ? entries.slice(-sslot) : []; // ★ここで条件分岐！
 
@@ -303,6 +335,33 @@ window.startBattle = function() {
 	} while (!hasOffensiveSkill(enemy));
 
 
+	// 強ボスは常にスキル8個＆レアリティ固定
+	if (window.isStrongBossBattle) {
+		try{
+			const targetR = Number(window.STRONG_BOSS_RARITY || 2.0);
+			enemy.rarity = targetR;
+
+			const pool = (typeof skillPool !== 'undefined' && Array.isArray(skillPool)) ? skillPool : (Array.isArray(window.skillPool) ? window.skillPool : []);
+			const want = Math.max(0, Math.floor(Number(window.STRONG_BOSS_SKILL_COUNT || 8)));
+			const used = new Set();
+			const shuffled = [...pool].sort(() => 0.5 - Math.random());
+			const skills = [];
+			for (let i=0; i<shuffled.length && skills.length < want; i++) {
+				const s = shuffled[i];
+				if (!s || !s.name) continue;
+				if (used.has(s.name)) continue;
+				used.add(s.name);
+				skills.push({ name: s.name, level: 1, uses: 0 });
+			}
+			enemy.skills = skills;
+			const mem = {};
+			for (const sk of skills) mem[sk.name] = sk.level;
+			enemy.skillMemory = mem;
+		}catch(e){}
+	}
+
+
+
 
 
 	// 特殊スキルの戦闘開始時特殊効果を付与（必ずログを出す）
@@ -310,7 +369,7 @@ window.startBattle = function() {
 	const originalKanaName = displayName(enemy.name).replace(/[^アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴァィゥェォャュョッー]/g, '');
 
 	const specialSkillThreshold = 999;
-	const maxSpecialSkillLevel = 5000;
+	const maxSpecialSkillLevel = (window.isStrongBossBattle ? (Number.isFinite(window.STRONG_BOSS_SKILL_LEVEL_MAX) ? window.STRONG_BOSS_SKILL_LEVEL_MAX : 9999) : 5000);
 	const specialChance = window.getSpecialChance();
 
 	let hasSpecialSkill = false;
@@ -338,6 +397,31 @@ window.startBattle = function() {
 			skill.level = level;
 		}
 	});
+
+	// 強ボスは敵スキルレベルを極端に高くする（デバッグ要望: 5000〜9999）
+	if (window.isStrongBossBattle) {
+		try{
+			const minSL = (Number.isFinite(window.STRONG_BOSS_SKILL_LEVEL_MIN) ? window.STRONG_BOSS_SKILL_LEVEL_MIN : 5000);
+			const maxSL = (Number.isFinite(window.STRONG_BOSS_SKILL_LEVEL_MAX) ? window.STRONG_BOSS_SKILL_LEVEL_MAX : 9999);
+			if (enemy && Array.isArray(enemy.skills)) {
+				for (const sk of enemy.skills) {
+					if (!sk) continue;
+					// 強ボス：5000〜9999（設定値）の範囲で各スキルLvを高めにランダム化
+					const r = Math.random();
+					// r^0.55 は高め寄り（0.55<1 で上振れしやすい）
+					const lvl = Math.floor(minSL + (maxSL - minSL) * Math.pow(r, 0.55));
+					sk.level = Math.max(minSL, Math.min(maxSL, lvl));
+				}
+			}
+			// 参照先が skills でも skillMemory でもズレないよう同期（念のため）
+			enemy.skillMemory = enemy.skillMemory || {};
+			if (enemy && Array.isArray(enemy.skills)) {
+				for (const sk of enemy.skills) {
+					if (sk && sk.name) enemy.skillMemory[sk.name] = sk.level;
+				}
+			}
+		}catch(_e){}
+	}
 
 	// 名前修正
 	enemy.name = hasSpecialSkill ? `${specialSkillName}${originalKanaName}` : originalKanaName;
@@ -400,33 +484,96 @@ window.startBattle = function() {
 
 	// ボス戦の場合は、ボス専用の追加倍率を掛ける
 	if (window.isBossBattle) {
-		// 通常モードは従来どおり（デフォルト 3〜10）
-		// 鬼畜モードは 1.2〜4 に固定
-		const isBrutal = (window.specialMode === 'brutal');
+		// 強ボスは倍率計算を専用式に置き換え
+		if (window.isStrongBossBattle) {
+			const base = Number(window.STRONG_BOSS_MUL_BASE || 11);
+			const per  = Number(window.STRONG_BOSS_MUL_PER_BATTLE || 0.05);
+			const cap  = Number(window.STRONG_BOSS_MUL_CAP || 50);
+			const minB = Number(window.STRONG_BOSS_MIN_BATTLES || 400);
+			const b = Math.max(0, Number(window.battlesPlayed || 0) - minB);
+			let bossMul = base + per * b;
+			bossMul = Math.min(cap, bossMul);
+			window.__strongBossScale = bossMul;
+			enemyMultiplier *= bossMul;
+			try{
+				window.log.push(`【強ボス補正】敵倍率 x${bossMul.toFixed(3)}（基準${base} + ${per}×(戦闘数-${minB})、上限${cap}）`);
+			}catch(e){}
+		} else {
+			// 通常モードは従来どおり（デフォルト 3〜10）
+			// 鬼畜モードは 1.2〜4 に固定
+			const isBrutal = (window.specialMode === 'brutal');
 
-		const minMul = isBrutal ?
-			1.2 :
-			((typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5);
+			const minMul = isBrutal ?
+				1.2 :
+				((typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 1.5);
 
-		const maxMul = isBrutal ?
-			4.0 :
-			((typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0);
+			const maxMul = isBrutal ?
+				4.0 :
+				((typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 4.0);
 
-		const exp = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
+			const exp = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 5;
 
-		const r = Math.random() ** exp;
-		const bossMul = minMul + r * (maxMul - minMul);
+			const r = Math.random() ** exp;
+			const bossMul = minMul + r * (maxMul - minMul);
 
-		enemyMultiplier *= bossMul;
-		log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
+			enemyMultiplier *= bossMul;
+			log.push(`【ボス補正】敵倍率 x${bossMul.toFixed(3)}（範囲 ${minMul}〜${maxMul}）`);
+		}
+	}
+
+	// 成長ボスの場合は、50戦ボス相当の補正に「成長スケール」を掛ける（通常モードのみ）
+	if (window.isGrowthBoss) {
+		const minMul = (typeof window.BOSS_ENEMY_MIN_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MIN_MULTIPLIER : 3;
+		const maxMul = (typeof window.BOSS_ENEMY_MAX_MULTIPLIER === 'number') ? window.BOSS_ENEMY_MAX_MULTIPLIER : 10;
+		const exp = (typeof window.BOSS_ENEMY_POWER_EXP === 'number') ? window.BOSS_ENEMY_POWER_EXP : 8;
+
+		const rr = Math.random() ** exp;
+		const baseBossMul = minMul + rr * (maxMul - minMul);
+		const scale = (typeof window.__growthBossScale === 'number') ? window.__growthBossScale : 1;
+		const growthBossMul = baseBossMul * scale;
+
+		enemyMultiplier *= growthBossMul;
+		log.push(`【成長ボス補正】敵倍率 x${growthBossMul.toFixed(3)}（基準ボス x${baseBossMul.toFixed(3)} × 成長スケール x${scale.toFixed(2)}）`);
 	}
 	// --- 3) 敵の最終値に倍率適用 ---
-['attack', 'defense', 'speed', 'maxHp'].forEach(stat => {
-		enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
-	});
-	enemy.hp = enemy.maxHp;
+	const __statsKeys = ['attack', 'defense', 'speed', 'maxHp'];
 
-	// --- 4) ログ出力（内訳を詳細に表示） ---
+	// 強ボス：倍率適用後の値と「自分ステの0.8〜5倍抽選」を比較し、高い方を採用
+	if (window.isStrongBossBattle) {
+		let __p = null;
+		try { __p = (typeof player === 'object' && player) ? player : ((typeof window.player === 'object' && window.player) ? window.player : null); } catch (_e) {}
+		__statsKeys.forEach(stat => {
+			const bossVal = Math.floor(enemy[stat] * enemyMultiplier);
+			let pVal = 0;
+			try { pVal = __p && Number.isFinite(Number(__p[stat])) ? Number(__p[stat]) : 0; } catch (_e) { pVal = 0; }
+			if (!(pVal > 0)) pVal = bossVal;
+
+			const lo = Math.max(1, pVal * 0.8);
+			const hi = Math.max(lo, pVal * 5);
+
+			let r = Math.random();
+			// maxHp は高め、speed は低め、他は一様
+			if (stat === 'maxHp') r = Math.pow(r, 0.55);      // 高め寄り
+			else if (stat === 'speed') r = Math.pow(r, 2.0);  // 低め寄り
+
+			const roll = Math.floor(lo + r * (hi - lo));
+			const finalVal = Math.max(bossVal, roll);
+
+			enemy[stat] = finalVal;
+
+			try {
+				const label = (stat === 'attack') ? 'ATK' : (stat === 'defense') ? 'DEF' : (stat === 'speed') ? 'SPD' : 'MAXHP';
+				log.push(`【強ボスステ調整】${label}: 倍率後${bossVal} vs 抽選${roll}（自分×0.8〜5）→ ${finalVal}`);
+			} catch (_e) {}
+		});
+	} else {
+		__statsKeys.forEach(stat => {
+			enemy[stat] = Math.floor(enemy[stat] * enemyMultiplier);
+		});
+	}
+
+	enemy.hp = enemy.maxHp;
+// --- 4) ログ出力（内訳を詳細に表示） ---
 	log.push(
 		`${window.specialMode === 'brutal' ? '[鬼畜モード挑戦中] ' : ''}` +
 		`敵のステータス倍率: ${enemyMultiplier.toFixed(3)}倍\n` +
@@ -1131,15 +1278,16 @@ window.startBattle = function() {
 		window.allowGrowthEvent &&
 		Math.random() < adjustedFinalRate) {
 
-		isWaitingGrowth = true;
-
-		showEventOptions("成長選択", [
+		// 成長選択（自動/手動トグル対応）
+		const __growthOptions = [
 			{ label: "攻撃を上げる", value: 'attack' },
 			{ label: "防御を上げる", value: 'defense' },
 			{ label: "速度を上げる", value: 'speed' },
 			{ label: "HPを上げる", value: 'maxHp' },
 			{ label: `次回成長x${window.getNextGrowthMultiplier()}`, value: 'skip' }
-  ], (chosen) => {
+  
+		];
+		const __onGrowthChosen = (chosen) => {
 			if (chosen === 'skip') {
 				window.skipGrowth();
 			} else {
@@ -1148,9 +1296,24 @@ window.startBattle = function() {
 
 			//   const logEl = document.getElementById('battleLog');
 			//   logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
-		});
+		
+		};
 
-	} else if (playerWon) {
+		let __growthAuto = false;
+		try{ __growthAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()); }catch(_e){ __growthAuto = false; }
+		if (__growthAuto){
+			// 自動：AutoBattleと同じ重みで選ぶ（ポップアップは出さない）
+			let __picked = null;
+			try{ __picked = window.__autoPickGrowthOptionLikeAutoBattle ? window.__autoPickGrowthOptionLikeAutoBattle(__growthOptions) : null; }catch(_e){ __picked = null; }
+			const __val = (__picked && __picked.value != null) ? String(__picked.value) : 'attack';
+			try{ __onGrowthChosen(__val); }catch(_e){}
+			try{ isWaitingGrowth = false; }catch(_e){}
+		}else{
+			// 手動：UIで選ばせる（選ぶまで戦闘を止める）
+			isWaitingGrowth = true;
+			showEventOptions("成長選択", __growthOptions, __onGrowthChosen);
+		}
+} else if (playerWon) {
 		const logEl = document.getElementById('battleLog');
 		logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
 	}
@@ -1165,6 +1328,26 @@ window.startBattle = function() {
 
 		// ★ 20戦ごとのボス勝利時：魔道具 or ステータス成長
 		if (window.isBossBattle) {
+			// 強ボス撃破カウント（5体でエンディング）
+			if (window.isStrongBossBattle) {
+				try{
+					let c = Number(window.strongBossKillCount || 0);
+					if(!Number.isFinite(c)) c = 0;
+					const starMax = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+					c = Math.max(0, Math.min(starMax, Math.floor(c + 1)));
+					window.strongBossKillCount = c;
+					if (typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
+					if (typeof showCustomAlert === 'function') {
+						const starMax2 = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+						showCustomAlert(`強ボス撃破！ ★ ${c}/${starMax2}`);
+					}
+					const clearKills = Number.isFinite(window.STRONG_BOSS_ENDING_KILLS) ? window.STRONG_BOSS_ENDING_KILLS : 5;
+					if (c >= clearKills && typeof window.triggerEndingSequence === 'function') {
+						window.triggerEndingSequence();
+					}
+				}catch(e){}
+			}
+
 			const bossRoll = Math.random(); // 0〜1
 			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.75;
 
@@ -1279,7 +1462,24 @@ window.startBattle = function() {
 					}
 				}
 			}
-		} else {
+		}
+		else if (window.isGrowthBoss) {
+			try{
+				const scale = (typeof window.__growthBossScale === 'number') ? window.__growthBossScale : 1;
+				const base = Number(window.GROWTH_BOSS_COIN_BASE || 0);
+				const per = Number(window.GROWTH_BOSS_COIN_PER_SCALE || 0);
+				const cap = Number(window.GROWTH_BOSS_COIN_CAP || 999999);
+
+				let gain = Math.floor(base + per * Math.max(0, scale));
+				if (!isFinite(gain) || gain < 0) gain = 0;
+				gain = Math.min(cap, gain);
+
+				window.faceCoins = Number(window.faceCoins || 0) + gain;
+				try { if (typeof update魔通貨Display === 'function') update魔通貨Display(); } catch(_e){}
+				try { if (typeof showCustomAlert === 'function') showCustomAlert(`成長ボス撃破！魔通貨 +${gain}（x${scale.toFixed(2)}）`, 2600); } catch(_e){}
+			}catch(_e){}
+		}
+ else {
 			// 通常戦闘時の勝利処理（従来どおり）
 			if (window.specialMode === 'brutal') {
 				currentStreak += 1;
@@ -1454,9 +1654,9 @@ window.startBattle = function() {
 		const labels = { attack: "攻撃", defense: "防御", speed: "素早さ", maxHp: "最大HP" };
 		const chosen = stats[Math.floor(Math.random() * stats.length)];
 
-		// ✅ 敗北時の成長は「恒久ステータス」扱い（growthBonus には積まない）
-		// - growthBonus は“勝利後の成長選択”で使う領域として維持（ユーザー要望）
-		// - ここでは baseStats を増やし、次戦以降も必ず反映されるようにする
+		// ✅ 敗北時のボーナスも「growthBonus」に積む（baseStatsは直接いじらない）
+		// - 勝利時の成長選択と同じ領域に積むことで、セーブ/ロードや表示の整合性を保つ
+		// - baseStats は“素の基礎値”として固定し、敗北ボーナスも含めて growthBonus で表現する
 		if (!player.baseStats || typeof player.baseStats !== 'object') {
 			const gb = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 			player.baseStats = {
@@ -1466,7 +1666,12 @@ window.startBattle = function() {
 				maxHp: Math.max(0, Math.floor((Number(player.maxHp) || 0) - (Number(gb.maxHp) || 0))),
 			};
 		}
-		player.baseStats[chosen] = Math.floor((Number(player.baseStats[chosen]) || 0) + growthTotal);
+		// growthBonus を増やす（敗北しても引き継ぐが、baseStatsは固定）
+		if (!player.growthBonus || typeof player.growthBonus !== 'object') {
+			player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		}
+		if (!Number.isFinite(player.growthBonus[chosen])) player.growthBonus[chosen] = 0;
+		player.growthBonus[chosen] = Math.floor((Number(player.growthBonus[chosen]) || 0) + growthTotal);
 
 		// 表示用の“成長説明”を組み立て（サブタイトルに埋め込む）
 		const growthMsg =
@@ -1510,8 +1715,7 @@ window.startBattle = function() {
 		currentStreak = 0;
 	}
 
-	document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
-
+	
 	// 最終HP表示
 	log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 	log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
@@ -1529,7 +1733,7 @@ window.startBattle = function() {
 	player.effects = [];
 	clearPassiveStatBuffs(player);
 
-	if (player.baseStats && player.growthBonus) {
+	if (player && player.baseStats && player.growthBonus) {
 		player.attack = player.baseStats.attack + player.growthBonus.attack;
 		player.defense = player.baseStats.defense + player.growthBonus.defense;
 		player.speed = player.baseStats.speed + player.growthBonus.speed;
@@ -1770,7 +1974,8 @@ window.startBattle = function() {
 				window.battlesPlayed > 0 &&
 				window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
 				typeof stopAutoBattle === 'function') {
-				stopAutoBattle();
+				try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(650); }catch(_e){}
+			stopAutoBattle();
 			}
 		} catch (e2) {
 			console.warn('auto battle stop (20-battle chunk) failed', e2);
@@ -1787,6 +1992,14 @@ window.startBattle = function() {
 	// --- 戦闘処理終了：次の戦闘に備えてフラグを戻す ---
 	window.__battleVisualTracking = false;
 	window.__battleInProgress = false;
+	} catch (e) {
+		console.error('[startBattle] failed', e);
+		try{ console.error('[startBattle] message', (e && e.message) ? e.message : String(e)); }catch(_e2){}
+		try{ if (e && e.stack) console.error('[startBattle] stack', e.stack); }catch(_e2){}
+		try{ window.__battleVisualTracking = false; }catch(_e){}
+		try{ window.__battleInProgress = false; }catch(_e){}
+		try{ if (typeof showCustomAlert === 'function') showCustomAlert('戦闘開始に失敗しました（再読み込み or コンソール確認）', 3200); }catch(_e){}
+	}
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1847,10 +2060,27 @@ document.addEventListener('DOMContentLoaded', () => {
 	//document.getElementById('loadGameBtn').addEventListener('click', window.loadGame);
 	//document.getElementById('showBattleModeBtn').addEventListener('click', window.showBattleMode);
 	//document.getElementById('startVsModeBtn').addEventListener('click', window.startVsMode);
-	document.getElementById('startBattleBtn').addEventListener('click', window.startBattle);
-
+	
 	// スマホ・PC 両対応の連打処理
 	const battleBtn = document.getElementById('startBattleBtn');
+	// ---- click 抑止（長押しAutoBattle/強ボス遭遇時の“指を離した瞬間の1戦”を防ぐ）----
+	let __suppressBattleClickOnce = false;
+	let __battleStartBlockUntil = 0;
+	window.__suppressNextBattleClickOnce = function(ms) {
+		__suppressBattleClickOnce = true;
+		const n = Number(ms);
+		if (Number.isFinite(n) && n > 0) __battleStartBlockUntil = Date.now() + n;
+	};
+	battleBtn.addEventListener('click', (e) => {
+		if (__suppressBattleClickOnce || (Date.now() < __battleStartBlockUntil)) {
+			try { if (e && e.preventDefault) e.preventDefault(); } catch(_e){}
+			try { if (e && e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch(_e){}
+			try { if (e && e.stopPropagation) e.stopPropagation(); } catch(_e){}
+			__suppressBattleClickOnce = false;
+			return;
+		}
+		window.startBattle();
+	});
 	let battleInterval;
 
 	function startAutoBattle() {
@@ -1867,15 +2097,15 @@ document.addEventListener('DOMContentLoaded', () => {
 				return;
 			}
 
-			// 成長選択待ち中は通常は止めるが、AutoBattle中は自動選択させるため回す
+			// 成長選択待ち中は止める（AutoBattle中でも自動選択はしない：ユーザーに選ばせる）
 			if (isWaitingGrowth) {
-				// startBattle 冒頭の「isAutoBattle && isWaitingGrowth」分岐で自動成長が走る
-				window.startBattle();
-				battleInterval = window.__battleSetTimeout(tick, 100);
+				try{ if (typeof stopAutoBattle === 'function') stopAutoBattle(); }catch(_e){}
+				try{ isAutoBattle = false; }catch(_e){}
 				return;
 			}
 
 			window.startBattle();
+			if (!isAutoBattle) { battleInterval = null; return; }
 			battleInterval = window.__battleSetTimeout(tick, 100); // 連打間隔（ミリ秒）調整可
 		};
 
@@ -1916,6 +2146,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		clearTimeout(__autoBattleHoldTimer);
 		// 長押しが成立して AutoBattle が開始していた場合だけ停止（=離すと止まる）
 		if (__autoBattleHoldStarted) {
+			try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(650); }catch(_e){}
 			stopAutoBattle();
 		}
 		__autoBattleHoldStarted = false;
@@ -2008,7 +2239,7 @@ window.applyItemFilterUIState = function() {
 window.updateSpecialModeButton = function() {
 	const btn = document.getElementById('specialModeButton');
 	const battleBtn = document.getElementById('startBattleBtn');
-
+	
 	if (window.specialMode === 'brutal') {
 		btn.textContent = '鬼畜モード（魔道具入手可能）';
 		btn.classList.remove('normal-mode');
@@ -2074,6 +2305,9 @@ window.loadGame = async function() {
 
 	if (input.includes('.')) {
 		await window.importSaveCode();
+		// 非「中断」ロード扱い：growthBonus は必ずゼロに戻す
+		try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
+		try{ if (typeof window.__resetGrowthBonusToZero === 'function') window.__resetGrowthBonusToZero(); }catch(_e){}
 		updateRemainingBattleDisplay(); // ★表示更新
 		return;
 	}
@@ -2082,6 +2316,9 @@ window.loadGame = async function() {
 	try {
 		const parsed = window.decodeBase64(input);
 		player = parsed.player;
+		// 非「中断」ロード扱い：growthBonus は必ずゼロに戻す
+		try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
+		try{ if (typeof window.__resetGrowthBonusToZero === 'function') window.__resetGrowthBonusToZero(); }catch(_e){}
 	try{ window.__syncActivePlayerRef && window.__syncActivePlayerRef(); }catch(_){ }
 
 		if (!player.growthBonus) {
@@ -2468,8 +2705,311 @@ popup.style.setProperty('transform','none','important');
 
 	}catch(e){}
 };
+// =====================================================
+// Growth selection UI: minimize to BattleDock + dock-based choice buttons
+// - Only for title === '成長選択'
+// - When minimized: show label "成長未発生" in BattleDock when no pending growth,
+//   and show growth option buttons only while growth is pending.
+// - AutoBattle中は従来の「自動選択」と同等の重みロジックで即時自動選択（ポップアップは出さない）
+// =====================================================
+window.__GROWTH_DOCK_MIN_KEY = window.__GROWTH_DOCK_MIN_KEY || 'rpg_growth_dock_minimized_v1';
+
+window.__GROWTH_DOCK_MODE_KEY = window.__GROWTH_DOCK_MODE_KEY || 'rpg_growth_dock_mode_v1'; // 'auto' or 'manual'
+
+window.__isGrowthDockAutoMode = window.__isGrowthDockAutoMode || function(){
+	try{
+		const v = localStorage.getItem(window.__GROWTH_DOCK_MODE_KEY);
+		// default: auto
+		return (v !== 'manual');
+	}catch(_){ return true; }
+};
+window.__setGrowthDockAutoMode = window.__setGrowthDockAutoMode || function(isAuto){
+	try{ localStorage.setItem(window.__GROWTH_DOCK_MODE_KEY, isAuto ? 'auto' : 'manual'); }catch(_){}
+	try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+};
+window.__toggleGrowthDockAutoMode = window.__toggleGrowthDockAutoMode || function(){
+	try{
+		const cur = window.__isGrowthDockAutoMode ? window.__isGrowthDockAutoMode() : true;
+		window.__setGrowthDockAutoMode && window.__setGrowthDockAutoMode(!cur);
+		return !cur;
+	}catch(_){ return true; }
+};
+
+window.__isGrowthDockMinimized = window.__isGrowthDockMinimized || function(){
+	try{ return localStorage.getItem(window.__GROWTH_DOCK_MIN_KEY) === '1'; }catch(_){ return false; }
+};
+window.__setGrowthDockMinimized = window.__setGrowthDockMinimized || function(v){
+	try{ localStorage.setItem(window.__GROWTH_DOCK_MIN_KEY, v ? '1' : '0'); }catch(_){}
+	try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+};
+
+window.__growthDockState = window.__growthDockState || {
+	pending: false,
+	title: '',
+	options: null,
+	onSelect: null
+};
+
+window.__ensureGrowthDockUI = window.__ensureGrowthDockUI || function(){
+	try{
+		const dock = document.getElementById('battleOverlayDock');
+		if(!dock) return;
+		const content = dock.querySelector('.dockContent') || dock;
+
+		let area = document.getElementById('growthDockArea');
+		if(!area){
+			area = document.createElement('div');
+			area.id = 'growthDockArea';
+
+			// label (no pending)
+			const labelBtn = document.createElement('button');
+			labelBtn.type = 'button';
+			labelBtn.id = 'growthDockLabelBtn';
+			labelBtn.className = 'toggle-btn';
+			
+labelBtn.textContent = (window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()) ? '成長(自動)' : '成長(手動)';
+labelBtn.title = '成長選択の動作を切替（自動/手動）';
+
+labelBtn.addEventListener('click', () => {
+	// toggle auto/manual
+	let nowAuto = true;
+	try{ nowAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()); }catch(_e){ nowAuto = true; }
+	const nextAuto = !nowAuto;
+	try{ window.__setGrowthDockAutoMode && window.__setGrowthDockAutoMode(nextAuto); }catch(_e){}
+
+	// If a growth choice is pending (rare), resolve based on mode.
+	try{
+		const st = window.__growthDockState;
+		if(st && st.pending && st.title === '成長選択' && Array.isArray(st.options) && typeof st.onSelect === 'function'){
+			if(nextAuto){
+				// auto-pick immediately
+				const pick = window.__autoPickGrowthOptionLikeAutoBattle && window.__autoPickGrowthOptionLikeAutoBattle(st.options);
+				const v = pick && pick.value != null ? pick.value : null;
+				if(v != null){
+					try{ st.onSelect(String(v)); }catch(_e){}
+					st.pending = false; st.title=''; st.options=null; st.onSelect=null;
+				}
+			}else{
+				// manual: open popup now
+				const _st = { title: st.title, options: st.options, onSelect: st.onSelect };
+				st.pending = false; st.title=''; st.options=null; st.onSelect=null;
+				(window.__battleSetTimeout || window.setTimeout)(() => {
+					try{ window.showEventOptions && window.showEventOptions(_st.title, _st.options || [], _st.onSelect); }catch(_e){}
+				}, 0);
+			}
+		}
+	}catch(_e){}
+});
+
+// buttons wrap (pending)
+			const btnWrap = document.createElement('div');
+			btnWrap.id = 'growthDockButtonsWrap';
+
+			area.appendChild(labelBtn);
+			area.appendChild(btnWrap);
+
+			// place near top of dock content (above mode button / below opacity control if exists)
+			try{
+				// If opacity control exists, insert after it; else prepend.
+				const op = content.querySelector('#uiOpacityControlWrap') || content.querySelector('.uiOpacityControlWrap');
+				if(op && op.parentNode === content && op.nextSibling){
+					content.insertBefore(area, op.nextSibling);
+				}else{
+					content.insertBefore(area, content.firstChild);
+				}
+			}catch(_e){
+				content.insertBefore(area, content.firstChild);
+			}
+		}
+
+		// Ensure wrap exists
+		if(!document.getElementById('growthDockButtonsWrap')){
+			const bw = document.createElement('div');
+			bw.id = 'growthDockButtonsWrap';
+			area.appendChild(bw);
+		}
+	}catch(_e){}
+};
+
+window.__autoPickGrowthOptionLikeAutoBattle = window.__autoPickGrowthOptionLikeAutoBattle || function(options){
+	try{
+		const arr = Array.isArray(options) ? options : [];
+		if(!arr.length) return null;
+
+		// streakRatio = currentStreak / sessionMaxStreak (fallback safe)
+		let streakRatio = 0;
+		try{
+			const cs = Number(window.currentStreak || 0);
+			const sm = Number(window.sessionMaxStreak || 0);
+			if (sm > 0) streakRatio = Math.min(cs / sm, 1.0);
+		}catch(_e){ streakRatio = 0; }
+
+		// skip weight varies with streak ratio (same curve as existing auto-battle logic)
+		const skipWeight = 1 + 9 * (1 - streakRatio);
+		const normalWeight = 1;
+
+		const safe = arr.map(opt => {
+			const v = String(opt && opt.value != null ? opt.value : '');
+			const isSkip = (v === 'skip');
+			const w = Math.max(0, Number(opt && opt.weight) || (isSkip ? skipWeight : normalWeight));
+			return { ...opt, weight: w };
+		});
+
+		const total = safe.reduce((s, o) => s + (Number(o.weight) || 0), 0);
+
+		let selected = null;
+		if (total > 0) {
+			let r = Math.random() * total;
+			for (const o of safe) {
+				r -= (Number(o.weight) || 0);
+				if (r <= 0) { selected = o; break; }
+			}
+			if (!selected) selected = safe[safe.length - 1];
+		} else {
+			selected = safe.find(o => o && o.value && String(o.value) !== 'skip') || safe[0] || null;
+		}
+		return selected || null;
+	}catch(_e){ return null; }
+};
+
+window.__resolveGrowthDockChoice = window.__resolveGrowthDockChoice || function(value){
+	try{
+		const st = window.__growthDockState;
+		if(!st || !st.pending) return;
+
+		// call original handler
+		try{
+			if(typeof st.onSelect === 'function') st.onSelect(value);
+		}catch(_e){}
+
+		// mark done
+		st.pending = false;
+		st.title = '';
+		st.options = null;
+		st.onSelect = null;
+
+		// ensure any event popup is hidden
+		try{ clearEventPopup(false); }catch(_e){}
+		try{
+			const popup = document.getElementById('eventPopup');
+			if(popup){
+				popup.style.display = 'none';
+				popup.style.visibility = 'hidden';
+			}
+		}catch(_e){}
+
+		// release auto-battle wait flag if present
+		try{ if (typeof isWaitingGrowth !== 'undefined') isWaitingGrowth = false; }catch(_e){}
+
+		window.__updateGrowthDockUI && window.__updateGrowthDockUI();
+	}catch(_e){}
+};
+
+window.__updateGrowthDockUI = window.__updateGrowthDockUI || function(){
+	try{
+		window.__ensureGrowthDockUI && window.__ensureGrowthDockUI();
+
+		const area = document.getElementById('growthDockArea');
+		const labelBtn = document.getElementById('growthDockLabelBtn');
+		const btnWrap = document.getElementById('growthDockButtonsWrap');
+
+		if(!area || !labelBtn || !btnWrap) return;
+
+		const minimized = (window.__isGrowthDockMinimized && window.__isGrowthDockMinimized());
+		area.style.display = minimized ? 'flex' : 'none';
+		if(!minimized) return;
+
+		// Minimized mode: keep a stable tiny badge in the BattleDock.
+		// Growth choices are auto-picked (same weighted logic as AutoBattle), so we do NOT show option buttons here.
+		labelBtn.style.display = 'inline-flex';
+		btnWrap.style.display = 'none';
+		while(btnWrap.firstChild) btnWrap.removeChild(btnWrap.firstChild);
+		const __gdAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode());
+		labelBtn.textContent = __gdAuto ? '成長選択: 自動' : '成長選択: 手動';
+		try{ labelBtn.classList.toggle('on', __gdAuto); labelBtn.classList.toggle('off', !__gdAuto); }catch(_e){}
+}catch(_e){}
+};
+
 // 【選択肢イベントポップアップを表示する】
 window.showEventOptions = function(title, options, onSelect) {
+
+	// --- Growth minimize interception (only for '成長選択') ---
+	// 最小化中は、成長選択UIを表示せず「AutoBattle時と同等の重みロジック」で即時に自動選択する。
+	const __isGrowthTitle = (String(title || '') === '成長選択');
+
+	// 成長選択（自動/手動）
+	// - 自動: その場で自動選択（UIは出さない）
+	// - 手動: UI表示（AutoBattle中なら一時停止して選べるようにする）
+	let __growthAutoMode = false;
+	try{ __growthAutoMode = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()); }catch(_e){ __growthAutoMode = false; }
+	if (__isGrowthTitle && __growthAutoMode){
+		// auto pick and resolve immediately
+		try{
+			const pick = window.__autoPickGrowthOptionLikeAutoBattle ? window.__autoPickGrowthOptionLikeAutoBattle(options) : (Array.isArray(options) ? options[0] : null);
+			const v = (pick && pick.value != null) ? String(pick.value) : (Array.isArray(options) && options[0] && options[0].value != null ? String(options[0].value) : 'attack');
+			if (typeof onSelect === 'function') onSelect(v);
+			// 念のためロック解除
+			try{ if (typeof isWaitingGrowth !== 'undefined') isWaitingGrowth = false; }catch(_e){}
+			try{ clearEventPopup(false); }catch(_e){}
+		}catch(_e){}
+		return;
+	}
+	if (__isGrowthTitle && !__growthAutoMode){
+		// manual: stop autobattle so the UI stays clickable
+		try{
+			if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle){
+				try{ try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(700); }catch(_e){}
+						if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle(); }catch(_e){}
+				try{ isAutoBattle = false; }catch(_e){}
+			}
+		}catch(_e){}
+	}
+
+try{
+		
+	if (__isGrowthTitle && window.__isGrowthDockMinimized && window.__isGrowthDockMinimized()){
+		// keep dock badge visible
+		try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+
+		const autoMode = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode());
+
+		if (autoMode){
+			// --- AUTO: hide popup & auto pick (same weighted logic as AutoBattle) ---
+			try{
+				const popup = document.getElementById('eventPopup');
+				if(popup){
+					popup.style.display = 'none';
+					popup.style.visibility = 'hidden';
+				}
+			}catch(_e){}
+
+			try{
+				const pick = window.__autoPickGrowthOptionLikeAutoBattle && window.__autoPickGrowthOptionLikeAutoBattle(options);
+				const v = pick && pick.value != null ? pick.value : null;
+				if (v != null && typeof onSelect === 'function'){
+					try{ clearEventPopup(false); }catch(_e){}
+					onSelect(String(v));
+					return;
+				}
+			}catch(_e){}
+
+			// fallback: if auto pick failed, switch to manual and fall through to normal UI
+			try{ window.__setGrowthDockAutoMode && window.__setGrowthDockAutoMode(false); }catch(_e){}
+		} else {
+			// --- MANUAL: stop AutoBattle when growth event occurs ---
+			try{
+				if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle){
+					try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(700); }catch(_e){}
+						if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
+					try{ isAutoBattle = false; }catch(_e){}
+				}
+			}catch(_e){}
+			// show popup normally (do not return)
+		}
+	}
+}catch(_e){}
+
+
 	// 前回の内容をクリア（旧「左上バーUI」は廃止したため、常に eventPopup を使用）
 	clearEventPopup(false);
 	try{ window.__cancelEventPopupTimers && window.__cancelEventPopupTimers(document.getElementById('eventPopup')); }catch(_e){}
@@ -2598,7 +3138,52 @@ window.showEventOptions = function(title, options, onSelect) {
 	}
 
 	// title
-	titleEl.textContent = title;
+	try{ titleEl.classList && titleEl.classList.remove('growth-title'); }catch(_e){}
+	if (isGrowthCompact) {
+		try{ titleEl.classList && titleEl.classList.add('growth-title'); }catch(_e){}
+		
+// Build header: ONLY a centered '最小化' button (hide the '成長選択' label to avoid awkward layout)
+titleEl.textContent = '';
+const __minBtn = document.createElement('button');
+__minBtn.type = 'button';
+__minBtn.className = 'growth-min-btn';
+__minBtn.textContent = '最小化';
+__minBtn.title = '成長選択を最小化（自動選択）に切替';
+__minBtn.addEventListener('click', (ev) => {
+	try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+	// minimizing implies AUTO mode
+	try{ window.__setGrowthDockMinimized && window.__setGrowthDockMinimized(true); }catch(_e){}
+	try{ window.__setGrowthDockAutoMode && window.__setGrowthDockAutoMode(true); }catch(_e){}
+
+	// try auto pick immediately for this pending growth
+	try{
+		const pick = window.__autoPickGrowthOptionLikeAutoBattle && window.__autoPickGrowthOptionLikeAutoBattle(options);
+		const v = pick && pick.value != null ? pick.value : null;
+		if (v != null && typeof onSelect === 'function'){
+			try{ clearEventPopup(false); }catch(_e){}
+			try{ popup.style.display='none'; popup.style.visibility='hidden'; }catch(_e){}
+			onSelect(String(v));
+			try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+			return;
+		}
+	}catch(_e){}
+
+	// fallback: keep minimized and store as pending (rare)
+	try{
+		window.__growthDockState = window.__growthDockState || { pending:false, title:'', options:null, onSelect:null };
+		window.__growthDockState.pending = true;
+		window.__growthDockState.title = title;
+		window.__growthDockState.options = options;
+		window.__growthDockState.onSelect = onSelect;
+	}catch(_e){}
+	try{ popup.style.display='none'; popup.style.visibility='hidden'; }catch(_e){}
+	try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+});
+try{ titleEl.appendChild(__minBtn); }catch(_e){ titleEl.textContent = title; }
+
+} else {
+		titleEl.textContent = title;
+	}
 
 	// options clear
 	while (optionsEl.firstChild) optionsEl.removeChild(optionsEl.firstChild);

@@ -247,6 +247,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			
 			<div id="firstFaceHideSubnote" class="subnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
 			<canvas id="hpChart" width="600" height="100"></canvas>			
+
+            <!-- 強ボス撃破数（星UI） -->
+            <div id="bossKillStars" class="boss-stars-container hidden">
+                <div class="boss-stars-label">強ボス撃破</div>
+                <div id="bossKillStarsInner" class="boss-stars" aria-label="強ボス撃破数"></div>
+            </div>
 			
 		<!-- クイックガイド -->
 		<div class="quick-guide-wrapper">
@@ -288,7 +294,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 
     <h3>このゲームの目的</h3>
     <p>
-        本作の目的は、連勝数をできる限り伸ばすことです。戦闘に勝利するたびにキャラクターが成長し、新たなスキルを習得して強くなります。高い連勝記録やハイスコアの更新を目指しましょう。
+        本作の目的は、<strong>連勝数</strong>をできる限り伸ばすことです。戦闘に勝利するたびにキャラクターが成長し、新たなスキルを習得して強くなります。<br><br>さらに、通常モードでまれに出現する<strong>「強ボス」</strong>を倒すと<strong>★</strong>が増えます。★を<strong><span id="guideStrongBossClearKills">-</span></strong>個集めると、エンディングが表示されて<strong>ゲームクリア</strong>です（★は画面上部の「HP推移チャート」の直前に表示されます）。
     </p>
 
     <h3>戦闘について</h3>
@@ -320,12 +326,45 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
           <li>ボスの見た目レアリティ（連勝数で変化）：<span id="guideBossFaceRarityRule">-</span></li>
         </ul>
     </details>
+    <details class="guide-fold">
+      <summary>成長ボス（動的表示）</summary>
+      <div class="guide-fold-body">
+        <p class="guide-paragraph">
+          <strong>成長倍率（x<span id="guideGrowthMultiplier">-</span>）</strong>が高いほど、通常モードで<strong>「成長ボス」</strong>が出やすく／強くなります（50戦ごとのボスとは別枠です）。
+        </p>
+        <ul class="guide-list">
+          <li>有効：<strong><span id="guideGrowthBossEnabled">-</span></strong>（通常モードのみ）</li>
+          <li>出現率：<code><span id="guideGrowthBossRate">-</span></code></li>
+          <li>強さスケール：<code><span id="guideGrowthBossStrength">-</span></code></li>
+          <li>画像レア度（目安）：<code><span id="guideGrowthBossRarityRule">-</span></code></li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="guide-fold">
+      <summary>強ボス（動的表示）</summary>
+      <div class="guide-fold-body">
+        <p class="guide-paragraph">
+          通常モードで一定戦数以降、まれに<strong>「強ボス」</strong>が出現します。倒すと★が増え、★を集めるとエンディング（ゲームクリア）です。
+        </p>
+        <ul class="guide-list">
+          <li>有効：<strong><span id="guideStrongBossEnabled">-</span></strong>（通常モードのみ／50戦ボスとは別枠）</li>
+          <li>出現条件：<strong><span id="guideStrongBossMinBattles">-</span>戦目以降</strong></li>
+          <li>出現率：<code><span id="guideStrongBossRate">-</span></code></li>
+          <li>敵スキルLv：<code><span id="guideStrongBossSkillLv">-</span></code> ／ スキル数：<code><span id="guideStrongBossSkillCount">-</span></code></li>
+          <li>現在の★：<strong><span id="guideStrongBossStars">-</span></strong></li>
+          <li>ゲームクリア条件：★<strong><span id="guideStrongBossClearKills2">-</span></strong>個でエンディング</li>
+        </ul>
+      </div>
+    </details>
+
+
 
     <details class="guide-fold">
       <summary>ボス報酬（通常/鬼畜の確率・候補）</summary>
       <div class="guide-fold-body">
         <p class="guide-paragraph">
-          ボスに勝つと、<strong>魔道具（ボス戦利品）が1つ</strong>手に入ることがあります。手に入らない場合、<strong>ステータス成長ボーナス</strong>が抽選されます。
+          ボス（成長ボス、強ボス除く）に勝つと、<strong>魔道具（ボス戦利品）が1つ</strong>手に入ることがあります。手に入らない場合、<strong>ステータス成長ボーナス</strong>が抽選されます。
         </p>
 
         <table class="guide-table">

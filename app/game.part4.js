@@ -159,7 +159,7 @@ function __computeSkillGainChanceLikeAcquire() {
 		const rarity = r * (0.02 + streak * 0.002);
 		let skillGainChance = Math.min(1.0, 0.01 * rarity);
 		if (window.specialMode === 'brutal') {
-			skillGainChance = 0.02;
+			skillGainChance = 0.005;
 		}
 		return Math.max(0, Math.min(1, skillGainChance));
 	} catch (e) {
@@ -1376,6 +1376,7 @@ window.saveToLocalStorage = async function() {
 	const payload = {
 		player,
 		currentStreak,
+		strongBossKillCount: Number.isFinite(window.strongBossKillCount) ? window.strongBossKillCount : 0,
 		sslot,
 		growthMultiplier: window.growthMultiplier,
 		growthSkipCount: window.growthSkipCount || 0,
@@ -1601,7 +1602,8 @@ window.importSaveCode = async function(code = null) {
 			}) : [];
 
 		window.maxScores = parsed.maxScores || {};
-		//player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		//try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
+	player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
 		player.itemMemory = parsed.itemMemory || [];
 		window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
@@ -1742,6 +1744,7 @@ window.loadFromLocalStorage = async function() {
 		console.error(e);
 	}
 
+	try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
 	player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
 };
@@ -2168,6 +2171,7 @@ window.refreshLoadButtonsHighlight = function() {
 		}
 		try {
 			try { await tryImport(primary); } catch (_e) { await tryImport(fallback); }
+			try{ window.__keepGrowthBonusFromProgressSave = true; window.__forceResetGrowthBonusOnNextStart = false; }catch(_e){}
 			try {
 				const metaStr = localStorage.getItem('rpgLocalProgressMeta');
 				if (metaStr) {
@@ -2627,6 +2631,10 @@ window.__bindTextFileLoadUI = function() {
 				}
 
 				await window.importSaveCode(text);
+
+				// 非「中断」ロード扱い：growthBonus は必ずゼロに戻す
+				try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
+				try{ if (typeof window.__resetGrowthBonusToZero === 'function') window.__resetGrowthBonusToZero(); }catch(_e){}
 
 			} catch (e) {
 				console.error(e);

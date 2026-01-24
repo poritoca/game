@@ -1,5 +1,16 @@
 'use strict';
 
+// ===== GrowthBonus reset helper (used for non-progress loads) =====
+window.__resetGrowthBonusToZero = window.__resetGrowthBonusToZero || function(){
+  try{
+    const zero = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+    if (typeof player === 'object' && player) player.growthBonus = { ...zero };
+    if (typeof window.player === 'object' && window.player) window.player.growthBonus = { ...zero };
+  }catch(_e){}
+};
+
+
+
 
 window.__timeUpDebug = (typeof window.__timeUpDebug === 'boolean') ? window.__timeUpDebug : false;
 // ===== TimeUp FIX: keep active player reference & snapshot (works even if player is reassigned) =====
@@ -162,7 +173,58 @@ if (typeof window !== "undefined") {
 		window.BOSS_ENEMY_POWER_EXP = 8; // 分布の偏り（大きいほど低倍率寄り）
 	}
 
-	// ボス勝利時のステータス上昇倍率の範囲
+	// =========================================================
+	// 強ボス（ランダム遭遇・星UI・エンディング）設定
+	// =========================================================
+	window.STRONG_BOSS_ENABLED = (typeof window.STRONG_BOSS_ENABLED === 'boolean') ? window.STRONG_BOSS_ENABLED : true;
+	window.STRONG_BOSS_MIN_BATTLES = Number.isFinite(window.STRONG_BOSS_MIN_BATTLES) ? window.STRONG_BOSS_MIN_BATTLES : 400;
+	window.STRONG_BOSS_RATE = Number.isFinite(window.STRONG_BOSS_RATE) ? window.STRONG_BOSS_RATE : 0.001; // 0.1%
+	// 強ボスの敵スキルレベル（デバッグで調整可能）
+	window.STRONG_BOSS_SKILL_LEVEL_MIN = Number.isFinite(window.STRONG_BOSS_SKILL_LEVEL_MIN) ? window.STRONG_BOSS_SKILL_LEVEL_MIN : 5000;
+	window.STRONG_BOSS_SKILL_LEVEL_MAX = Number.isFinite(window.STRONG_BOSS_SKILL_LEVEL_MAX) ? window.STRONG_BOSS_SKILL_LEVEL_MAX : 9999;
+
+	window.STRONG_BOSS_MUL_BASE = Number.isFinite(window.STRONG_BOSS_MUL_BASE) ? window.STRONG_BOSS_MUL_BASE : 11;
+	window.STRONG_BOSS_MUL_PER_BATTLE = Number.isFinite(window.STRONG_BOSS_MUL_PER_BATTLE) ? window.STRONG_BOSS_MUL_PER_BATTLE : 0.05;
+	window.STRONG_BOSS_MUL_CAP = Number.isFinite(window.STRONG_BOSS_MUL_CAP) ? window.STRONG_BOSS_MUL_CAP : 50;
+	window.STRONG_BOSS_SKILL_COUNT = Number.isFinite(window.STRONG_BOSS_SKILL_COUNT) ? window.STRONG_BOSS_SKILL_COUNT : 8;
+	window.STRONG_BOSS_RARITY = Number.isFinite(window.STRONG_BOSS_RARITY) ? window.STRONG_BOSS_RARITY : 2.0;
+
+	// 撃破数（セーブ/ロードで復元）
+	if (!Number.isFinite(window.strongBossKillCount)) window.strongBossKillCount = 0;
+
+
+
+	
+	// =====================================================
+	// 成長倍率連動「成長ボス（疑似ボス）」設定
+	//  - 通常モードのみ。50戦ごとのボスとは別枠で出現。
+	//  - 成長倍率（window.growthMultiplier）が高いほど
+	//      出現率↑ / 強さ↑ / 画像レア度↑
+	// =====================================================
+	if (typeof window.GROWTH_BOSS_ENABLED !== "boolean") {
+		window.GROWTH_BOSS_ENABLED = true;
+	}
+
+	// 出現率カーブ（成長倍率gmに対してログで伸びる）
+	// 例: gm=1 -> base、gm=GROWTH_BOSS_RATE_LOG_SCALE(既定100) -> だいたい cap に近づく
+	if (typeof window.GROWTH_BOSS_RATE_BASE !== "number") window.GROWTH_BOSS_RATE_BASE = 0.012; // 1.2%（全体的に控えめ）
+	if (typeof window.GROWTH_BOSS_RATE_LOG_SCALE !== "number") window.GROWTH_BOSS_RATE_LOG_SCALE = 140; // 140倍付近で「まあまあ」になる基準（出にくく）
+	if (typeof window.GROWTH_BOSS_RATE_LOG_POW !== "number") window.GROWTH_BOSS_RATE_LOG_POW = 1.25; // 低倍率域をさらに控えめに
+	if (typeof window.GROWTH_BOSS_RATE_CAP !== "number") window.GROWTH_BOSS_RATE_CAP = 0.28; // 最大28%（全体的に下げる）
+
+	// 強さスケール（“50戦ボス補正倍率”に対して掛けるスケール）
+	// 低倍率時: 少し弱め（<1） / 高倍率時: 数倍（>1）
+	if (typeof window.GROWTH_BOSS_STRENGTH_MIN_SCALE !== "number") window.GROWTH_BOSS_STRENGTH_MIN_SCALE = 0.85;
+	if (typeof window.GROWTH_BOSS_STRENGTH_MAX_SCALE !== "number") window.GROWTH_BOSS_STRENGTH_MAX_SCALE = 3.0;
+	if (typeof window.GROWTH_BOSS_STRENGTH_LOG_DIV !== "number") window.GROWTH_BOSS_STRENGTH_LOG_DIV = 100; // 100倍付近で伸びきる基準
+	if (typeof window.GROWTH_BOSS_STRENGTH_SMOOTH_POW !== "number") window.GROWTH_BOSS_STRENGTH_SMOOTH_POW = 1.0;
+
+	// 成長ボス勝利ボーナス（魔通貨）
+	if (typeof window.GROWTH_BOSS_COIN_BASE !== "number") window.GROWTH_BOSS_COIN_BASE = 15;
+	if (typeof window.GROWTH_BOSS_COIN_PER_SCALE !== "number") window.GROWTH_BOSS_COIN_PER_SCALE = 20; // scaleが上がるほど増える
+	if (typeof window.GROWTH_BOSS_COIN_CAP !== "number") window.GROWTH_BOSS_COIN_CAP = 300;
+
+// ボス勝利時のステータス上昇倍率の範囲
 	if (typeof window.BOSS_STAT_MIN_MULTIPLIER !== "number") {
 		window.BOSS_STAT_MIN_MULTIPLIER = 1.5; // ステータス強化の最低倍率
 	}
@@ -758,6 +820,112 @@ window.toggleQuickGuide = function() {
 	}
 };
 
+// toggleTopFold は「開いていたら閉じる」挙動のため、強制オープン用を用意
+window.ensureTopFoldOpen = function(kind){
+	try{
+		const map = {
+			log:   { el: document.getElementById('logArea'),    btn: document.getElementById('topFoldBtnLog') },
+			items: { el: document.getElementById('itemsArea'),  btn: document.getElementById('topFoldBtnItems') },
+			skills:{ el: document.getElementById('skillsArea'), btn: document.getElementById('topFoldBtnSkills') },
+			settings:{ el: document.getElementById('settingsArea'), btn: document.getElementById('topFoldBtnSettings') }
+		};
+		const t = map[kind];
+		if(!t || !t.el) return;
+
+		Object.keys(map).forEach(k=>{
+			const it = map[k];
+			if(!it || !it.el) return;
+			it.el.classList.add('hidden');
+			if(it.btn) it.btn.classList.remove('active');
+		});
+
+		t.el.classList.remove('hidden');
+		if(t.btn) t.btn.classList.add('active');
+	}catch(e){}
+};
+
+
+// 強ボス 星UI / クリア条件（動的に変更できるように定数化）
+try{
+	if(!Number.isFinite(window.STRONG_BOSS_STAR_MAX)) window.STRONG_BOSS_STAR_MAX = 100;
+	if(!Number.isFinite(window.STRONG_BOSS_ENDING_KILLS)) window.STRONG_BOSS_ENDING_KILLS = 5;
+}catch(_e){}
+
+// 強ボス撃破数 星UI（10個ごとに色が変わる）
+window.updateStrongBossStarUI = function(){
+	try{
+		const box = document.getElementById('bossKillStars');
+		const inner = document.getElementById('bossKillStarsInner');
+		if(!box || !inner) return;
+
+		let c = Number(window.strongBossKillCount || 0);
+		if(!Number.isFinite(c)) c = 0;
+		const starMax = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+		c = Math.max(0, Math.min(starMax, Math.floor(c)));
+
+		if(c <= 0){
+			box.classList.add('hidden');
+			inner.innerHTML = '';
+			return;
+		}
+
+		box.classList.remove('hidden');
+		let html = '';
+		for(let i=0;i<c;i++){
+			const tier = Math.min(9, Math.floor(i / 10));
+			html += '<span class="boss-star tier' + tier + '" aria-hidden="true">★</span>';
+		}
+		inner.innerHTML = html;
+	}catch(e){}
+};
+
+// エンディング演出（強ボス5体撃破）
+window.triggerEndingSequence = function(){
+	try{
+		if(document.getElementById('endingOverlay')) return;
+		if(window.__endingShown) return;
+		window.__endingShown = true;
+
+		const overlay = document.createElement('div');
+		overlay.id = 'endingOverlay';
+
+		const inner = document.createElement('div');
+		inner.className = 'ending-inner';
+
+		const title = document.createElement('div');
+		title.className = 'ending-title';
+		title.textContent = 'Thank you for playing';
+
+		const sub = document.createElement('div');
+		sub.className = 'ending-sub';
+		sub.textContent = '（タップで閉じる）';
+
+		inner.appendChild(title);
+		inner.appendChild(sub);
+		overlay.appendChild(inner);
+
+		const openedAt = Date.now();
+		overlay.addEventListener('click', ()=>{
+			try{
+				if(Date.now() - openedAt < 1200) return; // 最低1秒は表示
+				overlay.remove();
+			}catch(e){}
+		});
+
+		document.body.appendChild(overlay);
+	}catch(e){}
+};
+
+// DOMロード時に星UIを同期
+document.addEventListener('DOMContentLoaded', ()=>{
+	try{
+		if(!Number.isFinite(window.strongBossKillCount)) window.strongBossKillCount = 0;
+		if(typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
+	}catch(e){}
+});
+
+
+
 // ===== Quick Guide: dynamic values (Boss / Rates / Rarity filters) =====
 window.populateQuickGuideDynamic = function() {
 	const setText = (id, v) => {
@@ -826,8 +994,8 @@ window.populateQuickGuideDynamic = function() {
 	let chance = 0;
 	let formula = '';
 	if (window.specialMode === 'brutal') {
-		chance = 0.02;
-		formula = '鬼畜モード：skillGainChance = 0.002（固定）';
+		chance = 0.005;
+		formula = '鬼畜モード：skillGainChance = 0.005（固定）';
 	} else {
 		chance = Math.min(1.0, 0.01 * (rNow * (0.02 + streak * 0.002)));
 		formula = '通常モード：min(1.0, 0.01 * (enemy.rarity * (0.02 + currentStreak * 0.002)))';
@@ -835,6 +1003,71 @@ window.populateQuickGuideDynamic = function() {
 
 	setText('guideSkillGainNow', `${(chance * 100).toFixed(3)}%`);
 	setText('guideSkillGainFormula', formula);
+
+	// =====================================================
+	// Growth Multiplier / Growth Boss / Strong Boss (dynamic guide)
+	// =====================================================
+	const gm = Number(window.growthMultiplier || 1);
+	setText('guideGrowthMultiplier', (Number.isFinite(gm) ? gm.toFixed(2) : '1.00'));
+
+	// --- Growth Boss ---
+	const gbEnabled = !!window.GROWTH_BOSS_ENABLED;
+	setText('guideGrowthBossEnabled', gbEnabled ? 'ON' : 'OFF');
+
+	// 出現率（現在の成長倍率での推定値も表示）
+	try{
+		const logScale = Number(window.GROWTH_BOSS_RATE_LOG_SCALE || 140);
+		const xRaw = (gm > 1 && logScale > 1) ? (Math.log(gm) / Math.log(logScale)) : 0;
+		const x = Math.max(0, Math.min(1, xRaw));
+		const base = Number(window.GROWTH_BOSS_RATE_BASE || 0.012);
+		const cap = Number(window.GROWTH_BOSS_RATE_CAP || 0.28);
+		const pow = Number(window.GROWTH_BOSS_RATE_LOG_POW || 1.25);
+		const p = Math.max(0, Math.min(cap, base + (cap - base) * Math.pow(x, pow)));
+		setText('guideGrowthBossRate', `base=${(base*100).toFixed(2)}% / cap=${(cap*100).toFixed(1)}% / 現在≈${(p*100).toFixed(2)}%（logScale=${logScale}, pow=${pow}）`);
+	}catch(_e){
+		setText('guideGrowthBossRate', '-');
+	}
+
+	// 強さスケール
+	try{
+		const div = Number(window.GROWTH_BOSS_STRENGTH_LOG_DIV || (window.GROWTH_BOSS_RATE_LOG_SCALE || 140));
+		const sxRaw = (gm > 1 && div > 1) ? (Math.log(gm) / Math.log(div)) : 0;
+		const sx = Math.max(0, Math.min(1, sxRaw));
+		const sMin = Number(window.GROWTH_BOSS_STRENGTH_MIN_SCALE || 1);
+		const sMax = Number(window.GROWTH_BOSS_STRENGTH_MAX_SCALE || 2);
+		const spow = Number(window.GROWTH_BOSS_STRENGTH_SMOOTH_POW || 1.0);
+		const scale = sMin + (sMax - sMin) * Math.pow(sx, spow);
+		setText('guideGrowthBossStrength', `min=${sMin} / max=${sMax} / 現在≈${scale.toFixed(3)}（logDiv=${div}, pow=${spow}）`);
+	}catch(_e){
+		setText('guideGrowthBossStrength', '-');
+	}
+
+	// 画像レア度ルール（実装の目安をそのまま表示）
+	setHTML('guideGrowthBossRarityRule', `<code>D</code> → <code>C</code> → <code>B</code> → <code>A</code> → <code>S</code>（強さスケールに応じて引き上げ）`);
+
+	// --- Strong Boss ---
+	const sbEnabled = !!window.STRONG_BOSS_ENABLED;
+	setText('guideStrongBossEnabled', sbEnabled ? 'ON' : 'OFF');
+	const sbMin = Number(window.STRONG_BOSS_MIN_BATTLES || 400);
+	const sbRate = Number(window.STRONG_BOSS_RATE || 0.001);
+	setText('guideStrongBossMinBattles', sbMin);
+	setText('guideStrongBossRate', `${(sbRate*100).toFixed(3)}%（約1/${(sbRate>0?Math.round(1/sbRate):'-')}）`);
+
+	const sbLvMin = Number(window.STRONG_BOSS_SKILL_LEVEL_MIN || 5000);
+	const sbLvMax = Number(window.STRONG_BOSS_SKILL_LEVEL_MAX || 9999);
+	setText('guideStrongBossSkillLv', `${sbLvMin}〜${sbLvMax}`);
+
+	const sbSkillCount = Number(window.STRONG_BOSS_SKILL_COUNT || 8);
+	setText('guideStrongBossSkillCount', sbSkillCount);
+
+	const starMax = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+	const c = Math.max(0, Math.min(starMax, Math.floor(Number(window.strongBossKillCount || 0))));
+	setText('guideStrongBossStars', `${c}/${starMax}`);
+
+	const clearKills = Number.isFinite(window.STRONG_BOSS_ENDING_KILLS) ? window.STRONG_BOSS_ENDING_KILLS : 5;
+	setText('guideStrongBossClearKills', clearKills);
+	setText('guideStrongBossClearKills2', clearKills);
+
 };
 
 
@@ -2025,6 +2258,10 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, null); }catch(_e){}
 		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_e){}
 
+		// Ensure GrowthDock UI (minimize-to-dock) is present
+		try{ window.__ensureGrowthDockUI && window.__ensureGrowthDockUI(); }catch(_e){}
+		try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
+
 
 		// Observe screen switch so the dock appears immediately on game screen
 		const gameScreen = document.getElementById('gameScreen');
@@ -2253,6 +2490,10 @@ if (minimized) {
 
 		// Re-apply global opacity (handle/buttons/overlays) after DOM moves
 		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_e){}
+
+		// keep GrowthDock area stable across dock refreshes
+		try{ window.__ensureGrowthDockUI && window.__ensureGrowthDockUI(); }catch(_e){}
+		try{ window.__updateGrowthDockUI && window.__updateGrowthDockUI(); }catch(_e){}
 	} catch (e) {
 		console.warn('[BattleDock] refresh failed', e);
 	}
@@ -3795,7 +4036,8 @@ function showGachaAnimation(rarity) {
 // =====================================================
 function showFaceRevealAnimation(facePath, rarity, mode) {
 	// mode: 'gacha' | 'boss' （省略時は gacha）
-	const m = (mode === 'boss') ? 'boss' : 'gacha';
+	const isStrong = (mode === 'strong') || (mode === 'boss' && !!window.isStrongBossBattle);
+	const m = isStrong ? 'strong' : ((mode === 'boss') ? 'boss' : ((mode === 'growth' || mode === 'growthBoss') ? 'growth' : 'gacha'));
 	const r = String(rarity || 'D').toUpperCase();
 
 	// 多重表示防止
@@ -3808,6 +4050,7 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 		const overlay = document.createElement('div');
 		overlay.id = 'faceRevealOverlay';
 		overlay.className = `face-reveal-overlay reveal-${m} rarity-${r}`;
+		if(isStrong) overlay.classList.add('strong-boss');
 
 		// theme / aura / particles / image
 		const theme = document.createElement('div');
@@ -3830,18 +4073,19 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 
 		// レア度で粒数・強さを調整（派手さが分かるように）
 		const countByR = { D: 10, C: 14, B: 18, A: 26, S: 36 };
-		const n = (countByR[r] != null) ? countByR[r] : 12;
+		let n = (countByR[r] != null) ? countByR[r] : 12;
+		if(isStrong) n = Math.max(n, 42);
 
 		for (let i = 0; i < n; i++) {
 			const sp = document.createElement('span');
-			sp.className = (m === 'boss') ? 'p ember' : 'p sparkle';
+			sp.className = ((m === 'boss') || (m === 'strong')) ? 'p ember' : ((m === 'growth') ? 'p toxic' : 'p sparkle');
 			// ばらけ具合：中央寄り〜全体。端は少し減らす
 			const x = 10 + Math.random() * 80;
 			const y = 12 + Math.random() * 76;
-			const size = (m === 'boss') ? (2 + Math.random() * 4) : (2 + Math.random() * 5);
-			const dur = (m === 'boss') ? (520 + Math.random() * 420) : (560 + Math.random() * 520);
+			const size = (m === 'boss') ? (2 + Math.random() * 4) : ((m === 'growth') ? (2 + Math.random() * 5) : (2 + Math.random() * 5));
+			const dur = (m === 'boss') ? (520 + Math.random() * 420) : ((m === 'growth') ? (540 + Math.random() * 480) : (560 + Math.random() * 520));
 			const delay = Math.random() * 180;
-			const drift = (m === 'boss') ? (10 + Math.random() * 22) : (8 + Math.random() * 20);
+			const drift = (m === 'boss') ? (10 + Math.random() * 22) : ((m === 'growth') ? (9 + Math.random() * 22) : (8 + Math.random() * 20));
 			sp.style.left = x.toFixed(2) + '%';
 			sp.style.top  = y.toFixed(2) + '%';
 			sp.style.setProperty('--pSize', size.toFixed(2) + 'px');
@@ -4220,25 +4464,31 @@ function performFaceGacha() {
 	faceCoins -= FACE_GACHA_COST;
 	update魔通貨Display();
 
-	// --- 動的に補正された確率でランク抽選 ---
-	const baseProbs = {
-	  S: 0.0012,  // +0.0002（ほぼ誤差レベルだが夢がある）
-	  A: 0.0048,  // +0.0008
-	  B: 0.055,   // +0.010
-	  C: 0.06,    // +0.010
-	  D: 0.879    // -0.021
-	};
 
-	const streak = window.currentStreak || 0;
-	const bonusFactor = Math.min(1 + streak * 0.05, 2.0); // 最大2倍まで補正
+// --- 動的に補正された確率でランク抽選 ---
+const baseProbs = {
+  S: 0.0013,
+  A: 0.0052,
+  B: 0.0580,
+  C: 0.0800,  // ← Cを増やす
+  D: 0.8555   // ← Dを減らす
+};
 
-	let adjustedProbs = {
-		S: baseProbs.S * bonusFactor,
-		A: baseProbs.A * bonusFactor,
-		B: baseProbs.B * (1 + (bonusFactor - 1) * 0.5),
-		C: baseProbs.C * (1 - (bonusFactor - 1) * 0.3),
-		D: baseProbs.D * (1 - (bonusFactor - 1) * 0.7)
-	};
+const streak = window.currentStreak || 0;
+const bonusFactor = Math.min(1 + streak * 0.05, 2.0); // 最大2倍まで補正
+const t = bonusFactor - 1; // 0〜1想定（連勝が増えるほど大きい）
+
+// 連勝で「高レアほど上がる／低レアほど下がる」をS→Dでなだらかに。
+let adjustedProbs = {
+  S: baseProbs.S * (1 + t * 1.00),
+  A: baseProbs.A * (1 + t * 0.90),
+  B: baseProbs.B * (1 + t * 0.60),
+  C: baseProbs.C * (1 - t * 0.60),
+  D: baseProbs.D * (1 - t * 0.60)
+};
+
+// 念のため負の値を防ぐ
+for (const k in adjustedProbs) adjustedProbs[k] = Math.max(0.0000001, adjustedProbs[k]);
 
 	// 再正規化
 	const total = Object.values(adjustedProbs).reduce((a, b) => a + b, 0);

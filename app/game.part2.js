@@ -1728,7 +1728,9 @@ const categoryColors = {
 };
 
 window.formatSkills = function(c) {
-	const skillElements = c.skills.map(s => {
+	// 防御的：skills が未初期化でも落とさない（初期化不備/ロード互換対策）
+	const skillsArr = (c && Array.isArray(c.skills)) ? c.skills : [];
+	const skillElements = skillsArr.map(s => {
 		const skillName = (typeof s === 'string') ? s : s.name;
 		const found = skillPool.find(sk => sk.name === skillName);
 		var desc = found?.description || '';
@@ -1799,10 +1801,10 @@ window.updateStats = function() {
 	const enemyCanvasEl = document.getElementById('enemyCanvas');
 	const enemyImgEl = document.getElementById('enemyImg');
 
-	if (window.isBossBattle && window.bossFacePath && enemyImgEl) {
+	if (((window.isBossBattle && window.bossFacePath) || (window.isGrowthBoss && window.growthBossFacePath)) && enemyImgEl) {
 		// 強敵：魔メイクの画像を表示
 		if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
-		enemyImgEl.src = window.bossFacePath;
+		enemyImgEl.src = (window.isBossBattle && window.bossFacePath) ? window.bossFacePath : window.growthBossFacePath;
 		enemyImgEl.classList.remove('hidden');
 	} else {
 		// 通常：キャンバスに描画
@@ -1861,6 +1863,37 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 	// テキストボックスから名前を取得（空ならデフォルト名を使用）
 	const playerName = name || document.getElementById('inputStr').value || 'プレイヤー';
 	document.getElementById('inputStr').value = playerName; // 入力欄に最終的な名前を反映
+	// --- プレイヤー参照の分裂防止：はじめから時に必ず新規作成して window.player と player を統一 ---
+	try {
+		const tmpChar = (typeof window.makeCharacter === 'function') ? window.makeCharacter(playerName) : (typeof makeCharacter === 'function' ? makeCharacter(playerName) : null);
+		if (tmpChar) {
+			player = {
+				...tmpChar,
+				growthBonus: tmpChar.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 },
+				itemMemory: []
+			};
+			if (!player.skillMemory) player.skillMemory = {};
+			if (!player.itemMemory) player.itemMemory = [];
+			window.player = player;
+		} else {
+			if (!window.player) window.player = {};
+			player = window.player;
+			player.name = playerName;
+			if (!player.skillMemory) player.skillMemory = {};
+			if (!player.itemMemory) player.itemMemory = [];
+			if (!player.growthBonus) player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		}
+	} catch (e) {
+		try {
+			if (!window.player) window.player = {};
+			player = window.player;
+			player.name = playerName;
+			if (!player.skillMemory) player.skillMemory = {};
+			if (!player.itemMemory) player.itemMemory = [];
+			if (!player.growthBonus) player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		} catch (_e) {}
+	}
+
 
 	// 新規ゲーム用に各種ステータスをリセット
 	if (player) {
@@ -1876,14 +1909,21 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 	if (typeof sessionMaxStreak !== "undefined") {
 		sessionMaxStreak = 0;
 	}
+
+	// 強ボス関連のリセット
+	try{
+		window.battlesPlayed = 0;
+		window.battleCount = 0;
+		window.isStrongBossBattle = false;
+		window.strongBossKillCount = 0;
+		window.__endingShown = false;
+		if (typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
+	}catch(e){}
+
 	if (typeof window.maxStreak !== "undefined") {
 		window.maxStreak = 0;
 	}
 
-	// 新しくプレイヤーを作る場合は、上書きする意図があればこのままでOK
-	window.player = {}; // 新しいプレイヤーオブジェクトを準備
-	window.player.itemMemory = []; // 所持魔道具の記録を初期化
-	window.player.effects = []; // 一時的な効果をリセット
 	if ('isLoadedFromSave' in window) {
 		window.isLoadedFromSave = false; // セーブデータからのロードではないことを明示
 	}
@@ -1900,7 +1940,7 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 
 		// ゲーム画面の初期設定
 		statusLogged = false;
-		if (!player) player = {};
+		if (!player) player = window.player || {};
 		if (!player.itemMemory) player.itemMemory = [];
 		document.getElementById('battleLog').classList.remove('hidden');
 		document.getElementById('battleArea').classList.remove('hidden');
@@ -3217,5 +3257,4 @@ function applyDotAbsorb(ch, dotDamage, log) {
 	if (log) log.push(`※${eff.source}の効果で${displayName(ch.name)}が毒/火傷ダメージを吸収して${heal}回復！（${Math.round(ratio*100)}%）`);
 	return true;
 }
-
 
