@@ -2469,7 +2469,7 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 					
 // Otherwise: auto-minimize only after enough scrolling (less sensitive)
-const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 290); // px
+const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 490); // px
 if (!window.__battleDockScrollStartY || !Number.isFinite(Number(window.__battleDockScrollStartY))) {
 	window.__battleDockScrollStartY = window.scrollY || 0;
 }
