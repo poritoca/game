@@ -4143,7 +4143,7 @@ function drawRandomFace(rarity) {
 	if (pool.length === 0) return null;
 	const selected = pool[Math.floor(Math.random() * pool.length)];
 	return {
-		path: `../face/${rarity}/${selected}`,
+		path: `face/${rarity}/${selected}`,
 		name: selected
 	};
 }
@@ -4215,7 +4215,7 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 		const img = document.createElement('img');
 		img.className = 'face-reveal-img';
 		img.alt = '魔メイク';
-		img.src = String(facePath || '');
+		img.src = (typeof resolveAssetPath === 'function') ? resolveAssetPath(facePath) : String((window.__assetPrefix || '') + String(facePath || ''));
 		overlay.appendChild(img);
 
 		// レア度で粒数・強さを調整（派手さが分かるように）
