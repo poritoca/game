@@ -50,15 +50,7 @@ function drawCharacterImage(name, canvasId) {
     }
 
     const img = new Image();
-    const __baseImgCandidates = ['image/warrior_base.png', '../image/warrior_base.png'];
-    let __baseIdx = 0;
-    img.onerror = () => {
-        __baseIdx++;
-        if (__baseIdx < __baseImgCandidates.length) {
-            img.src = __baseImgCandidates[__baseIdx];
-        }
-    };
-    img.src = __baseImgCandidates[0];
+    img.src = '../image/warrior_base.png';
 
     img.onload = function() {
         const originalWidth = img.width;
