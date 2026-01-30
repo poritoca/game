@@ -58,8 +58,24 @@ let IMAGE_LIST_BY_RANK = {};
 
 async function loadFaceManifest() {
   try {
-    const response = await fetch('../face/faceManifest.json');
-    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    let response = null;
+    const __pref = (window.__assetPrefix != null) ? window.__assetPrefix : '';
+    const __candidates = [];
+    // 優先: いまの配置ルールに合わせたprefix
+    __candidates.push(__pref + 'face/faceManifest.json');
+    // フォールバック: 旧/別配置も試す
+    if (__pref !== '../') __candidates.push('../face/faceManifest.json');
+    if (__pref !== '') __candidates.push('face/faceManifest.json');
+
+    for (const u of __candidates) {
+      try {
+        response = await fetch(u, { cache: 'no-store' });
+        if (response && response.ok) break;
+      } catch (_e) {
+        response = null;
+      }
+    }
+    if (!response || !response.ok) throw new Error(`HTTP error ${response ? response.status : 'unknown'}`);(`HTTP error ${response.status}`);
     const data = await response.json();
     IMAGE_LIST_BY_RANK = data;
     //console.log('Face manifest loaded:', IMAGE_LIST_BY_RANK);
@@ -105,7 +121,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <h1 id="animatedTitle">◯戦後に<span id="deathChar">死</span>ぬ戦士</h1>
 
 <div id="titleImage" style="text-align: center; margin-bottom: 20px;">
-  <img src="../image/dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
+  <img src="image/dark_knight.png" onerror="this.onerror=null; this.src='../image/dark_knight.png';" style="width:80%; max-width:400px; height:auto;" />
 </div>
 <!-- 更新情報オーバーレイ
 <div id="updateNotice" style="

@@ -1551,22 +1551,83 @@ window.faceItemsOwned = []; // 例: ['face/S/face1.png', ...]
 window.faceItemEquipped = null; // 例: 'face/A/face3.png'
 window.lastChosenSkillNames = []; // 戦闘ごとの抽選結果
 
-// パス解決: app/ 配下の index.html から、ルート直下の face/・image/ を参照する
+// パス解決: 配置が「app/ 配下だけ」でも「app/ と同階層に face/・image/」でも動くように、実行時に自動判定する
+var __assetPrefix = (typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : ''; // '' or '../' (auto-detected)
+
+function __detectAssetPrefix() {
+	// GitHub Pages構成の前提:
+	//  - /app/ 配下でコードを動かす
+	//  - /face /image は /app の1つ上（= '../'）
+	try {
+		const p = (location && location.pathname) ? String(location.pathname).replace(/\\/g, '/') : '';
+		// 明示: /app/ 以下なら '../' を採用
+		if (p.includes('/app/')) {
+			__assetPrefix = '../';
+		} else {
+			__assetPrefix = '';
+		}
+	} catch (_e) {
+		// 何もしない（既存の __assetPrefix を維持）
+	}
+
+	// グローバル共有（他part/他JSから参照）
+	try { window.__assetPrefix = __assetPrefix; } catch (_e) {}
+
+	// 追加の保険: ネットワークで実在チェックして必要なら上書き（非同期・ノンブロッキング）
+	try {
+		Promise.resolve().then(async () => {
+			// まず prefix 付きで試す
+			try {
+				const r = await fetch(__assetPrefix + 'face/faceManifest.json', { cache: 'no-store' });
+				if (r && r.ok) return;
+			} catch (_e) {}
+
+			// ダメなら逆を試す（'' と '../' を入れ替え）
+			const alt = (__assetPrefix === '../') ? '' : '../';
+			try {
+				const r2 = await fetch(alt + 'face/faceManifest.json', { cache: 'no-store' });
+				if (r2 && r2.ok) {
+					__assetPrefix = alt;
+					try { window.__assetPrefix = __assetPrefix; } catch (_e) {}
+				}
+			} catch (_e) {}
+		});
+	} catch (_e) {}
+}
+
+window.addEventListener('DOMContentLoaded', () => { try { __detectAssetPrefix(); } catch (_e) {} });
+
 function resolveAssetPath(p) {
-    if (!p) return p;
-    const s = String(p);
-    if (s.startsWith('../')) return s;
-    if (s.startsWith('face/')) return '../' + s;
-    if (s.startsWith('image/')) return '../' + s;
-    return s;
+	if (!p) return p;
+	const s = String(p);
+
+	// data: / http(s): はそのまま
+	if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://')) return s;
+
+	// 旧セーブで '../face/...' などが入っていた場合も許容するが、今の判定に合わせて寄せる
+	if (s.startsWith('../face/')) return (__assetPrefix === '' ? s.replace(/^\.\.\//, '') : s);
+	if (s.startsWith('../image/')) return (__assetPrefix === '' ? s.replace(/^\.\.\//, '') : s);
+
+	if (s.startsWith('face/')) return ((typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : __assetPrefix) + s;
+	if (s.startsWith('image/')) return ((typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : __assetPrefix) + s;
+
+	return s;
 }
 
 function normalizeFacePath(p) {
-    if (!p) return p;
-    const s = String(p);
-    // 旧セーブ互換: 'face/...' を '../face/...' に寄せる
-    if (s.startsWith('face/')) return '../' + s;
-    return s;
+	if (!p) return p;
+	let s = String(p);
+
+	// 旧/別保存互換: 先頭の '../' や '/' はここで剥がして正規化
+	s = s.replace(/^\.\.\//, '');
+	s = s.replace(/^\//, '');
+
+	// 'face/...' になっていれば、実行環境のprefixを付与して返す
+	const pref = (typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : __assetPrefix;
+	if (s.startsWith('face/')) return String(pref || '') + s;
+
+	// その他はそのまま
+	return s;
 }
 
 // ユーティリティ: オブジェクトをBase64文字列にエンコード
@@ -1778,7 +1839,16 @@ window.formatSkills = function(c) {
 
 // ステータス表示の更新
 window.updateStats = function() {
-	if (isAutoBattle || !player || !enemy) return;
+	if (!player || !enemy) return;
+
+	// レーダーチャートはAutoBattle中でも更新したい（表示されない問題の切り分けにも有効）
+	try {
+		if (typeof window.drawBattleRadarChart === 'function') {
+			window.drawBattleRadarChart(player, enemy);
+		}
+	} catch (_e) {}
+
+	if (isAutoBattle) return;
 
 	player.hp = Math.min(player.hp, player.maxHp);
 	enemy.hp = Math.min(enemy.hp, enemy.maxHp);
