@@ -619,6 +619,126 @@ button:active {
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 
+
+
+/* =========================================================
+   自分 vs 敵：ステータス差レーダーチャート（軽量・対数）
+   - glass + meaningful gradient (advantage based)
+   ========================================================= */
+.battle-radar-wrap{
+  width: 92%;
+  max-width: 620px;
+  margin: 10px auto 0;
+  padding: 10px 12px 12px;
+  box-sizing: border-box;
+
+  /* JS sets: --pA / --eA / --adv */
+  background:
+    linear-gradient(135deg,
+      rgba(80,170,255,var(--pA,0.14)),
+      rgba(0,0,0,0.28) 38%,
+      rgba(255,90,120,var(--eA,0.14))
+    );
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  box-shadow:
+    0 10px 26px rgba(0,0,0,0.35),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(8px) saturate(1.25);
+  -webkit-backdrop-filter: blur(8px) saturate(1.25);
+
+  position: relative;
+  overflow: hidden;
+}
+
+/* subtle “meaning” accent: a soft conic sheen blending player/enemy colors */
+.battle-radar-wrap::before{
+  content:"";
+  position:absolute;
+  inset:-40%;
+  background:
+    conic-gradient(
+      from 220deg,
+      rgba(80,170,255,0.14),
+      rgba(255,255,255,0.05),
+      rgba(255,90,120,0.14),
+      rgba(0,0,0,0.00)
+    );
+  filter: blur(22px);
+  opacity: 0.55;
+  pointer-events:none;
+}
+
+.battle-radar-wrap::after{
+  content:"";
+  position:absolute;
+  left:10px; right:10px; top:8px;
+  height:1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.16), rgba(255,255,255,0.06));
+  pointer-events:none;
+}
+
+.battle-radar-head{
+  position: relative;
+  z-index: 1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 8px;
+}
+
+.battle-radar-title{
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+  white-space: nowrap;
+}
+
+.battle-radar-legend{
+  font-size: 11px;
+  color: rgba(255,255,255,0.78);
+  white-space: nowrap;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.30);
+}
+
+.battle-radar-dot{
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display:inline-block;
+  border:1px solid rgba(255,255,255,0.38);
+  box-sizing:border-box;
+  box-shadow: 0 0 10px rgba(0,0,0,0.15);
+}
+
+.battle-radar-dot.player{
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(80,170,255,0.88));
+}
+
+.battle-radar-dot.enemy{
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), rgba(255,90,120,0.86));
+}
+
+#battleRadarChart{
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 150px;
+  display:block;
+  border-radius: 10px;
+
+  /* keeps the canvas “sitting” nicely on glass */
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,0.06), rgba(0,0,0,0.10) 55%, rgba(0,0,0,0.18));
+}
+
+
+
 /* =========================================================
    スキル交換ボタン（HPチャートの下）
    ========================================================= */
@@ -2482,6 +2602,21 @@ button:active, .quick-guide-toggle:active { background: rgba(255,255,255,0.24) !
 #scoreOverlay, #skillOverlay, #itemOverlay, #remainingBattlesDisplay, #customAlert, #eventPopup {
   background: rgba(0,0,0,0.55) !important; border: 1px solid var(--glass-brd) !important; color: var(--ink) !important;
 }
+
+/* =====================================================
+   CustomAlert container must NEVER blur/dim the whole screen
+   - showCustomAlert uses a full-viewport container for positioning.
+   - Some themes apply backdrop-filter/background to #customAlertContainer.
+   - If so, it ends up blurring/darkening *everything* behind it.
+   ===================================================== */
+#customAlertContainer{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
 #titleScreen img, canvas, #playerCanvas, #enemyCanvas, #playerImg, #enemyImg { filter: grayscale(100%); }
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
   #titleScreen, #gameScreen, #eventPopup, #battleLog, .status-area, #playerStats, #enemyStats { background: rgba(30,30,30,0.9) !important; }
@@ -3731,7 +3866,39 @@ canvas {
   margin: 6px 0;
 }
 
-/* ===== Fold + Panel layout (added) ===== */
+
+
+.magicmake-protect-badges{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.magicmake-protect-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.35);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  color: rgba(220,255,255,0.95);
+  white-space: nowrap;
+}
+.magicmake-protect-badge.skill{
+  border-color: rgba(0,255,255,0.22);
+  background: rgba(0,255,255,0.08);
+}
+.magicmake-protect-badge.item{
+  border-color: rgba(255,220,120,0.22);
+  background: rgba(255,220,120,0.08);
+  color: rgba(255,245,220,0.96);
+}/* ===== Fold + Panel layout (added) ===== */
 .panel-grid{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4224,7 +4391,7 @@ canvas {
   padding: 0 !important;
 }
 
-#battleOverlayDock.dock-opacity-zero #uiOpacityControl input[type="range"]{
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl #uiOpacityToggleBtn{
   width: 100%;
   margin: 0 !important;
 }
@@ -5035,19 +5202,81 @@ body::before{
   opacity: 1 !important; /* never fade out */
   pointer-events: auto;
 }
-#battleOverlayDock .ui-opacity-control label{
+#battleOverlayDock .ui-opacity-control #uiOpacityLabel{
   flex: 0 0 auto;
   max-width: 64px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: rgba(255,255,255,0.72);
 }
-#battleOverlayDock .ui-opacity-control input[type="range"]{
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn{
+  position: relative;
+  overflow: hidden;
   flex: 1 1 auto;
-  width: 74px;
-  min-width: 60px;
-  height: 14px;
-  opacity: 1 !important; /* never fade out */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background:
+    linear-gradient(135deg, rgba(0,180,255,0.10), rgba(255,255,255,0.06) 45%, rgba(200,120,255,0.10)),
+    rgba(10,10,14,0.30);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.84);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  opacity: 1 !important;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn::after{
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0,200,255,0.30), rgba(255,255,255,0.08), rgba(200,120,255,0.28));
+  opacity: 0.55;
+  transform: scaleX(var(--uiOpacityP, 1));
+  transform-origin: left center;
+  pointer-events: none;
+  filter: blur(0.0px);
+}
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn > *{
+  position: relative;
+  z-index: 1;
+}
+#battleOverlayDock.dock-opacity-zero #uiOpacityToggleBtn::after{
+  display: none;
+}
+
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn:active{
+  transform: translateY(0.5px) scale(0.995);
+}
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn .uiOpacityValueWrap{
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  opacity: 0.92;
+}
+#battleOverlayDock .ui-opacity-control #uiOpacityLabel{
+  color: rgba(255,255,255,0.72);
+}
+#battleOverlayDock .ui-opacity-control #uiOpacityValue{
+  color: rgba(255,255,255,0.92);
+}
+#battleOverlayDock .ui-opacity-control #uiOpacityToggleBtn[data-opacity="0"]{
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.05)),
+    rgba(10,10,14,0.24);
+  border-color: rgba(255,255,255,0.12);
 }
 
 /* =========================================================
@@ -5844,7 +6073,7 @@ body.first-face-selecting #hpChart{display:none !important;}
 #battleOverlayDock.dock-opacity-zero #uiOpacityControl{
   width: 100% !important;
 }
-#battleOverlayDock.dock-opacity-zero #uiOpacityControl #uiOpacityRange{
+#battleOverlayDock.dock-opacity-zero #uiOpacityControl #uiOpacityToggleBtn{
   width: 100% !important;
 }
 #battleOverlayDock.dock-opacity-zero .dock-drag-handle,
@@ -5856,4 +6085,34 @@ body.first-face-selecting #hpChart{display:none !important;}
 #battleOverlayDock .dock-drag-handle,
 #battleOverlayDock .dock-drag-handle *{
   opacity: 1 !important;
+}
+
+
+/* In 0% mode, keep opacity toggle ultra-compact (bar-like) */
+#battleOverlayDock.dock-opacity-zero #uiOpacityToggleBtn{
+  padding: 3px 6px !important;
+  min-height: 14px;
+  justify-content: center;
+}
+#battleOverlayDock.dock-opacity-zero #uiOpacityToggleBtn .uiOpacityValueWrap,
+#battleOverlayDock.dock-opacity-zero #uiOpacityToggleBtn #uiOpacityLabel{
+  display: none !important;
+}
+#battleOverlayDock.dock-opacity-zero #uiOpacityToggleBtn::before{
+  content: "";
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(0,200,255,0.18), rgba(200,120,255,0.14));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+}
+
+/* Battle Radar placeholder note */
+.battle-radar-note{
+  font-size: 12px;
+  opacity: 0.72;
+  margin: 6px 0 8px;
+  text-align: center;
+  letter-spacing: 0.03em;
 }

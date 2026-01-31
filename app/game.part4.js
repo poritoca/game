@@ -638,6 +638,15 @@ window.showCustomAlert = function(message, duration = 3000, background = "#222",
 		container.style.width = '100%';
 		container.style.height = '100%';
 		container.style.transform = 'none';
+		// IMPORTANT: keep the container itself visually transparent.
+		// (Some themes apply backdrop-filter/background to #customAlertContainer,
+		//  and because this container covers the whole viewport it can blur/dim everything.)
+		container.style.background = 'transparent';
+		container.style.border = 'none';
+		container.style.boxShadow = 'none';
+		container.style.filter = 'none';
+		container.style.backdropFilter = 'none';
+		container.style.webkitBackdropFilter = 'none';
 		container.style.pointerEvents = 'none';
 		container.style.zIndex = '9999';
 	}

@@ -1793,8 +1793,15 @@ window.__ensureBattleDockDraggable = window.__ensureBattleDockDraggable || funct
 				dock.style.setProperty('bottom','auto','important');
 				dock.style.setProperty('transform','none','important');
 				try{ dock.classList.remove('dock-left'); dock.classList.remove('dock-right'); }catch(__){}
-				// keep width locked to prevent occasional reflow after drag
-				try{ dock.style.setProperty('width', Math.round(rect.width) + 'px','important'); }catch(__){}
+				// Do NOT lock width permanently (it breaks the 0%<->non-0% compact/expand behavior).
+				// Instead, keep it briefly to avoid immediate jitter, then release.
+				try{
+					dock.style.setProperty('width', Math.round(rect.width) + 'px','important');
+					if (dock.__unlockWidthTimer) (window.__uiClearTimeout||clearTimeout)(dock.__unlockWidthTimer);
+					dock.__unlockWidthTimer = (window.__uiSetTimeout||setTimeout)(() => {
+						try{ dock.style.removeProperty('width'); }catch(_e){}
+					}, 220);
+				}catch(_e){}
 				window.__writeBattleDockPos(clamped);
 			}catch(_e){}
 		};
@@ -1917,8 +1924,10 @@ window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattl
 			wrap.id = 'uiOpacityControl';
 			wrap.className = 'ui-opacity-control';
 			wrap.innerHTML = `
-				<label id="uiOpacityLabel" for="uiOpacityRange">透過度(<span id="uiOpacityValue">100</span>%)</label>
-				<input id="uiOpacityRange" type="range" min="0" max="100" step="5" value="100" />
+				<button id="uiOpacityToggleBtn" type="button" class="ui-opacity-toggle" aria-label="透過度切替（20%刻み）">
+					<span id="uiOpacityLabel">透過</span>
+					<span class="uiOpacityValueWrap"><span id="uiOpacityValue">100</span><span class="uiOpacityPct">%</span></span>
+				</button>
 			`;
 		}
 
@@ -1943,21 +1952,54 @@ window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattl
 
 		// Wire once
 		try{
-			const range = wrap.querySelector('#uiOpacityRange');
+			const btn = wrap.querySelector('#uiOpacityToggleBtn');
 			const valueEl = wrap.querySelector('#uiOpacityValue');
-			if (range && !range.__wiredUIOpacity){
-				range.__wiredUIOpacity = true;
-				const applyUI = () => {
-					const v = window.__setUIOpacityPercent ? window.__setUIOpacityPercent(range.value) : Number(range.value);
-					try{ if (valueEl) valueEl.textContent = String(v); }catch(_){}
+			if (btn && !btn.__wiredUIOpacity){
+				btn.__wiredUIOpacity = true;
+
+				const STEPS = [100, 80, 60, 40, 20, 0]; // 20%刻み（タップで減らしていく）
+				const nearestStep = (p) => {
+					let v = Number(p);
+					if (!Number.isFinite(v)) v = 100;
+					let best = STEPS[0], bestD = 1e9;
+					for (const s of STEPS){
+						const d = Math.abs(s - v);
+						if (d < bestD){ bestD = d; best = s; }
+					}
+					return best;
 				};
-				range.addEventListener('input', applyUI, {passive:true});
+
+				const applyText = (p) => {
+					try{ if (valueEl) valueEl.textContent = String(p); }catch(_e){}
+					try{
+						btn.dataset.opacity = String(p);
+						try{ btn.style.setProperty('--uiOpacityP', String(Math.max(0, Math.min(1, Number(p)/100)))); }catch(_e){}
+						btn.title = `透過度: ${p}%（タップで切替）`;
+						btn.setAttribute('aria-label', `透過度 ${p}%（タップで切替）`);
+					}catch(_e){}
+				};
+
+				const cycle = () => {
+					const cur = nearestStep(window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100);
+					let idx = STEPS.indexOf(cur);
+					if (idx < 0) idx = 0;
+					const next = (idx + 1) >= STEPS.length ? STEPS[0] : STEPS[idx + 1];
+					try{ window.__setUIOpacityPercent && window.__setUIOpacityPercent(next); }catch(_e){}
+					applyText(next);
+				};
+
+				btn.addEventListener('click', (ev) => {
+					try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}
+					cycle();
+				}, {passive:false});
+
 				// init from saved
 				const saved = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100;
-				range.value = saved;
-				try{ if (valueEl) valueEl.textContent = String(saved); }catch(_){}
+				const initV = nearestStep(saved);
+				try{ window.__setUIOpacityPercent && window.__setUIOpacityPercent(initV); }catch(_e){}
+				applyText(initV);
 			}
-		}catch(_){}
+		}catch(_e){}
 		return wrap;
 	}catch(_){
 		return null;
@@ -1992,7 +2034,33 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 			// When opacity is 0%, make the dock itself compact (only Battle + slider remain)
 			const p = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : Math.round(alpha * 100);
 			const isZero = (p <= 0 || alpha <= 0.001);
+			// Release any width lock so CSS compact/expand can work reliably
+			try{ dock.style.removeProperty('width'); }catch(_e){}
 			try{ dock.classList.toggle('dock-opacity-zero', !!isZero); }catch(_){}
+
+			// If we are leaving 0% compact mode, make sure any previously locked width is released
+			// so the dock can expand back to its normal layout.
+			try{
+				if (!isZero){
+					try{ dock.style.removeProperty('width'); }catch(_e){}
+					// After layout expands, clamp back into viewport (prevents "expanded UI" going offscreen)
+					const __clampLater = () => {
+						try{
+							const r = dock.getBoundingClientRect();
+							const c = window.__clampBattleDockToViewport ? window.__clampBattleDockToViewport(r.left, r.top, r.width, r.height) : {x:r.left,y:r.top};
+							dock.style.setProperty('left', Math.round(c.x) + 'px','important');
+							dock.style.setProperty('top',  Math.round(c.y) + 'px','important');
+							dock.style.setProperty('right','auto','important');
+							dock.style.setProperty('bottom','auto','important');
+							dock.style.setProperty('transform','none','important');
+							try{ window.__writeBattleDockPos && window.__writeBattleDockPos({x:c.x,y:c.y}); }catch(_e){}
+						}catch(_e){}
+					};
+					(window.requestAnimationFrame||function(f){return setTimeout(f,0)})(() => {
+						(window.requestAnimationFrame||function(f){return setTimeout(f,0)})(__clampLater);
+					});
+				}
+			}catch(_e){}
 
 			const battleBtn = document.getElementById('startBattleBtn');
 			const ctrl = document.getElementById('uiOpacityControl');
@@ -2015,7 +2083,7 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 					// and avoid fading any ancestor containers that would multiply opacity.
 					if (ctrl){
 						if (el === ctrl || el.closest('#uiOpacityControl')) {
-							if (el.id === 'uiOpacityRange') return true;
+							if (el.id === 'uiOpacityRange' || el.id === 'uiOpacityToggleBtn') return true;
 							if (el.tagName === 'INPUT' && el.getAttribute('type') === 'range') return true;
 							if (el === ctrl) return true;
 							return false;
@@ -2048,7 +2116,7 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 				if (ctrl && dock.contains(ctrl)){
 					ctrl.style.opacity = '1';
 					ctrl.style.pointerEvents = '';
-					const range = ctrl.querySelector('#uiOpacityRange');
+					const range = ctrl.querySelector('#uiOpacityRange'); const btn = ctrl.querySelector('#uiOpacityToggleBtn');
 					if (range){
 						range.style.opacity = '1';
 						range.style.pointerEvents = '';
@@ -2401,7 +2469,7 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 					
 // Otherwise: auto-minimize only after enough scrolling (less sensitive)
-const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 90); // px
+const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 490); // px
 if (!window.__battleDockScrollStartY || !Number.isFinite(Number(window.__battleDockScrollStartY))) {
 	window.__battleDockScrollStartY = window.scrollY || 0;
 }
@@ -4075,7 +4143,7 @@ function drawRandomFace(rarity) {
 	if (pool.length === 0) return null;
 	const selected = pool[Math.floor(Math.random() * pool.length)];
 	return {
-		path: `../face/${rarity}/${selected}`,
+		path: `face/${rarity}/${selected}`,
 		name: selected
 	};
 }
@@ -4147,7 +4215,7 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 		const img = document.createElement('img');
 		img.className = 'face-reveal-img';
 		img.alt = '魔メイク';
-		img.src = String(facePath || '');
+		img.src = (typeof resolveAssetPath === 'function') ? resolveAssetPath(facePath) : String((window.__assetPrefix || '') + String(facePath || ''));
 		overlay.appendChild(img);
 
 		// レア度で粒数・強さを調整（派手さが分かるように）
@@ -4235,6 +4303,53 @@ function __randSigned(amount) {
 	return 1 + sign * (Math.random() * amount);
 }
 
+
+
+// ================================
+// MagicMake (face gacha) ranges for UI/logic (single source of truth)
+//  - growth multipliers: [min..max]
+//  - protect add bonus: values[] (e.g., [1,2]) with optional weights[]
+//    ※ここを変えると「生成」と「表示（レーダーチャート/バッジ）」が同時に追従する
+// ================================
+window.__MAGICMAKE_GACHA_CONFIG = window.__MAGICMAKE_GACHA_CONFIG || {
+	growth: { min: 0.50, max: 2.00 },
+	protectAdd: {
+		basePByRarity: { D: 0.020, C: 0.045, B: 0.080, A: 0.140, S: 0.220 },
+		values: [1, 2],
+		weights: [0.88, 0.12]
+	}
+};
+
+window.getMagicMakeGrowthRange = window.getMagicMakeGrowthRange || function getMagicMakeGrowthRange(){
+	try{
+		const cfg = (window.__MAGICMAKE_GACHA_CONFIG && window.__MAGICMAKE_GACHA_CONFIG.growth) ? window.__MAGICMAKE_GACHA_CONFIG.growth : null;
+		let min = cfg ? Number(cfg.min) : 0.5;
+		let max = cfg ? Number(cfg.max) : 2.0;
+		if (!Number.isFinite(min)) min = 0.5;
+		if (!Number.isFinite(max)) max = 2.0;
+		if (min === max) { min = 0.5; max = 2.0; }
+		if (min > max) { const t = min; min = max; max = t; }
+		return { min, max };
+	}catch(e){
+		return { min: 0.5, max: 2.0 };
+	}
+};
+
+window.getMagicMakeProtectAddRange = window.getMagicMakeProtectAddRange || function getMagicMakeProtectAddRange(){
+	try{
+		const cfg = (window.__MAGICMAKE_GACHA_CONFIG && window.__MAGICMAKE_GACHA_CONFIG.protectAdd) ? window.__MAGICMAKE_GACHA_CONFIG.protectAdd : null;
+		const values = (cfg && Array.isArray(cfg.values)) ? cfg.values.map(v => Number(v)).filter(v => Number.isFinite(v)) : [1, 2];
+		const pos = values.length ? values : [1, 2];
+		let positiveMin = Math.min(...pos);
+		let positiveMax = Math.max(...pos);
+		if (!Number.isFinite(positiveMin)) positiveMin = 1;
+		if (!Number.isFinite(positiveMax)) positiveMax = 2;
+		if (positiveMin > positiveMax) { const t = positiveMin; positiveMin = positiveMax; positiveMax = t; }
+		return { noneValue: 0, positiveMin, positiveMax };
+	}catch(e){
+		return { noneValue: 0, positiveMin: 1, positiveMax: 2 };
+	}
+};
 function __genGrowthRatesByRarity(rarity) {
 	// 魔メイク成長率（ATK/DEF/SPD/HP）
 	//  - 各ステータスの倍率は 0.50〜2.00 の間で大きくバラつく
@@ -4247,8 +4362,9 @@ function __genGrowthRatesByRarity(rarity) {
 		A: { mean: 1.15, sigma: 0.48, spikeP: 0.14, spikeBand: 0.10 },
 		S: { mean: 1.25, sigma: 0.46, spikeP: 0.14, spikeBand: 0.10 },
 	})[rarity] || { mean: 1.00, sigma: 0.52, spikeP: 0.14, spikeBand: 0.10 };
-	const MIN = 0.50;
-	const MAX = 2.00;
+	const range = (typeof window.getMagicMakeGrowthRange === 'function') ? window.getMagicMakeGrowthRange() : { min: 0.50, max: 2.00 };
+	const MIN = Number(range.min);
+	const MAX = Number(range.max);
 
 	const clamp = (v) => {
 		v = Number(v);
@@ -4315,15 +4431,40 @@ function __maybeExtraDropMultiplier(rarity) {
 	return Number(v.toFixed(3));
 }
 
+
 function __maybeProtectAdds(rarity) {
-	// ★全体的に付与確率アップ（低ランク救済）
-	// 例：Dでも0.8%→2.0%くらいで現実的に出る
-	const baseP = { D: 0.020, C: 0.045, B: 0.080, A: 0.140, S: 0.220 }[rarity] ?? 0.020;
+	// ★付与確率＆付与値テーブル（設定は window.__MAGICMAKE_GACHA_CONFIG に集約）
+	const cfg = (window.__MAGICMAKE_GACHA_CONFIG && window.__MAGICMAKE_GACHA_CONFIG.protectAdd) ? window.__MAGICMAKE_GACHA_CONFIG.protectAdd : null;
+
+	const basePByRarity = (cfg && cfg.basePByRarity) ? cfg.basePByRarity : { D: 0.020, C: 0.045, B: 0.080, A: 0.140, S: 0.220 };
+	const baseP = Number(basePByRarity[rarity]);
+	const p = Number.isFinite(baseP) ? baseP : 0.020;
+
+	const values = (cfg && Array.isArray(cfg.values)) ? cfg.values.map(v => Number(v)).filter(v => Number.isFinite(v)) : [1, 2];
+	const weights = (cfg && Array.isArray(cfg.weights) && cfg.weights.length === values.length)
+		? cfg.weights.map(w => Number(w)).map(w => (Number.isFinite(w) ? w : 0))
+		: null;
+
+	const pickWeighted = (vals, wts) => {
+		if (!vals || !vals.length) return 1;
+		if (!wts) {
+			// weights 無指定時：均等
+			return vals[Math.floor(Math.random() * vals.length)];
+		}
+		let sum = 0;
+		for (let i = 0; i < wts.length; i++) sum += Math.max(0, wts[i]);
+		if (!(sum > 0)) return vals[Math.floor(Math.random() * vals.length)];
+		let r = Math.random() * sum;
+		for (let i = 0; i < vals.length; i++) {
+			r -= Math.max(0, wts[i]);
+			if (r <= 0) return vals[i];
+		}
+		return vals[vals.length - 1];
+	};
 
 	const rollAdd = () => {
-		if (Math.random() >= baseP) return 0;
-		// +2 は「超稀」のまま。ただし少し出やすくしたいなら 0.12→0.15 など
-		return (Math.random() < 0.12) ? 2 : 1;
+		if (Math.random() >= p) return 0;
+		return pickWeighted(values, weights);
 	};
 
 	return {
@@ -4425,27 +4566,42 @@ window.renderMagicMakeDetails = function renderMagicMakeDetails(path, panel) {
 			stats.appendChild(row);
 		}
 
-		// protect bonuses
-		if ((bonus.protectSkillAdd && bonus.protectSkillAdd > 0) || (bonus.protectItemAdd && bonus.protectItemAdd > 0)) {
-			const sep = document.createElement('div');
-			sep.className = 'magicmake-detail-sep';
-			stats.appendChild(sep);
 
-			if (bonus.protectSkillAdd > 0) {
-				const row = document.createElement('div');
-				row.className = 'magicmake-detail-row up';
-				row.textContent = `特殊スキル保護 +${bonus.protectSkillAdd}`;
-				stats.appendChild(row);
-			}
-			if (bonus.protectItemAdd > 0) {
-				const row = document.createElement('div');
-				row.className = 'magicmake-detail-row up';
-				row.textContent = `アイテム保護 +${bonus.protectItemAdd}`;
-				stats.appendChild(row);
-			}
+// protect bonuses（数値レンジは設定から動的取得）
+if ((bonus.protectSkillAdd && bonus.protectSkillAdd > 0) || (bonus.protectItemAdd && bonus.protectItemAdd > 0)) {
+	const sep = document.createElement('div');
+	sep.className = 'magicmake-detail-sep';
+	stats.appendChild(sep);
+
+	const badgeRow = document.createElement('div');
+	badgeRow.className = 'magicmake-protect-badges';
+
+	const range = (typeof window.getMagicMakeProtectAddRange === 'function') ? window.getMagicMakeProtectAddRange() : { noneValue: 0, positiveMin: 1, positiveMax: 2 };
+	const minP = Number(range.positiveMin);
+	const maxP = Number(range.positiveMax);
+
+	const makeBadge = (kind, value) => {
+		const b = document.createElement('div');
+		b.className = 'magicmake-protect-badge ' + kind;
+
+		// 表示が崩れないよう、長い数値でも入る短い表記に
+		const label = (kind === 'skill') ? '特殊' : '道具';
+		b.textContent = `${label} +${value}`;
+
+		// 範囲が広い設定になっても違和感が出ないよう、tooltip でレンジを補足
+		if (Number.isFinite(minP) && Number.isFinite(maxP) && minP !== maxP) {
+			b.title = `このボーナスの取りうる範囲：+${minP}〜+${maxP}`;
 		}
+		return b;
+	};
 
-		wrap.appendChild(stats);
+	if (bonus.protectSkillAdd > 0) badgeRow.appendChild(makeBadge('skill', bonus.protectSkillAdd));
+	if (bonus.protectItemAdd > 0) badgeRow.appendChild(makeBadge('item', bonus.protectItemAdd));
+
+	stats.appendChild(badgeRow);
+}
+
+wrap.appendChild(stats);
 		panel.appendChild(wrap);
 
 		__drawMagicMakeRadar(canvas, rows.map(r => r[1]));
@@ -4455,6 +4611,7 @@ window.renderMagicMakeDetails = function renderMagicMakeDetails(path, panel) {
 	}
 };
 
+
 function __drawMagicMakeRadar(canvas, values) {
 	const ctx = canvas.getContext('2d');
 	if (!ctx) return;
@@ -4462,29 +4619,67 @@ function __drawMagicMakeRadar(canvas, values) {
 	const w = canvas.width, h = canvas.height;
 	ctx.clearRect(0, 0, w, h);
 
-	// === 表示スケール設定 ===
-	const MIN = 0.5;   // 表示下限
-	const MAX = 2.0;   // 表示上限
+	// === 表示スケール設定（ガチャの取りうる最小/最大を動的に反映）===
+	const range = (typeof window.getMagicMakeGrowthRange === 'function') ? window.getMagicMakeGrowthRange() : { min: 0.50, max: 2.00 };
+	const MIN = Number(range.min);
+	const MAX = Number(range.max);
 	const CENTER = 1.0;
 
-	const clamp = (v) =>
-		Math.max(MIN, Math.min(MAX, Number(v) || CENTER));
+	const safeMin = Number.isFinite(MIN) ? MIN : 0.50;
+	const safeMax = Number.isFinite(MAX) ? MAX : 2.00;
+	const minV = Math.min(safeMin, safeMax);
+	const maxV = Math.max(safeMin, safeMax);
+	const span = (maxV - minV) || 1;
+
+	const clamp = (v) => {
+		v = Number(v);
+		if (!Number.isFinite(v)) return CENTER;
+		return Math.max(minV, Math.min(maxV, v));
+	};
 
 	const vals = (Array.isArray(values) ? values : [1, 1, 1, 1]).map(clamp);
 
 	const cx = w / 2, cy = h / 2;
-	const r = Math.min(w, h) * 0.40;
 
-	// === ガイド円（1.0 を中心に見せる）===
+	// outer は「表示しきれるエリアぎりぎり」、inner は「最小値の輪」が見えるよう少し確保
+	const outerR = Math.min(w, h) * 0.44;
+	const innerR = outerR * 0.20;
+
+	const mapR = (v) => {
+		const norm = (clamp(v) - minV) / span; // 0..1
+		return innerR + norm * (outerR - innerR);
+	};
+
+	// === ガイド円：内側=MIN、外側=MAX（＋中間/1.0 が範囲内なら表示）===
 	ctx.strokeStyle = 'rgba(255,255,255,0.12)';
 	ctx.lineWidth = 1;
 
-	[0.5, 1.0, 1.5, 2.0].forEach(v => {
-		const rr = r * ((v - MIN) / (MAX - MIN));
+	const ticks = [];
+	ticks.push(minV);
+
+	const mid = minV + span * 0.5;
+	const q1 = minV + span * 0.25;
+	const q3 = minV + span * 0.75;
+
+	// 最低限「内/中/外」で綺麗に見えるように
+	ticks.push(q1, mid, q3);
+	ticks.push(maxV);
+
+	// 1.0 が範囲内なら、"基準" として少し強調して入れる（重複は避ける）
+	if (CENTER >= minV && CENTER <= maxV) ticks.push(CENTER);
+
+	// 重複除去＆ソート
+	const uniq = Array.from(new Set(ticks.map(v => Number(v).toFixed(4)))).map(s => Number(s)).sort((a, b) => a - b);
+
+	for (const v of uniq) {
+		const rr = mapR(v);
 		ctx.beginPath();
 		ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+		// 1.0 は少し濃く
+		if (Math.abs(v - CENTER) < 0.0006) ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+		else ctx.strokeStyle = 'rgba(255,255,255,0.12)';
 		ctx.stroke();
-	});
+	}
 
 	// === 軸 ===
 	ctx.strokeStyle = 'rgba(255,255,255,0.10)';
@@ -4493,8 +4688,8 @@ function __drawMagicMakeRadar(canvas, values) {
 		ctx.beginPath();
 		ctx.moveTo(cx, cy);
 		ctx.lineTo(
-			cx + Math.cos(a) * r,
-			cy + Math.sin(a) * r
+			cx + Math.cos(a) * outerR,
+			cy + Math.sin(a) * outerR
 		);
 		ctx.stroke();
 	}
@@ -4507,8 +4702,7 @@ function __drawMagicMakeRadar(canvas, values) {
 	ctx.beginPath();
 	for (let i = 0; i < 4; i++) {
 		const a = -Math.PI / 2 + i * (Math.PI / 2);
-		const norm = (vals[i] - MIN) / (MAX - MIN);
-		const rr = r * norm;
+		const rr = mapR(vals[i]);
 		const x = cx + Math.cos(a) * rr;
 		const y = cy + Math.sin(a) * rr;
 		if (i === 0) ctx.moveTo(x, y);
@@ -4518,6 +4712,383 @@ function __drawMagicMakeRadar(canvas, values) {
 	ctx.fill();
 	ctx.stroke();
 }
+
+// =====================================================
+// Battle Radar Chart (Player vs Enemy) - log scale, light (animated + glass gradient)
+//  - Draws once per battle start (and on resize if visible)
+//  - Uses min/max from all 8 values (P/E × 4 stats)
+//  - Animates fast between previous and next radar for readability
+// =====================================================
+(function(){
+	if (window.__battleRadarChartInstalled) return;
+	window.__battleRadarChartInstalled = true;
+
+	const AXES = [
+		{ key: 'maxHp',  label: 'HP' },
+		{ key: 'attack', label: '攻' },
+		{ key: 'defense',label: '防' },
+		{ key: 'speed', label: '速' },
+	];
+
+	const PLAYER_RGB = [80, 170, 255];
+	const ENEMY_RGB  = [255, 90, 120];
+
+	function num(v){
+		const n = Number(v);
+		return Number.isFinite(n) ? n : 0;
+	}
+	function clamp01(x){ return x < 0 ? 0 : (x > 1 ? 1 : x); }
+	function lerp(a,b,t){ return a + (b - a) * t; }
+	function easeOutCubic(t){ t = clamp01(t); return 1 - Math.pow(1 - t, 3); }
+
+	function log10(v){
+		const x = Math.max(1e-9, Number(v) || 0);
+		return Math.log(x) / Math.LN10;
+	}
+	function pow10(x){
+		// 10^x without slow Math.pow(10,x) loops
+		return Math.exp(x * Math.LN10);
+	}
+
+	function pickStats(obj){
+		if (!obj) return null;
+
+		// Prefer "battle-use" / direct stats first, then fallbacks.
+		// Enemy often has multiplied final stats on the root object (enemy.attack etc),
+		// while baseStats may remain as the pre-multiplier values.
+		const sources = [];
+		// 1) root (direct)
+		sources.push(obj);
+		// 2) battleStats
+		if (obj.battleStats && typeof obj.battleStats === 'object') sources.push(obj.battleStats);
+		// 3) stats
+		if (obj.stats && typeof obj.stats === 'object') sources.push(obj.stats);
+		// 4) baseStats
+		if (obj.baseStats && typeof obj.baseStats === 'object') sources.push(obj.baseStats);
+
+		function extract(src){
+			if (!src || typeof src !== 'object') return null;
+			const maxHp  = num(src.maxHp  ?? src.hpMax ?? src.maxHP ?? src.max_hp);
+			const attack = num(src.attack ?? src.atk   ?? src.ATK);
+			const defense= num(src.defense?? src.def   ?? src.DEF);
+			const speed  = num(src.speed  ?? src.spd   ?? src.SPD ?? src.agi ?? src.AGI);
+
+			// Must be positive for log scale
+			if (!(maxHp > 0) || !(attack > 0) || !(defense > 0) || !(speed > 0)) return null;
+			return { maxHp, attack, defense, speed };
+		}
+
+		for (const s of sources){
+			const out = extract(s);
+			if (out) return out;
+		}
+		return null;
+		}
+
+	function resizeCanvasToCSS(canvas){
+		const rect = canvas.getBoundingClientRect();
+		const dpr = Math.min(2, window.devicePixelRatio || 1);
+		const w = Math.max(10, Math.floor(rect.width * dpr));
+		const h = Math.max(10, Math.floor(rect.height * dpr));
+		if (canvas.width !== w || canvas.height !== h){
+			canvas.width = w;
+			canvas.height = h;
+		}
+		return dpr;
+	}
+
+	function rgba(rgb, a){
+		return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+	}
+
+	function applyMeaningfulWrapGradient(wrap, pStats, eStats){
+		// "Meaningful" gradient: stronger side gets a little more presence.
+		// We compute advantage by averaging log-ratios (multiplicative gap-friendly).
+		let acc = 0;
+		for (const a of AXES){
+			const pv = Math.max(1e-9, pStats[a.key]);
+			const ev = Math.max(1e-9, eStats[a.key]);
+			acc += (log10(pv) - log10(ev));
+		}
+		const adv = acc / AXES.length; // ~[-?, +?]
+		// Map to 0..1 where 1 = player strong, 0 = enemy strong
+		const m = clamp01(0.5 + adv * 0.22); // tunable
+		// Alphas (keep subtle)
+		const pA = lerp(0.10, 0.18, m);
+		const eA = lerp(0.18, 0.10, m);
+
+		try{
+			wrap.style.setProperty('--pA', String(pA.toFixed(3)));
+			wrap.style.setProperty('--eA', String(eA.toFixed(3)));
+			wrap.style.setProperty('--adv', String(m.toFixed(3)));
+		}catch(_){}
+	}
+
+	function drawRadar(canvas, pStats, eStats, opts){
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+
+		const dpr = resizeCanvasToCSS(canvas);
+		const w = canvas.width, h = canvas.height;
+		ctx.clearRect(0, 0, w, h);
+
+		const cx = w / 2;
+		const cy = h / 2 + 2 * dpr;
+		const radius = Math.min(w, h) * 0.345;
+		const inner = radius * 0.18;
+
+		// min/max among all 8 values
+		const allVals = [];
+		for (const a of AXES){
+			allVals.push(Math.max(1e-9, pStats[a.key]));
+			allVals.push(Math.max(1e-9, eStats[a.key]));
+		}
+		let minV = Math.min.apply(null, allVals);
+		let maxV = Math.max.apply(null, allVals);
+		if (!Number.isFinite(minV) || !Number.isFinite(maxV)) return;
+
+		const lmin = log10(minV);
+		const lmax = log10(maxV);
+		const span = Math.max(1e-9, lmax - lmin);
+
+		function norm(v){
+			const lv = log10(Math.max(1e-9, v));
+			return (lv - lmin) / span;
+		}
+		function axisAngle(i){
+			return (-Math.PI / 2) + i * (Math.PI * 2 / AXES.length);
+		}
+
+		// soft vignette background (very light)
+		{
+			const g = ctx.createRadialGradient(cx, cy, inner * 0.2, cx, cy, radius * 1.18);
+			g.addColorStop(0.00, 'rgba(255,255,255,0.06)');
+			g.addColorStop(0.55, 'rgba(0,0,0,0.00)');
+			g.addColorStop(1.00, 'rgba(0,0,0,0.18)');
+			ctx.fillStyle = g;
+			ctx.beginPath();
+			ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		// grid rings
+		ctx.lineWidth = 1 * dpr;
+		ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+		const rings = 4;
+		for (let r = 1; r <= rings; r++){
+			const rr = inner + (radius - inner) * (r / rings);
+			ctx.beginPath();
+			for (let i = 0; i < AXES.length; i++){
+				const ang = axisAngle(i);
+				const x = cx + Math.cos(ang) * rr;
+				const y = cy + Math.sin(ang) * rr;
+				if (i === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			}
+			ctx.closePath();
+			ctx.stroke();
+		}
+
+		// axis lines
+		ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+		for (let i = 0; i < AXES.length; i++){
+			const ang = axisAngle(i);
+			ctx.beginPath();
+			ctx.moveTo(cx, cy);
+			ctx.lineTo(cx + Math.cos(ang) * radius, cy + Math.sin(ang) * radius);
+			ctx.stroke();
+		}
+
+		// labels (crisp + subtle shadow)
+		ctx.save();
+		ctx.fillStyle = 'rgba(255,255,255,0.88)';
+		ctx.font = `${Math.max(10, Math.round(11 * dpr))}px system-ui, -apple-system, sans-serif`;
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.shadowColor = 'rgba(0,0,0,0.45)';
+		ctx.shadowBlur = 3 * dpr;
+		ctx.shadowOffsetY = 1 * dpr;
+		for (let i = 0; i < AXES.length; i++){
+			const ang = axisAngle(i);
+			const lx = cx + Math.cos(ang) * (radius + 16 * dpr);
+			const ly = cy + Math.sin(ang) * (radius + 14 * dpr);
+			ctx.fillText(AXES[i].label, lx, ly);
+		}
+		ctx.restore();
+
+		function polygon(stats, rgb, alphaEdge){
+			ctx.beginPath();
+			for (let i = 0; i < AXES.length; i++){
+				const a = AXES[i];
+				const ang = axisAngle(i);
+				const t = norm(stats[a.key]);
+				const rr = inner + (radius - inner) * t;
+				const x = cx + Math.cos(ang) * rr;
+				const y = cy + Math.sin(ang) * rr;
+				if (i === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			}
+			ctx.closePath();
+
+			// meaningful gradient: center is calmer, edge gets stronger (shows "reach" on the axis)
+			const g = ctx.createRadialGradient(cx, cy, inner * 0.25, cx, cy, radius * 1.05);
+			g.addColorStop(0.00, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.max(0.06, alphaEdge * 0.30)})`);
+			g.addColorStop(0.65, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.max(0.08, alphaEdge * 0.55)})`);
+			g.addColorStop(1.00, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alphaEdge})`);
+
+			ctx.fillStyle = g;
+			ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.min(0.95, alphaEdge + 0.55)})`;
+			ctx.lineWidth = 2 * dpr;
+			ctx.fill();
+			ctx.stroke();
+
+			// subtle vertex dots for readability
+			ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.min(0.95, alphaEdge + 0.65)})`;
+			for (let i = 0; i < AXES.length; i++){
+				const a = AXES[i];
+				const ang = axisAngle(i);
+				const t = norm(stats[a.key]);
+				const rr = inner + (radius - inner) * t;
+				const x = cx + Math.cos(ang) * rr;
+				const y = cy + Math.sin(ang) * rr;
+				ctx.beginPath();
+				ctx.arc(x, y, 2.2 * dpr, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
+
+		// enemy first (back), then player (front)
+		polygon(eStats, ENEMY_RGB, 0.18);
+		polygon(pStats, PLAYER_RGB, 0.20);
+
+		// optional tiny note (kept very subtle)
+		if (opts && opts.note){
+			ctx.fillStyle = 'rgba(255,255,255,0.40)';
+			ctx.font = `${Math.max(9, Math.round(10 * dpr))}px system-ui, -apple-system, sans-serif`;
+			ctx.textAlign = 'right';
+			ctx.textBaseline = 'top';
+			ctx.fillText('log', w - 8 * dpr, 6 * dpr);
+		}
+	}
+
+	function interpStatsLog(a, b, t){
+		const o = {};
+		for (const ax of AXES){
+			const k = ax.key;
+			const la = log10(Math.max(1e-9, a[k]));
+			const lb = log10(Math.max(1e-9, b[k]));
+			o[k] = pow10(lerp(la, lb, t));
+		}
+		return o;
+	}
+
+	// Animation state (single running anim, very short)
+	let __animRAF = 0;
+	let __animToken = 0;
+
+	window.drawBattleRadarChart = function(playerLike, enemyLike){
+		try{
+			const wrap = document.getElementById('battleRadarWrap');
+			const canvas = document.getElementById('battleRadarChart');
+			if (!wrap || !canvas) return;
+
+			const p = pickStats(playerLike);
+			const e = pickStats(enemyLike);
+			if (!p || !e){
+				// Keep the container visible and show a small note instead of hiding completely.
+				try{
+					wrap.classList.remove('hidden');
+					const noteEl = document.getElementById('battleRadarNote');
+					if (noteEl){
+						noteEl.textContent = '戦闘開始で表示されます';
+						noteEl.style.display = 'block';
+					}
+					const ctx = canvas.getContext('2d');
+					if (ctx){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+				}catch(_e){}
+				return;
+				}
+
+			wrap.classList.remove('hidden');
+			try{ const noteEl = document.getElementById('battleRadarNote'); if(noteEl){ noteEl.textContent=''; noteEl.style.display='none'; } }catch(_e){}
+			applyMeaningfulWrapGradient(wrap, p, e);
+
+			const last = window.__battleRadarLast;
+			window.__battleRadarLast = { p, e };
+
+			// cancel previous anim
+			if (__animRAF) cancelAnimationFrame(__animRAF);
+			__animToken++;
+			const token = __animToken;
+
+			// If we have a previous radar, animate quickly into the new one
+			if (last && last.p && last.e){
+				const startP = last.p;
+				const startE = last.e;
+				const endP = p;
+				const endE = e;
+				const dur = 180; // ms (fast)
+				const t0 = performance.now();
+
+				const step = (now) => {
+					if (token !== __animToken) return;
+					const tt = (now - t0) / dur;
+					if (tt >= 1){
+						try { drawRadar(canvas, endP, endE, { note:false }); } catch (_e) {}
+						return;
+					}
+					const et = easeOutCubic(tt);
+					const ip = interpStatsLog(startP, endP, et);
+					const ie = interpStatsLog(startE, endE, et);
+					try { drawRadar(canvas, ip, ie, { note:false }); } catch (_e) {}
+					__animRAF = requestAnimationFrame(step);
+				};
+				__animRAF = requestAnimationFrame(step);
+			}else{
+				requestAnimationFrame(() => {
+					try { drawRadar(canvas, p, e, { note:false }); } catch (_e) {}
+				});
+			}
+		}catch(_e){}
+	};
+
+	// Ensure the radar container is visible with a placeholder (even before the first battle).
+	try{
+		document.addEventListener('DOMContentLoaded', () => {
+			const wrap = document.getElementById('battleRadarWrap');
+			const noteEl = document.getElementById('battleRadarNote');
+			if (wrap){
+				wrap.classList.remove('hidden');
+			}
+			if (noteEl){
+				noteEl.textContent = noteEl.textContent || '戦闘開始で表示されます';
+				noteEl.style.display = 'block';
+			}
+		});
+	}catch(_e){}
+
+
+	// redraw on resize (only if we have last data)
+	let t = null;
+	window.addEventListener('resize', function(){
+		try{
+			if (t) clearTimeout(t);
+			t = setTimeout(function(){
+				try{
+					const last = window.__battleRadarLast;
+					if (!last) return;
+					const canvas = document.getElementById('battleRadarChart');
+					const wrap = document.getElementById('battleRadarWrap');
+					if (!canvas || !wrap || wrap.classList.contains('hidden')) return;
+					drawRadar(canvas, last.p, last.e, { note:false });
+				}catch(_e){}
+			}, 120);
+		}catch(_e){}
+	}, { passive: true });
+
+})();
+;
+
 
 function performFaceGacha() {
 	// 高速連打でも処理が多重に走らないようガード
@@ -5144,4 +5715,3 @@ function cleanUpMixedSkillsExceptOne() {
 	if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
 
 }
-

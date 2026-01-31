@@ -667,6 +667,14 @@ window.startBattle = function() {
 		__battleRetryBaseEnemy = null;
 	}
 
+
+	// --- Draw lightweight battle radar (player vs enemy) using the *base* (no retry HP multiplier) stats ---
+	try {
+		if (typeof window.drawBattleRadarChart === 'function') {
+			window.drawBattleRadarChart(__battleRetryBasePlayer || player, __battleRetryBaseEnemy || enemy);
+		}
+	} catch (_e) {}
+
 	function __battleRetryRestore(dst, src) {
 		if (!dst || !src) return;
 		try {

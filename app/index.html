@@ -58,8 +58,24 @@ let IMAGE_LIST_BY_RANK = {};
 
 async function loadFaceManifest() {
   try {
-    const response = await fetch('../face/faceManifest.json');
-    if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+    let response = null;
+    const __pref = (window.__assetPrefix != null) ? window.__assetPrefix : '';
+    const __candidates = [];
+    // 優先: いまの配置ルールに合わせたprefix
+    __candidates.push(__pref + 'face/faceManifest.json');
+    // フォールバック: 旧/別配置も試す
+    if (__pref !== '../') __candidates.push('../face/faceManifest.json');
+    if (__pref !== '') __candidates.push('face/faceManifest.json');
+
+    for (const u of __candidates) {
+      try {
+        response = await fetch(u, { cache: 'no-store' });
+        if (response && response.ok) break;
+      } catch (_e) {
+        response = null;
+      }
+    }
+    if (!response || !response.ok) throw new Error(`HTTP error ${response ? response.status : 'unknown'}`);(`HTTP error ${response.status}`);
     const data = await response.json();
     IMAGE_LIST_BY_RANK = data;
     //console.log('Face manifest loaded:', IMAGE_LIST_BY_RANK);
@@ -105,7 +121,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <h1 id="animatedTitle">◯戦後に<span id="deathChar">死</span>ぬ戦士</h1>
 
 <div id="titleImage" style="text-align: center; margin-bottom: 20px;">
-  <img src="../image/dark_knight.png" style="width:80%; max-width:400px; height:auto;" />
+  <img src="image/dark_knight.png" onerror="this.onerror=null; this.src='../image/dark_knight.png';" style="width:80%; max-width:400px; height:auto;" />
 </div>
 <!-- 更新情報オーバーレイ
 <div id="updateNotice" style="
@@ -248,7 +264,18 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 			<div id="firstFaceHideSubnote" class="subnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
 			<canvas id="hpChart" width="600" height="100"></canvas>			
 
-            <!-- 強ボス撃破数（星UI） -->
+            
+			<!-- 自分 vs 敵：ステータス差（対数）レーダーチャート -->
+			<div id="battleRadarWrap" class="battle-radar-wrap " aria-label="ステータス差レーダーチャート">
+				<div class="battle-radar-head">
+					<div class="battle-radar-title">ステータス差（対数）</div>
+					<div class="battle-radar-legend"><span class="battle-radar-dot player"></span>自分 <span class="battle-radar-dot enemy"></span>敵</div>
+				</div>
+				<div id="battleRadarNote" class="battle-radar-note">戦闘開始で表示されます</div>
+				<canvas id="battleRadarChart" width="600" height="200"></canvas>
+			</div>
+
+<!-- 強ボス撃破数（星UI） -->
             <div id="bossKillStars" class="boss-stars-container hidden">
                 <div class="boss-stars-label">強ボス撃破</div>
                 <div id="bossKillStarsInner" class="boss-stars" aria-label="強ボス撃破数"></div>
