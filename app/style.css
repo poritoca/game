@@ -5566,6 +5566,7 @@ body.first-face-selecting #startBattleBtn{display:none !important;}
 body.first-face-selecting #specialModeButton{display:none !important;}
 body.first-face-selecting #firstFaceHideSubnote{display:none !important;}
 body.first-face-selecting #hpChart{display:none !important;}
+body.first-face-selecting #battleRadarWrap{display:none !important;}
 
 /* ==============================
    Battle Log extra tools (expand/collapse + scroll) - compact layout

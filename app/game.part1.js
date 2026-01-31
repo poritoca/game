@@ -4994,61 +4994,105 @@ function __drawMagicMakeRadar(canvas, values) {
 
 			const p = pickStats(playerLike);
 			const e = pickStats(enemyLike);
+
+			// During first reroll selection, keep this hidden (CSS also hides, but be safe).
+			try{
+				if (window.__firstRerollSelectionPhase){
+					wrap.classList.add('hidden');
+					return;
+				}
+			}catch(_){}
+
 			if (!p || !e){
-				// Keep the container visible and show a small note instead of hiding completely.
+				// Keep the container visible and show a small note instead of hiding completely
 				try{
 					wrap.classList.remove('hidden');
-					const noteEl = document.getElementById('battleRadarNote');
-					if (noteEl){
-						noteEl.textContent = '戦闘開始で表示されます';
-						noteEl.style.display = 'block';
-					}
-					const ctx = canvas.getContext('2d');
-					if (ctx){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+					requestAnimationFrame(() => {
+						try { drawRadar(canvas, null, null, { note:true }); } catch (_e) {}
+					});
 				}catch(_e){}
 				return;
-				}
+			}
 
-			wrap.classList.remove('hidden');
-			try{ const noteEl = document.getElementById('battleRadarNote'); if(noteEl){ noteEl.textContent=''; noteEl.style.display='none'; } }catch(_e){}
-			applyMeaningfulWrapGradient(wrap, p, e);
+			// Ensure visible
+			try{ wrap.classList.remove('hidden'); }catch(_){}
 
-			const last = window.__battleRadarLast;
-			window.__battleRadarLast = { p, e };
+			// ---- Smooth morph between previous battle and current battle ----
+			// We keep a single running animation and, if a new battle starts while it's animating
+			// (e.g., long-press auto battles), we start the next morph from the *current displayed*
+			// shape to avoid snapping.
+			const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+			const ease = (t)=>{ t = Math.max(0, Math.min(1, t)); return t*t*(3-2*t); }; // smoothstep
 
-			// cancel previous anim
-			if (__animRAF) cancelAnimationFrame(__animRAF);
-			__animToken++;
-			const token = __animToken;
+			if (!window.__battleRadarAnimState) window.__battleRadarAnimState = null;
 
-			// If we have a previous radar, animate quickly into the new one
-			if (last && last.p && last.e){
-				const startP = last.p;
-				const startE = last.e;
-				const endP = p;
-				const endE = e;
-				const dur = 180; // ms (fast)
-				const t0 = performance.now();
+			let startP = null, startE = null;
 
-				const step = (now) => {
-					if (token !== __animToken) return;
-					const tt = (now - t0) / dur;
-					if (tt >= 1){
-						try { drawRadar(canvas, endP, endE, { note:false }); } catch (_e) {}
-						return;
-					}
-					const et = easeOutCubic(tt);
-					const ip = interpStatsLog(startP, endP, et);
-					const ie = interpStatsLog(startE, endE, et);
-					try { drawRadar(canvas, ip, ie, { note:false }); } catch (_e) {}
-					__animRAF = requestAnimationFrame(step);
-				};
-				__animRAF = requestAnimationFrame(step);
+			const st = window.__battleRadarAnimState;
+			if (st && st.fromP && st.toP && (now < st.start + st.dur)){
+				const raw = (now - st.start) / st.dur;
+				const et = ease(raw);
+				startP = interpStatsLog(st.fromP, st.toP, et);
+				startE = interpStatsLog(st.fromE, st.toE, et);
 			}else{
+				// Fall back to last completed snapshot
+				startP = window.__battleRadarLastP || null;
+				startE = window.__battleRadarLastE || null;
+			}
+
+			// If we have no previous snapshot yet, just draw immediately and store as last.
+			if (!startP || !startE){
+				window.__battleRadarLastP = p;
+				window.__battleRadarLastE = e;
+				window.__battleRadarLast = { p, e };
+				window.__battleRadarAnimState = null;
 				requestAnimationFrame(() => {
 					try { drawRadar(canvas, p, e, { note:false }); } catch (_e) {}
 				});
+				return;
 			}
+
+			// Cancel previous RAF
+			try{
+				if (st && st.raf) cancelAnimationFrame(st.raf);
+			}catch(_){}
+
+			// Prepare new animation
+			const dur = 460; // ms (slower than before, but still snappy on iPhone)
+			const token = (st && st.token ? st.token+1 : 1);
+
+			const anim = {
+				fromP: startP, fromE: startE,
+				toP: p,      toE: e,
+				start: now,
+				dur,
+				token,
+				raf: 0
+			};
+			window.__battleRadarAnimState = anim;
+
+			const step = ()=>{
+				try{
+					const cur = window.__battleRadarAnimState;
+					if (!cur || cur.token !== token) return;
+					const t = ( (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now() ) - cur.start;
+					const raw = (cur.dur <= 0) ? 1 : (t / cur.dur);
+					const et = ease(raw);
+					const ip = interpStatsLog(cur.fromP, cur.toP, et);
+					const ie = interpStatsLog(cur.fromE, cur.toE, et);
+					try { drawRadar(canvas, ip, ie, { note:false }); } catch (_e) {}
+					if (raw >= 1){
+						// Finish and store last snapshot for next battle
+						window.__battleRadarLastP = cur.toP;
+						window.__battleRadarLastE = cur.toE;
+						window.__battleRadarLast = { p: cur.toP, e: cur.toE };
+						window.__battleRadarAnimState = null;
+						return;
+					}
+					cur.raf = requestAnimationFrame(step);
+				}catch(_e){}
+			};
+			anim.raf = requestAnimationFrame(step);
 		}catch(_e){}
 	};
 
