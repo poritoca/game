@@ -1246,6 +1246,7 @@ function maybeGainItemMemory() {
 	drawItemMemoryList();
 	const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
 	let message = `新魔道具入手！ ${itemName}（${newItem.skillName}）`;
+	try{ if (typeof window.__notifyBattleItemReward === 'function') window.__notifyBattleItemReward({ itemName, skillName:newItem.skillName, skillLevel:newItem.skillLevel, source:'normal' }); }catch(_e){}
 	updateItemOverlay();
 
 	const anyFiltersSet = document.querySelectorAll('.itemFilterCB:checked').length > 0;
@@ -1347,6 +1348,7 @@ function grantClutchRewardItem(tier, absDiffRatio, log) {
 		updateItemOverlay();
 
 		const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+		try{ if (typeof window.__notifyBattleItemReward === 'function') window.__notifyBattleItemReward({ itemName, skillName:newItem.skillName, skillLevel:newItem.skillLevel, source:'clutch' }); }catch(_e){}
 		const pct = (Math.max(0, absDiffRatio) * 100).toFixed(2);
 		const tierLabel = (tier >= 3) ? '超僅差' : (tier === 2) ? '僅差' : '接戦';
 		if (log) log.push(`【クラッチ報酬】${tierLabel}勝利（差${pct}%）のため、レア寄り魔道具を獲得！ ${itemName}（${newItem.skillName}）`);
@@ -1402,6 +1404,7 @@ function grantBossRewardItem() {
 		if (typeof updateItemOverlay === 'function') updateItemOverlay();
 
 		const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+		try{ if (typeof window.__notifyBattleItemReward === 'function') window.__notifyBattleItemReward({ itemName, skillName:newItem.skillName, skillLevel:newItem.skillLevel, source:'boss' }); }catch(_e){}
 		const msg = `ボスからの戦利品！<br>${itemName}（${newItem.skillName}）`;
 		if (typeof showCustomAlert === 'function') {
 			showCustomAlert(msg, 4000);
@@ -2586,7 +2589,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 		case 'endure': {
 			const duration = (skillData.duration || 1) + getLevelTurnBonus(skill.level || 1);
 			user.effects.push({ type: 'endure', remaining: duration, preventedDamage: 0, skillName: skill.name, endureCountThisTurn: 0, maxEndurePerTurn: 5 });
-			console.log(`[Endure] ${displayName(user.name)} activated ${skill.name} (duration ${duration})`);
+			//console.log(`[Endure] ${displayName(user.name)} activated ${skill.name} (duration ${duration})`);
 			log.push(`${displayName(user.name)}の${skill.name}：HP1で耐える耐久態勢！`);
 			break;
 		}
@@ -2641,7 +2644,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 			if (target.hp > target.maxHp) {
 				const lostHP = target.hp - target.maxHp;
 				target.hp = target.maxHp;
-				console.log(`[MaxHpDown] ${displayName(target.name)} maxHP -${reduceAmount}, current HP reduced by ${lostHP}`);
+				//console.log(`[MaxHpDown] ${displayName(target.name)} maxHP -${reduceAmount}, current HP reduced by ${lostHP}`);
 			}
 			log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}の最大HPを${reduceAmount}削り取った`);
 			break;
@@ -2790,7 +2793,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 			const baseAtk = user.attack * (skillData.multiplier || 1);
 			const bombDmg = Math.max(0, Math.floor(baseAtk - effectiveDef / 2));
 			target.effects.push({ type: '爆弾', damage: bombDmg, remaining: duration });
-			console.log(`[Bomb] ${displayName(target.name)} has a bomb (爆弾) set for ${duration} turn(s) with ${bombDmg} damage`);
+			//console.log(`[Bomb] ${displayName(target.name)} has a bomb (爆弾) set for ${duration} turn(s) with ${bombDmg} damage`);
 			log.push(`${displayName(user.name)}の${skill.name}：${displayName(target.name)}に爆弾を設置した（${duration}ターン後爆発）`);
 			break;
 		}

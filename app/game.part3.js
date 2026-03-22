@@ -19,6 +19,9 @@ window.startBattle = function() {
 	if (window.__battleInProgress) return;
 	window.__battleInProgress = true;
 
+	// レーダーチャート左右のキャラをピョコン（演出）
+	try{ if (typeof window.__battleRadarSpritesStartBattleAnim === 'function') window.__battleRadarSpritesStartBattleAnim(); }catch(_e){}
+
 	// 非「中断」ロードで開始した場合は、growthBonus を必ずゼロに戻す（次の戦闘開始時に1回だけ適用）
 	try{
 		if (window.__forceResetGrowthBonusOnNextStart && !window.__keepGrowthBonusFromProgressSave) {
@@ -52,9 +55,11 @@ window.startBattle = function() {
 	// この戦闘中に発生する「見た目用タイマー」を追跡する
 	window.__battleVisualTracking = true;
 	window.battleId = (window.battleId || 0) + 1;
+	try{ if (typeof window.__battleDigestReset === 'function') window.__battleDigestReset(window.battleId); }catch(_e){}
 
 	//戦闘ログはここに入れる
 	window.log = [];
+	try{ if (typeof window.__instrumentBattleLogArray === 'function') window.__instrumentBattleLogArray(window.log); }catch(_e){}
 
 	// 方針B：特殊スキル開始時効果（revive_mixed_start / dotAbsorb_mixed_start）を使用
 	window._policyBMixedStart = true;
@@ -893,7 +898,7 @@ window.startBattle = function() {
 								opponent.hp = Math.max(0, opponent.hp - counterDamage);
 								log.push(`${displayName(ch.name)}の${eff.skillName}：${displayName(opponent.name)}に${counterDamage}ダメージ（反撃）`);
 								ch.battleStats[eff.skillName] = (ch.battleStats[eff.skillName] || 0) + counterDamage;
-								console.log(`[Counter] ${displayName(ch.name)}'s ${eff.skillName} dealt ${counterDamage} damage on expiration`);
+								//console.log(`[Counter] ${displayName(ch.name)}'s ${eff.skillName} dealt ${counterDamage} damage on expiration`);
 							}
 						}
 						return false;
@@ -1228,6 +1233,9 @@ window.startBattle = function() {
 		(!__endedByTurnLimit && player.hp > enemy.hp) ||
 		(__endedByTurnLimit && __hpShareDiff >= 0)
 	);
+
+	// バトル結果に応じて、負けた側を右上/左上へ飛ばす（レーダーチャート枠内）
+	try{ if (typeof window.__battleRadarSpritesFinishBattleAnim === 'function') window.__battleRadarSpritesFinishBattleAnim(playerWon); }catch(_e){}
 
 	// -------------------------
 	// -------------------------
@@ -1775,6 +1783,8 @@ window.startBattle = function() {
 	if (currentStreak > maxStreak) {
 		localStorage.setItem('maxStreak', currentStreak);
 	}
+
+	try{ if (typeof window.__finalizeBattleDigest === 'function') window.__finalizeBattleDigest({ playerWon }); }catch(_e){}
 
 	maybeTriggerEvent();
 

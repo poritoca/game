@@ -77,13 +77,53 @@ window.toggleFoldById = window.toggleFoldById || function(id){
 window.__battleInProgress = window.__battleInProgress || false;
 window.__battleVisualTracking = window.__battleVisualTracking || false;
 window.__battleVisualTimers = window.__battleVisualTimers || [];
+window.__battleVisualRafs = window.__battleVisualRafs || [];
+window.__battleVisualAnimations = window.__battleVisualAnimations || [];
 
 window.__battleSetTimeout = window.__battleSetTimeout || function __battleSetTimeout(fn, ms) {
-	const id = setTimeout(fn, ms);
+	let id = null;
+	id = setTimeout(() => {
+		try {
+			fn();
+		} finally {
+			try {
+				if (Array.isArray(window.__battleVisualTimers)) {
+					const idx = window.__battleVisualTimers.indexOf(id);
+					if (idx >= 0) window.__battleVisualTimers.splice(idx, 1);
+				}
+			} catch (_) {}
+		}
+	}, ms);
 	if (window.__battleVisualTracking) {
 		window.__battleVisualTimers.push(id);
 	}
 	return id;
+};
+
+window.__battleRequestAnimationFrame = window.__battleRequestAnimationFrame || function __battleRequestAnimationFrame(fn) {
+	const raf = (window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); })(function(){
+		try {
+			fn();
+		} finally {
+			try {
+				if (Array.isArray(window.__battleVisualRafs)) {
+					const idx = window.__battleVisualRafs.indexOf(raf);
+					if (idx >= 0) window.__battleVisualRafs.splice(idx, 1);
+				}
+			} catch (_) {}
+		}
+	});
+	if (window.__battleVisualTracking) window.__battleVisualRafs.push(raf);
+	return raf;
+};
+
+window.__trackBattleAnimation = window.__trackBattleAnimation || function __trackBattleAnimation(anim) {
+	try {
+		if (anim && window.__battleVisualTracking && Array.isArray(window.__battleVisualAnimations)) {
+			window.__battleVisualAnimations.push(anim);
+		}
+	} catch (_) {}
+	return anim;
 };
 
 // =====================================================
@@ -105,6 +145,33 @@ window.__cancelBattleVisuals = window.__cancelBattleVisuals || function __cancel
 			}
 			window.__battleVisualTimers.length = 0;
 		}
+		if (Array.isArray(window.__battleVisualRafs)) {
+			for (const id of window.__battleVisualRafs) {
+				try { (window.cancelAnimationFrame || clearTimeout)(id); } catch (_) {}
+			}
+			window.__battleVisualRafs.length = 0;
+		}
+		if (Array.isArray(window.__battleVisualAnimations)) {
+			for (const anim of window.__battleVisualAnimations) {
+				try { if (anim && typeof anim.cancel === 'function') anim.cancel(); } catch (_) {}
+			}
+			window.__battleVisualAnimations.length = 0;
+		}
+		try {
+			const st = window.__battleRadarAnimState;
+			if (st && st.raf) {
+				try { (window.cancelAnimationFrame || clearTimeout)(st.raf); } catch (_) {}
+			}
+			window.__battleRadarAnimState = null;
+		} catch (_) {}
+		try {
+			const overlay2 = document.getElementById('faceRevealOverlay');
+			if (overlay2) overlay2.remove();
+		} catch (_) {}
+		try {
+			const gachaAnim = document.getElementById('gachaAnimation');
+			if (gachaAnim) gachaAnim.remove();
+		} catch (_) {}
 		const subtitleEl = document.getElementById('subtitleOverlay');
 		if (subtitleEl) {
 			subtitleEl.style.opacity = '0';
@@ -2175,9 +2242,17 @@ window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(mi
 	try {
 		const v = minimized ? '1' : '0';
 		try { localStorage.setItem(window.__battleDockMinKey, v); } catch (_) {}
-		if (!minimized) { try{ window.__battleDockScrollStartY = null; }catch(_){}} 
+		if (!minimized) { try{ window.__battleDockScrollStartY = null; }catch(_){} }
 		window.__refreshBattleControlDock && window.__refreshBattleControlDock();		// When minimized, immediately hide overlays (they must not auto-show while minimized)
 		try { if (minimized) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+
+		try {
+			if (minimized) {
+				window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+			} else {
+				window.__clearBattleDockAutoRestoreTimer && window.__clearBattleDockAutoRestoreTimer();
+			}
+		} catch(_e) {}
 
 		// When restored from minimized state, show overlays again (one-shot refresh)
 		try {
@@ -2280,45 +2355,31 @@ window.__hideAutoMinimizeNotice = window.__hideAutoMinimizeNotice || function(im
 
 window.__showAutoMinimizeNotice = window.__showAutoMinimizeNotice || function(){
 	try{
-		const now = Date.now();
-		// Simple rate limit (avoid spam while continuous scrolling)
-		if (window.__autoMinimizeToastLastAt && (now - window.__autoMinimizeToastLastAt) < 800) return;
-		window.__autoMinimizeToastLastAt = now;
+		// 自動最小化時の文言表示は行わない。既存トーストが残っていれば即時で閉じる。
+		window.__hideAutoMinimizeNotice && window.__hideAutoMinimizeNotice(true);
+	}catch(_e){}
+};
 
-		let el = document.getElementById('autoMinimizeToast');
-		if (!el) {
-			el = document.createElement('div');
-			el.id = 'autoMinimizeToast';
-			el.setAttribute('role', 'status');
-			el.setAttribute('aria-live', 'polite');
-			el.style.display = 'none';
-			try { document.body.appendChild(el); } catch (_e) {}
-
-			// One-time wiring
-			el.addEventListener('click', () => {
-				try { window.__hideAutoMinimizeNotice && window.__hideAutoMinimizeNotice(true); } catch (_e) {}
-			}, { passive: true });
+window.__battleDockAutoRestoreDelayMs = window.__battleDockAutoRestoreDelayMs || 2500;
+window.__clearBattleDockAutoRestoreTimer = window.__clearBattleDockAutoRestoreTimer || function(){
+	try{
+		if (window.__battleDockAutoRestoreTimer) {
+			(window.__uiClearTimeout || window.clearTimeout)(window.__battleDockAutoRestoreTimer);
+			window.__battleDockAutoRestoreTimer = null;
 		}
-
-		// Ensure visible every time (fix: 2nd time and later)
-		el.textContent = '最小化しました。下のバーをタップで復元できます（この表示はタップで閉じます）';
-		el.style.display = 'block';
-		el.classList.remove('is-hidden');
-
-		// Force reflow for transition reliability
-		try { void el.offsetWidth; } catch (_e) {}
-		el.classList.add('is-show');
-
-		// Restart timers
-		try {
-			if (el.__tHide) { (window.__uiClearTimeout || window.clearTimeout)(el.__tHide); el.__tHide = null; }
-			if (el.__tFade) { (window.__uiClearTimeout || window.clearTimeout)(el.__tFade); el.__tFade = null; }
-		} catch (_e) {}
-
-		el.__tHide = (window.__uiSetTimeout || window.setTimeout)(() => {
-			try { window.__hideAutoMinimizeNotice && window.__hideAutoMinimizeNotice(false); } catch (_e) {}
-		}, 2000);
-	} catch (_e) {}
+	}catch(_e){}
+};
+window.__scheduleBattleDockAutoRestore = window.__scheduleBattleDockAutoRestore || function(){
+	try{
+		window.__clearBattleDockAutoRestoreTimer && window.__clearBattleDockAutoRestoreTimer();
+		window.__battleDockAutoRestoreTimer = (window.__uiSetTimeout || window.setTimeout)(() => {
+			try{
+				window.__battleDockAutoRestoreTimer = null;
+				if (!(window.__isBattleDockMinimized && window.__isBattleDockMinimized())) return;
+				window.__setBattleDockMinimized && window.__setBattleDockMinimized(false);
+			}catch(_restoreErr){}
+		}, Number(window.__battleDockAutoRestoreDelayMs || 2500));
+	}catch(_e){}
 };
 window.__initBattleControlDock = window.__initBattleControlDock || function() {
 	try {
@@ -2468,8 +2529,8 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 					}
 
 					
-// Otherwise: auto-minimize only after enough scrolling (less sensitive)
-const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 490); // px
+// Otherwise: auto-minimize only after a smaller amount of scrolling
+const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 220); // px
 if (!window.__battleDockScrollStartY || !Number.isFinite(Number(window.__battleDockScrollStartY))) {
 	window.__battleDockScrollStartY = window.scrollY || 0;
 }
@@ -2482,19 +2543,61 @@ if (dy < threshold) {
 	window.__showAutoMinimizeNotice && window.__showAutoMinimizeNotice();
 window.__battleDockPulseMiniBar && window.__battleDockPulseMiniBar();
 window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
 window.__battleDockScrollStartY = null;
 				} catch (_) {}
 			};
 
-			window.addEventListener('touchstart', (ev)=>{ try{ if(!(window.__isBattleDockMinimized && window.__isBattleDockMinimized())) window.__battleDockScrollStartY = window.scrollY||0; }catch(_e){} }, { passive: true });
-			window.addEventListener('scroll', tryAutoMinimize, { passive: true });
-			window.addEventListener('touchmove', tryAutoMinimize, { passive: true });
-			window.addEventListener('resize', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
+			window.addEventListener('touchstart', (ev)=>{
+				try{
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+					} else {
+						window.__battleDockScrollStartY = window.scrollY || 0;
+					}
+				}catch(_e){}
+			}, { passive: true });
+			window.addEventListener('scroll', (ev) => {
+				try {
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+						return;
+					}
+				}catch(_e){}
+				tryAutoMinimize(ev);
+			}, { passive: true });
+			window.addEventListener('touchmove', (ev) => {
+				try {
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+						return;
+					}
+				}catch(_e){}
+				tryAutoMinimize(ev);
+			}, { passive: true });
+			window.addEventListener('resize', () => {
+				window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+				if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+					window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+				}
+			}, { passive: true });
 
 			// visualViewport (iOS)
 			if (window.visualViewport) {
-				window.visualViewport.addEventListener('scroll', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
-				window.visualViewport.addEventListener('resize', () => window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow(), { passive: true });
+				window.visualViewport.addEventListener('scroll', () => {
+					window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+					}
+				}, { passive: true });
+				window.visualViewport.addEventListener('resize', () => {
+					window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
+					}
+				}, { passive: true });
 			}
 		}
 };
@@ -4248,14 +4351,14 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 		const startAnim = () => {
 			try { overlay.classList.add('loaded'); } catch(_){}
 		};
-		try { requestAnimationFrame(() => requestAnimationFrame(startAnim)); }
+		try { window.__battleRequestAnimationFrame(() => window.__battleRequestAnimationFrame(startAnim)); }
 		catch(_){ try { startAnim(); } catch(__){} }
 
 		// 保持時間（iPhone Safari でも「一瞬」にならないよう少し長め）
 		const holdMs = (m === 'boss') ? 1350 : 1500;
 		const exitMs = 650;
 
-		const _set = (typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout;
+		const _set = (typeof window.__battleSetTimeout === 'function') ? window.__battleSetTimeout : ((typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout);
 
 		_set(() => {
 			try { overlay.classList.add('exit'); } catch(_){}
@@ -4986,7 +5089,243 @@ function __drawMagicMakeRadar(canvas, values) {
 	let __animRAF = 0;
 	let __animToken = 0;
 
-	window.drawBattleRadarChart = function(playerLike, enemyLike){
+	
+	// =========================================================
+	// レーダーチャート左右のキャラ表示（ミニ立ち絵）＋バトル簡易アニメ
+	// =========================================================
+	window.__updateBattleRadarSideSprites = function(opts){
+		try{
+			opts = opts || {};
+			const pImg = document.getElementById('battleRadarPlayerSprite');
+			const eImg = document.getElementById('battleRadarEnemySprite');
+			const pCv = document.getElementById('battleRadarPlayerCanvasSprite');
+			const eCv = document.getElementById('battleRadarEnemyCanvasSprite');
+			const stage = document.getElementById('battleRadarStage');
+			if (!stage) return;
+
+			const hideAll = ()=>{
+				try{ if (pImg) pImg.classList.add('hidden'); }catch(_){}
+				try{ if (eImg) eImg.classList.add('hidden'); }catch(_){}
+				try{ if (pCv) pCv.classList.add('hidden'); }catch(_){}
+				try{ if (eCv) eCv.classList.add('hidden'); }catch(_){}
+			};
+
+			if (opts.hide){ hideAll(); return; }
+
+			const resolve = (p)=>{
+				try{
+					if (!p) return p;
+					let q = p;
+					try{ if (typeof normalizeFacePath === 'function') q = normalizeFacePath(q); }catch(_){}
+					try{ if (typeof resolveAssetPath === 'function') q = resolveAssetPath(q); }catch(_){}
+					return q;
+				}catch(_){ return p; }
+			};
+
+			// ---- player ----
+			let showPlayerFace = false;
+			let playerFaceSrc = null;
+			try{
+				const eq = (window && window.faceItemEquipped) ? window.faceItemEquipped : null;
+				if (eq){
+					showPlayerFace = true;
+					playerFaceSrc = resolve(eq);
+				}
+			}catch(_){}
+
+			if (showPlayerFace && pImg){
+				try{ pImg.setAttribute('src', playerFaceSrc || ''); }catch(_){}
+				try{ pImg.classList.remove('hidden'); }catch(_){}
+				try{ if (pCv) pCv.classList.add('hidden'); }catch(_){}
+			}else{
+				// draw base to mini canvas
+				try{
+					const pObj = (window && window.player) ? window.player : (typeof player !== 'undefined' ? player : null);
+					let nm = (pObj && pObj.name) ? pObj.name : '';
+					try{ if (typeof displayName === 'function') nm = displayName(nm); }catch(_){}
+					if (pCv && typeof drawCharacterImage === 'function'){
+						// temporarily draw into this canvas id
+						drawCharacterImage(nm, 'battleRadarPlayerCanvasSprite');
+						try{ pCv.classList.remove('hidden'); }catch(_){}
+					}
+				}catch(_){}
+				try{ if (pImg) pImg.classList.add('hidden'); }catch(_){}
+			}
+
+			// ---- enemy ----
+			let showEnemyFace = false;
+			let enemyFaceSrc = null;
+			try{
+				const hasBossFace = (window && window.isBossBattle && window.bossFacePath) ? window.bossFacePath : null;
+				const hasGrowthBossFace = (window && window.isGrowthBoss && window.growthBossFacePath) ? window.growthBossFacePath : null;
+				if (hasBossFace || hasGrowthBossFace){
+					showEnemyFace = true;
+					enemyFaceSrc = resolve(hasBossFace || hasGrowthBossFace);
+				}
+			}catch(_){}
+
+			if (showEnemyFace && eImg){
+				try{ eImg.setAttribute('src', enemyFaceSrc || ''); }catch(_){}
+				try{ eImg.classList.remove('hidden'); }catch(_){}
+				try{ if (eCv) eCv.classList.add('hidden'); }catch(_){}
+			}else{
+				try{
+					const eObj = (window && window.enemy) ? window.enemy : (typeof enemy !== 'undefined' ? enemy : null);
+					let nm = (eObj && eObj.name) ? eObj.name : '';
+					try{ if (typeof displayName === 'function') nm = displayName(nm); }catch(_){}
+					if (eCv && typeof drawCharacterImage === 'function'){
+						drawCharacterImage(nm, 'battleRadarEnemyCanvasSprite');
+						try{ eCv.classList.remove('hidden'); }catch(_){}
+					}
+				}catch(_){}
+				try{ if (eImg) eImg.classList.add('hidden'); }catch(_){}
+			}
+		}catch(_e){}
+	};
+
+	window.__battleRadarSpritesStartBattleAnim = function(){
+		try{
+			// refresh + show
+			try{ window.__updateBattleRadarSideSprites({}); }catch(_){}
+			const pImg = document.getElementById('battleRadarPlayerSprite');
+			const eImg = document.getElementById('battleRadarEnemySprite');
+			const pCv = document.getElementById('battleRadarPlayerCanvasSprite');
+			const eCv = document.getElementById('battleRadarEnemyCanvasSprite');
+			const stage = document.getElementById('battleRadarStage');
+			if (!stage) return;
+
+			const pick = (img, cv)=>{
+				try{
+					if (img && !img.classList.contains('hidden')) return img;
+					if (cv && !cv.classList.contains('hidden')) return cv;
+					// fallback preference
+					return img || cv || null;
+				}catch(_){ return img || cv || null; }
+			};
+
+			const pEl = pick(pImg, pCv);
+			const eEl = pick(eImg, eCv);
+			if (!pEl || !eEl) return;
+
+			// cancel previous animations
+			try{
+				[pEl, eEl].forEach(el=>{
+					try{
+						if (el.getAnimations){
+							el.getAnimations().forEach(a=>{ try{ a.cancel(); }catch(_){ } });
+						}
+					}catch(_){}
+					el.style.transform = '';
+					el.style.opacity = '';
+				});
+			}catch(_){}
+
+			const token = (window.__battleRadarSpriteAnimToken||0) + 1;
+			window.__battleRadarSpriteAnimToken = token;
+
+			const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+			const jumpOnce = (el, delayMs)=>{
+				try{
+					// keep base translateY(-50%) for sprites
+					const base = (el.classList && el.classList.contains('battle-radar-sprite-canvas')) ? 'translateY(-50%)' : 'translateY(-50%)';
+					return window.__trackBattleAnimation(el.animate(
+						[
+							{ transform: base + ' translateY(0px) scale(1)' },
+							{ transform: base + ' translateY(-10px) scale(1.06)' },
+							{ transform: base + ' translateY(0px) scale(1)' }
+						],
+						{ duration: 180, easing: 'cubic-bezier(0.2,0.9,0.2,1)', delay: delayMs||0, fill: 'forwards' }
+					));
+				}catch(_){ return null; }
+			};
+
+			// ピョコン回数
+			const jumps = 10;
+			
+			const gap = 110;
+			const one = 180;
+			
+			const total = one * jumps + gap * (jumps - 1);
+			window.__battleRadarSpritePreAnimEndsAt = now + total;
+			
+			for(let i = 0; i < jumps; i++){
+			    const t = i * (one + gap);
+			    jumpOnce(pEl, t);
+			    jumpOnce(eEl, t);
+			}
+
+			return token;
+		}catch(_e){}
+	};
+
+	window.__battleRadarSpritesFinishBattleAnim = function(playerWon){
+		try{
+			const pImg = document.getElementById('battleRadarPlayerSprite');
+			const eImg = document.getElementById('battleRadarEnemySprite');
+			const pCv = document.getElementById('battleRadarPlayerCanvasSprite');
+			const eCv = document.getElementById('battleRadarEnemyCanvasSprite');
+			const stage = document.getElementById('battleRadarStage');
+			if (!stage) return;
+
+			const pick = (img, cv)=>{
+				try{
+					if (img && !img.classList.contains('hidden')) return img;
+					if (cv && !cv.classList.contains('hidden')) return cv;
+					return img || cv || null;
+				}catch(_){ return img || cv || null; }
+			};
+
+			const pEl = pick(pImg, pCv);
+			const eEl = pick(eImg, eCv);
+			if (!pEl || !eEl) return;
+
+			const token = window.__battleRadarSpriteAnimToken || 0;
+
+			const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+			const endsAt = (typeof window.__battleRadarSpritePreAnimEndsAt === 'number') ? window.__battleRadarSpritePreAnimEndsAt : now;
+
+			const delay = Math.max(0, endsAt - now) + 40; // 2回ジャンプの直後に少し間を置く
+
+			const loserIsPlayer = !playerWon;
+			const loserEl = loserIsPlayer ? pEl : eEl;
+
+			// start -> top corner within the stage
+			const rectStage = stage.getBoundingClientRect();
+			const rectLoser = loserEl.getBoundingClientRect();
+
+			const startX = (rectLoser.left + rectLoser.width/2) - (rectStage.left + rectStage.width/2);
+			const startY = (rectLoser.top + rectLoser.height/2) - (rectStage.top + rectStage.height/2);
+
+			// target: left-top for player loser, right-top for enemy loser
+			const targetX = (loserIsPlayer ? (-rectStage.width/2 + 28) : (rectStage.width/2 - 28));
+			const targetY = (-rectStage.height/2 + 18);
+
+			// delta in stage-centered coordinates
+			const dx = targetX - startX;
+			const dy = targetY - startY;
+
+			try{
+				// cancel existing
+				if (loserEl.getAnimations){
+					loserEl.getAnimations().forEach(a=>{ try{ a.cancel(); }catch(_){ } });
+				}
+			}catch(_){}
+
+			try{
+				window.__trackBattleAnimation(loserEl.animate(
+					[
+						{ transform: 'translateY(-50%) translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1 },
+						{ transform: 'translateY(-50%) translate('+(dx*0.55).toFixed(1)+'px,'+(dy*0.55-18).toFixed(1)+'px) rotate(180deg) scale(0.96)', opacity: 0.95 },
+						{ transform: 'translateY(-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate(540deg) scale(0.90)', opacity: 0.0 }
+					],
+					{ duration: 520, easing: 'cubic-bezier(0.15,0.85,0.15,1)', delay, fill: 'forwards' }
+				));
+			}catch(_){}
+
+		}catch(_e){}
+	};
+
+window.drawBattleRadarChart = function(playerLike, enemyLike){
 		try{
 			const wrap = document.getElementById('battleRadarWrap');
 			const canvas = document.getElementById('battleRadarChart');
@@ -5007,7 +5346,8 @@ function __drawMagicMakeRadar(canvas, values) {
 				// Keep the container visible and show a small note instead of hiding completely
 				try{
 					wrap.classList.remove('hidden');
-					requestAnimationFrame(() => {
+					try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({hide:true}); }catch(_e){}
+					window.__battleRequestAnimationFrame(() => {
 						try { drawRadar(canvas, null, null, { note:true }); } catch (_e) {}
 					});
 				}catch(_e){}
@@ -5016,6 +5356,8 @@ function __drawMagicMakeRadar(canvas, values) {
 
 			// Ensure visible
 			try{ wrap.classList.remove('hidden'); }catch(_){}
+			// Update side sprites (player/enemy) when radar is drawn
+			try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({}); }catch(_e){}
 
 			// ---- Smooth morph between previous battle and current battle ----
 			// We keep a single running animation and, if a new battle starts while it's animating
@@ -5046,7 +5388,7 @@ function __drawMagicMakeRadar(canvas, values) {
 				window.__battleRadarLastE = e;
 				window.__battleRadarLast = { p, e };
 				window.__battleRadarAnimState = null;
-				requestAnimationFrame(() => {
+				window.__battleRequestAnimationFrame(() => {
 					try { drawRadar(canvas, p, e, { note:false }); } catch (_e) {}
 				});
 				return;
@@ -5089,10 +5431,10 @@ function __drawMagicMakeRadar(canvas, values) {
 						window.__battleRadarAnimState = null;
 						return;
 					}
-					cur.raf = requestAnimationFrame(step);
+					cur.raf = window.__battleRequestAnimationFrame(step);
 				}catch(_e){}
 			};
-			anim.raf = requestAnimationFrame(step);
+			anim.raf = window.__battleRequestAnimationFrame(step);
 		}catch(_e){}
 	};
 
@@ -5759,3 +6101,317 @@ function cleanUpMixedSkillsExceptOne() {
 	if (typeof drawCombinedSkillList === "function") drawCombinedSkillList();
 
 }
+
+// =====================================================
+// Battle ticker / reward board (v22 base safe patch)
+// =====================================================
+(function(){
+  if (window.__battleTickerV22FixInstalled) return;
+  window.__battleTickerV22FixInstalled = true;
+
+  const DISPLAY_MS = 1400;
+  const FINAL_DELAY_MS = 900;
+
+  function _num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function _safeName(v){ return String(v == null ? '' : v).trim(); }
+  function _dispName(v){
+    try{ return (typeof displayName === 'function') ? String(displayName(v || '') || '').trim() : _safeName(v); }catch(_){ return _safeName(v); }
+  }
+  function _playerNames(){
+    const list = ['プレイヤー','自分','YOU','Player','主人公'];
+    try{ if (typeof player !== 'undefined' && player && player.name) list.push(player.name); }catch(_){}
+    try{ if (window.player && window.player.name) list.push(window.player.name); }catch(_){}
+    try{ if (typeof player !== 'undefined' && player && player.name) list.push(_dispName(player.name)); }catch(_){}
+    try{ if (window.player && window.player.name) list.push(_dispName(window.player.name)); }catch(_){}
+    return Array.from(new Set(list.map(_safeName).filter(Boolean)));
+  }
+  function _enemyNames(){
+    const list = ['敵','エネミー','ENEMY','相手'];
+    try{ if (typeof enemy !== 'undefined' && enemy && enemy.name) list.push(enemy.name); }catch(_){}
+    try{ if (window.enemy && window.enemy.name) list.push(window.enemy.name); }catch(_){}
+    try{ if (typeof enemy !== 'undefined' && enemy && enemy.name) list.push(_dispName(enemy.name)); }catch(_){}
+    try{ if (window.enemy && window.enemy.name) list.push(_dispName(window.enemy.name)); }catch(_){}
+    return Array.from(new Set(list.map(_safeName).filter(Boolean)));
+  }
+  function _sideFromName(name){
+    const n = _safeName(name);
+    if (!n) return null;
+    if (_playerNames().some(v => v && (n === v || n.includes(v) || v.includes(n)))) return 'player';
+    if (_enemyNames().some(v => v && (n === v || n.includes(v) || v.includes(n)))) return 'enemy';
+    if (/^(プレイヤー|自分|YOU|Player|主人公)/i.test(n)) return 'player';
+    if (/^(敵|エネミー|ENEMY|相手)/i.test(n)) return 'enemy';
+    return null;
+  }
+  function _formatTickerLabel(txt){
+    let s = _safeName(txt);
+    if (!s) return 'READY';
+    s = s.replace(/\s*\/\s*/g, '/');
+    s = s.replace(/\s+Lv\s*([0-9]+)/i, '<br>Lv$1');
+    if (s.indexOf('<br>') < 0 && s.length >= 10){
+      const parts = s.split('/');
+      if (parts.length > 1) s = parts[0] + '<br>' + parts.slice(1).join('/');
+      else s = s.replace(/^(.{6,8})(.+)$/u, '$1<br>$2');
+    }
+    return s;
+  }
+  function _ensureState(){
+    const st = window.__battleDigestState || (window.__battleDigestState = {});
+    if (!st.queues) st.queues = { player:{queue:[],current:null,timer:0}, enemy:{queue:[],current:null,timer:0} };
+    if (!st.usage) st.usage = { player:{}, enemy:{} };
+    if (!Array.isArray(st.itemRewards)) st.itemRewards = [];
+    if (typeof st.finalLocked !== 'boolean') st.finalLocked = false;
+    return st;
+  }
+  function _ensureLayer(){
+    try{
+      const stage = document.getElementById('battleRadarStage');
+      if (!stage) return null;
+      let layer = document.getElementById('battleDigestLayer');
+      if (!layer){
+        layer = document.createElement('div');
+        layer.id = 'battleDigestLayer';
+        layer.className = 'battle-digest-layer';
+        stage.appendChild(layer);
+      }
+      return layer;
+    }catch(_){ return null; }
+  }
+  function _ensureTickerBoards(){
+    try{
+      const layer = _ensureLayer();
+      if (!layer) return null;
+      const make = (side)=>{
+        const id = side === 'enemy' ? 'battleTickerEnemy' : 'battleTickerPlayer';
+        let el = document.getElementById(id);
+        if (el) return el;
+        el = document.createElement('div');
+        el.id = id;
+        el.className = 'battle-led-ticker ' + side;
+        el.innerHTML = '<div class="battle-led-grid"></div><div class="battle-led-inner"><span class="battle-ticker-kind">'+(side==='enemy'?'ENEMY':'YOU')+'</span><span class="battle-ticker-text" data-tier="none">READY</span><span class="battle-ticker-count"></span></div>';
+        layer.appendChild(el);
+        return el;
+      };
+      return { player: make('player'), enemy: make('enemy') };
+    }catch(_){ return null; }
+  }
+  function _ensureRewardBoard(){
+    try{
+      const layer = _ensureLayer();
+      if (!layer) return null;
+      let el = document.getElementById('battleRewardBoard');
+      if (!el){
+        el = document.createElement('div');
+        el.id = 'battleRewardBoard';
+        el.className = 'battle-radar-reward-board';
+        el.innerHTML = '<div class="battle-drop-title"></div><div class="battle-drop-body"></div>';
+        layer.appendChild(el);
+      }
+      return el;
+    }catch(_){ return null; }
+  }
+  function _setBoard(side, kind, text, count, opt){
+    try{
+      _ensureTickerBoards();
+      const id = side === 'enemy' ? 'battleTickerEnemy' : 'battleTickerPlayer';
+      const el = document.getElementById(id);
+      if (!el) return;
+      const kindEl = el.querySelector('.battle-ticker-kind');
+      const textEl = el.querySelector('.battle-ticker-text');
+      const countEl = el.querySelector('.battle-ticker-count');
+      const o = opt || {};
+      if (kindEl) kindEl.textContent = String(kind || (side === 'enemy' ? 'ENEMY' : 'YOU'));
+      if (textEl){ textEl.innerHTML = _formatTickerLabel(text); textEl.setAttribute('data-tier', String(o.tier || 'normal')); }
+      if (countEl) countEl.textContent = (count && Number(count) > 1) ? ('×' + Math.floor(Number(count))) : '';
+      el.classList.remove('is-ready','is-final-win','is-final-lose','is-reward','is-flash');
+      if (o.isReady) el.classList.add('is-ready');
+      if (o.finalState === 'win') el.classList.add('is-final-win');
+      if (o.finalState === 'lose') el.classList.add('is-final-lose');
+      if (o.isReward) el.classList.add('is-reward');
+      void el.offsetWidth;
+      el.classList.add('is-flash');
+      (window.__uiSetTimeout || window.setTimeout)(function(){ try{ el.classList.remove('is-flash'); }catch(_){ } }, Math.max(520, Number(o.flashMs || 900) || 900));
+    }catch(_){ }
+  }
+  function _clearQueueTimer(side){
+    try{
+      const st = _ensureState();
+      const qs = st.queues[side];
+      if (qs && qs.timer){ try{ clearTimeout(qs.timer); }catch(_){} qs.timer = 0; }
+    }catch(_){ }
+  }
+  function _drain(side){
+    try{
+      const st = _ensureState();
+      const qs = st.queues[side];
+      if (!qs || st.finalLocked) return;
+      _clearQueueTimer(side);
+      if (!qs.current) qs.current = qs.queue.shift() || null;
+      const item = qs.current;
+      if (!item) return;
+      _setBoard(side, item.kind, item.label, item.count, { tier:item.tier, flashMs:item.holdMs || DISPLAY_MS });
+      qs.timer = (window.__uiSetTimeout || window.setTimeout)(function(){
+        try{
+          const st2 = _ensureState();
+          if (st2.finalLocked) return;
+          const q2 = st2.queues[side];
+          if (!q2 || q2.current !== item) return;
+          q2.current = null;
+          _drain(side);
+        }catch(_){ }
+      }, item.holdMs || DISPLAY_MS);
+    }catch(_){ }
+  }
+  function _enqueue(side, kind, label, count, tier, key){
+    try{
+      const st = _ensureState();
+      if (st.finalLocked || !side || !label) return;
+      const qs = st.queues[side];
+      if (!qs) return;
+      const entry = { kind, label, count: Math.max(1, _num(count) || 1), tier:tier || 'normal', key:key || (kind+'::'+label), holdMs:DISPLAY_MS };
+      if (qs.current && qs.current.key === entry.key){
+        qs.current.count = entry.count;
+        _setBoard(side, qs.current.kind, qs.current.label, qs.current.count, { tier:qs.current.tier, flashMs:840 });
+        return;
+      }
+      const tail = qs.queue.length ? qs.queue[qs.queue.length-1] : null;
+      if (tail && tail.key === entry.key){ tail.count = entry.count; return; }
+      qs.queue.push(entry);
+      if (qs.queue.length > 6) qs.queue = qs.queue.slice(-6);
+      if (!qs.current) _drain(side);
+    }catch(_){ }
+  }
+  function _rewardSummary(){
+    const st = _ensureState();
+    if (st.itemRewards && st.itemRewards.length){
+      const last = st.itemRewards[st.itemRewards.length-1];
+      return { title:'ITEM GET', body:String((last && last.label) || '通常/ボス報酬あり'), isGet:true };
+    }
+    try{
+      const lines = Array.isArray(window.log) ? window.log.join('\n') : '';
+      if (/(ボス報酬|クラッチ報酬|魔道具：|獲得！|入手！)/.test(lines)) return { title:'ITEM GET', body:'通常/ボス報酬あり', isGet:true };
+    }catch(_){ }
+    return { title:'DROP NONE', body:'通常/ボス報酬なし', isGet:false };
+  }
+
+  window.__battleDigestReset = function(battleId){
+    try{
+      const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, queues:{player:{queue:[],current:null,timer:0},enemy:{queue:[],current:null,timer:0}}, finalLocked:false, finalTimer:0 };
+      const layer = _ensureLayer();
+      if (layer) layer.innerHTML = '';
+      _ensureTickerBoards();
+      _ensureRewardBoard();
+      _setBoard('player','YOU','READY',0,{ isReady:true, tier:'none', flashMs:10 });
+      _setBoard('enemy','ENEMY','READY',0,{ isReady:true, tier:'none', flashMs:10 });
+      const rb = document.getElementById('battleRewardBoard');
+      if (rb) rb.classList.remove('show','is-item');
+    }catch(_){ }
+  };
+
+  window.__notifyBattleItemReward = function(info){
+    try{
+      const st = _ensureState();
+      const itemName = _safeName(info && (info.itemName || info.label));
+      const skillName = _safeName(info && info.skillName);
+      const lv = Number(info && (info.level ?? info.skillLevel));
+      let label = itemName || 'ITEM';
+      if (skillName) label += '/' + skillName;
+      if (Number.isFinite(lv) && lv > 0) label += ' Lv' + Math.floor(lv);
+      st.itemRewards.push({ label, itemName, skillName, level:Number.isFinite(lv) ? Math.floor(lv) : null });
+      if (st.itemRewards.length > 8) st.itemRewards = st.itemRewards.slice(-8);
+    }catch(_){ }
+  };
+
+  window.__battleDigestLogPush = function(rawLine){
+    try{
+      const line = _safeName(rawLine);
+      if (!line) return;
+      const st = _ensureState();
+      if (st.finalLocked) return;
+
+      let m = line.match(/^(.+?)の(.+?)：(.*)$/);
+      if (m){
+        const actorName = _safeName(m[1]);
+        const skillName = _safeName(m[2]);
+        const detail = _safeName(m[3]);
+        const side = _sideFromName(actorName);
+        if (side && skillName){
+          const kind = (/魔道具|アイテム/.test(skillName) || /魔道具|アイテム/.test(detail)) ? 'ITEM' : 'SKILL';
+          let label = skillName;
+          const lvMatch = detail.match(/Lv\s*([0-9]+)/i);
+          if (lvMatch) label += ' Lv' + Math.floor(Number(lvMatch[1]) || 0);
+          const key = kind + '::' + skillName;
+          if (!st.usage[side][key]) st.usage[side][key] = { kind, label, count:0 };
+          st.usage[side][key].count += 1;
+          st.usage[side][key].label = label;
+          _enqueue(side, kind, label, st.usage[side][key].count, kind === 'ITEM' ? 'high' : 'normal', key);
+        }
+        return;
+      }
+
+      m = line.match(/^>>>\s*魔道具[「"]?(.+?)[」"]?が(.+?)を発動/);
+      if (m){
+        const item = _safeName(m[1]);
+        const skill = _safeName(m[2]);
+        const side = 'enemy';
+        const key = 'ITEM::' + item + '::' + skill;
+        if (!st.usage[side][key]) st.usage[side][key] = { kind:'ITEM', label:item + '/' + skill, count:0 };
+        st.usage[side][key].count += 1;
+        _enqueue(side, 'ITEM', st.usage[side][key].label, st.usage[side][key].count, 'high', key);
+        return;
+      }
+
+      m = line.match(/^(.*?)(?:魔道具|アイテム)(.+?)(?:発動|使用|獲得|入手)/);
+      if (m){
+        const side = _sideFromName(m[1]) || 'player';
+        const item = _safeName(m[2]);
+        if (!item) return;
+        const key = 'ITEM::' + item;
+        if (!st.usage[side][key]) st.usage[side][key] = { kind:'ITEM', label:item, count:0 };
+        st.usage[side][key].count += 1;
+        _enqueue(side, 'ITEM', item, st.usage[side][key].count, 'high', key);
+      }
+    }catch(_){ }
+  };
+
+  window.__instrumentBattleLogArray = function(arr){
+    try{
+      if (!arr || typeof arr.push !== 'function' || arr.__battleDigestInstrumented) return arr;
+      const origPush = arr.push.bind(arr);
+      arr.push = function(){
+        const items = Array.prototype.slice.call(arguments);
+        for (const it of items){ try{ window.__battleDigestLogPush(it); }catch(_){ } }
+        return origPush.apply(arr, items);
+      };
+      arr.__battleDigestInstrumented = true;
+      return arr;
+    }catch(_){ return arr; }
+  };
+
+  window.__finalizeBattleDigest = function(result){
+    try{
+      const st = _ensureState();
+      if (st.finalLocked) return;
+      st.finalLocked = true;
+      ['player','enemy'].forEach(_clearQueueTimer);
+      if (st.finalTimer){ try{ clearTimeout(st.finalTimer); }catch(_){} st.finalTimer = 0; }
+      const playerWon = !!(result && result.playerWon);
+      st.finalTimer = (window.__uiSetTimeout || window.setTimeout)(function(){
+        try{
+          _setBoard('player', 'RESULT', playerWon ? 'WIN' : 'LOSE', 0, { finalState: playerWon ? 'win' : 'lose', flashMs: 1800 });
+          _setBoard('enemy', 'RESULT', playerWon ? 'LOSE' : 'WIN', 0, { finalState: playerWon ? 'lose' : 'win', flashMs: 1800 });
+          const rb = _ensureRewardBoard();
+          const summary = _rewardSummary();
+          if (rb){
+            const tt = rb.querySelector('.battle-drop-title');
+            const bd = rb.querySelector('.battle-drop-body');
+            if (tt) tt.textContent = summary.title;
+            if (bd) bd.textContent = summary.body;
+            rb.classList.remove('is-item','show');
+            if (summary.isGet) rb.classList.add('is-item');
+            rb.classList.add('show');
+          }
+        }catch(_){ }
+      }, FINAL_DELAY_MS);
+    }catch(_){ }
+  };
+})();
