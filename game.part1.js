@@ -6587,7 +6587,7 @@ function cleanUpMixedSkillsExceptOne() {
             rb.classList.add('show');
           }
         }catch(_){ }
-      }, FINAL_DELAY_MS + Math.min(700, Math.round(pendingMs * 0.22)) + RESULT_SETTLE_MS);
+      }, FINAL_DELAY_MS + Math.min(7000, Math.round(pendingMs * 0.22)) + RESULT_SETTLE_MS);
     }catch(_){ }
   };
 })();
