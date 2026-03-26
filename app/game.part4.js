@@ -1062,10 +1062,10 @@ function updatePlayerDisplay(player) {
 	if (spdEl) spdEl.textContent = `SPD: ${player.speed}`;
 
 	const hpEl = document.getElementById('hpStat');
-	if (hpEl) hpEl.textContent = `HP: ${player.hp}`;
+	if (hpEl) hpEl.textContent = `HP: ${player.maxHp}`;
 
 	const maxHpEl = document.getElementById('maxHpStat');
-	if (maxHpEl) maxHpEl.textContent = `MAX HP: ${player.maxHp}`;
+	if (maxHpEl) maxHpEl.textContent = ``;
 
 	// キャラクター画像
 	const imgCanvas = document.getElementById('playerImage');
@@ -1104,8 +1104,7 @@ function updateEnemyDisplay(enemy) {
       <p>ATK: ${enemy.attack}</p>
       <p>DEF: ${enemy.defense}</p>
       <p>SPD: ${enemy.speed}</p>
-      <p>HP: ${enemy.hp}</p>
-      <p>MAX HP: ${enemy.maxHp}</p>
+      <p>HP: ${enemy.maxHp}</p>
     `;
 	}
 

@@ -676,7 +676,19 @@ function onMixedSkillClick(skill, event) {
 	info.style.marginBottom = "10px";
 	info.innerHTML = `保護中：<b>${protectedCount}</b> / ${protectLimit}`;
 	container.appendChild(info);
-// NOTE: 「効果詳細」メニューは廃止（特殊スキル一覧に常時表示へ）。
+
+	const detailBtn = document.createElement("button");
+	detailBtn.textContent = "詳細";
+	detailBtn.onclick = () => {
+		try {
+			if (typeof window.__buildMixedSkillDetailPayload === 'function' && typeof window.__openBattleHtmlDetail === 'function') {
+				window.__openBattleHtmlDetail(window.__buildMixedSkillDetailPayload(skill));
+			} else if (typeof showSpecialEffectDetail === 'function') {
+				showSpecialEffectDetail(skill, event);
+			}
+		} catch (_e) {}
+	};
+	container.appendChild(detailBtn);
 
 	const protectBtn = document.createElement("button");
 	protectBtn.textContent = skill && skill.isProtected ? "保護を外す" : "保護する";
@@ -1737,6 +1749,236 @@ window.skipGrowth = function() {
 
 // キャラクターオブジェクト生成（初期ステータスとランダム3スキル）
 
+window.__winnerGuessMiniGameEnabled = (typeof window.__winnerGuessMiniGameEnabled === 'boolean') ? window.__winnerGuessMiniGameEnabled : false;
+window.__winnerGuessMiniGameActive = false;
+window.__winnerGuessPendingState = null;
+window.__winnerGuessRewardState = null;
+window.__winnerGuessPendingResolver = null;
+
+window.__syncWinnerGuessToggleButton = function(){
+	try{
+		const btn = document.getElementById('winnerGuessToggleBtn');
+		if (!btn) return false;
+		const on = !!window.__winnerGuessMiniGameEnabled;
+		btn.textContent = on ? 'ミニゲーム ON' : 'ミニゲーム OFF';
+		btn.classList.toggle('is-on', on);
+		btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+		btn.dataset.state = on ? 'on' : 'off';
+		btn.disabled = false;
+		return true;
+	}catch(_e){}
+	return false;
+};
+window.__setWinnerGuessMiniGameEnabled = function(enabled){
+	const on = !!enabled;
+	window.__winnerGuessMiniGameEnabled = on;
+	try{ localStorage.setItem('winnerGuessMiniGameEnabled', on ? '1' : '0'); }catch(_e){}
+	try{ window.__syncWinnerGuessToggleButton(); }catch(_e){}
+	return on;
+};
+window.__toggleWinnerGuessMiniGame = function(ev){
+	try{ if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); }catch(_e){}
+	try{ if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation(); }catch(_e){}
+	return window.__setWinnerGuessMiniGameEnabled(!window.__winnerGuessMiniGameEnabled);
+};
+
+window.__mountWinnerGuessPanelNearRadar = window.__mountWinnerGuessPanelNearRadar || function(){
+	try{
+		const panel = document.getElementById('winnerGuessPanel');
+		const slot = document.getElementById('winnerGuessRadarSlot');
+		if (!panel || !slot) return;
+		if (panel.parentElement !== slot) slot.appendChild(panel);
+	}catch(_e){}
+};
+
+window.__initWinnerGuessMiniGameUI = window.__initWinnerGuessMiniGameUI || function(){
+	try{
+		const saved = localStorage.getItem('winnerGuessMiniGameEnabled');
+		if (saved === '1' || saved === '0') window.__winnerGuessMiniGameEnabled = (saved === '1');
+	}catch(_e){}
+	try{ window.__setWinnerGuessMiniGameEnabled(!!window.__winnerGuessMiniGameEnabled); }catch(_e){}
+	const toggleBtn = document.getElementById('winnerGuessToggleBtn');
+	if (toggleBtn && !toggleBtn.__winnerGuessBound){
+		toggleBtn.__winnerGuessBound = true;
+		const _toggleHandler = function(ev){
+			try{ if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); }catch(_e){}
+			try{ if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation(); }catch(_e){}
+			try{ window.__toggleWinnerGuessMiniGame && window.__toggleWinnerGuessMiniGame(ev); }catch(_e){}
+			return false;
+		};
+		toggleBtn.addEventListener('click', _toggleHandler, false);
+	}
+	try{ window.__syncWinnerGuessToggleButton(); }catch(_e){}
+	const bindPick = function(id, side){
+		const btn = document.getElementById(id);
+		if (!btn || btn.__winnerGuessBoundPick) return;
+		btn.__winnerGuessBoundPick = true;
+		btn.addEventListener('click', function(){
+			try{ window.__resolveWinnerGuessMiniGame && window.__resolveWinnerGuessMiniGame(side); }catch(_e){}
+		});
+	};
+	bindPick('winnerGuessPickPlayerBtn', 'player');
+	bindPick('winnerGuessPickEnemyBtn', 'enemy');
+	try{ window.__mountWinnerGuessPanelNearRadar && window.__mountWinnerGuessPanelNearRadar(); }catch(_e){}
+};
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', window.__initWinnerGuessMiniGameUI);
+} else {
+	window.__initWinnerGuessMiniGameUI();
+}
+window.addEventListener('pageshow', function(){
+	try{ window.__initWinnerGuessMiniGameUI && window.__initWinnerGuessMiniGameUI(); }catch(_e){}
+});
+
+window.__renderWinnerGuessHpPreview = window.__renderWinnerGuessHpPreview || function(history){
+	const canvas = document.getElementById('hpChart');
+	if (!canvas) return;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return;
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	const rowsAll = Array.isArray(history) ? history.filter(function(row){ return Array.isArray(row) && row.length >= 2; }) : [];
+	const previewTurns = Math.max(1, Math.ceil(rowsAll.length / 2));
+	const rows = rowsAll.slice(0, previewTurns);
+	ctx.fillStyle = 'rgba(255,255,255,0.65)';
+	ctx.font = '12px sans-serif';
+	if (rows.length < 2) {
+		ctx.fillText('体力変化（前半のみ表示）', 10, 16);
+		ctx.fillText('表示できるターンが少ないため簡易表示です', 10, 34);
+		return;
+	}
+	const maxTurns = rows.length;
+	const stepX = canvas.width / Math.max(1, (maxTurns - 1));
+	ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+	ctx.lineWidth = 1;
+	for (let i = 0; i < maxTurns; i++) {
+		const x = stepX * i;
+		ctx.beginPath();
+		ctx.moveTo(x, 0);
+		ctx.lineTo(x, canvas.height);
+		ctx.stroke();
+	}
+	const drawArea = function(index, c1, c2){
+		const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		grad.addColorStop(0, c1);
+		grad.addColorStop(1, c2);
+		ctx.beginPath();
+		rows.forEach(function(row, i){
+			const x = stepX * i;
+			const y = canvas.height * (1 - Math.max(0, Math.min(1, Number(row[index] || 0))));
+			if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+		});
+		ctx.lineTo(stepX * (maxTurns - 1), canvas.height);
+		ctx.lineTo(0, canvas.height);
+		ctx.closePath();
+		ctx.fillStyle = grad;
+		ctx.fill();
+	};
+	drawArea(0, 'rgba(80,160,255,0.30)', 'rgba(80,160,255,0.05)');
+	drawArea(1, 'rgba(255,120,120,0.28)', 'rgba(255,120,120,0.05)');
+	const drawLine = function(index, color){
+		ctx.beginPath();
+		rows.forEach(function(row, i){
+			const x = stepX * i;
+			const y = canvas.height * (1 - Math.max(0, Math.min(1, Number(row[index] || 0))));
+			if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+		});
+		ctx.strokeStyle = color;
+		ctx.lineWidth = 2;
+		ctx.stroke();
+	};
+	drawLine(0, 'rgba(100,180,255,1)');
+	drawLine(1, 'rgba(255,120,120,1)');
+	ctx.fillStyle = 'rgba(255,255,255,0.72)';
+	ctx.font = '12px sans-serif';
+	ctx.fillText('体力変化（前半のみ表示）', 10, 16);
+	ctx.fillText('後半ターンは伏せています', 10, 34);
+};
+
+window.__consumeWinnerGuessReward = window.__consumeWinnerGuessReward || function(){
+	const reward = window.__winnerGuessRewardState || null;
+	window.__winnerGuessRewardState = null;
+	return reward;
+};
+
+window.__cleanupWinnerGuessMiniGame = window.__cleanupWinnerGuessMiniGame || function(){
+	window.__winnerGuessMiniGameActive = false;
+	window.__winnerGuessPendingState = null;
+	window.__winnerGuessPendingResolver = null;
+	try{ document.body.classList.remove('winner-guess-mode'); }catch(_e){}
+	try{
+		const panel = document.getElementById('winnerGuessPanel');
+		if (panel) panel.classList.add('hidden');
+	}catch(_e){}
+};
+
+window.__resolveWinnerGuessMiniGame = window.__resolveWinnerGuessMiniGame || function(side){
+	if (!window.__winnerGuessMiniGameActive || !window.__winnerGuessPendingState) return;
+	const state = window.__winnerGuessPendingState;
+	const guessedPlayerWon = (side === 'player');
+	const correct = guessedPlayerWon === !!state.playerWon;
+	const closeness = Math.max(0, Math.min(1, 1 - (Number(state.hpDiffRatio || 0) / 0.05)));
+	const baseReward = Math.max(12, Number(state.baseReward || 12));
+	let multiplier = correct ? (1.5 + closeness) : (0.1 + closeness * 0.4);
+	multiplier = Math.max(0.1, Math.min(2.0, multiplier));
+	const gain = Math.max(1, Math.floor(baseReward * multiplier));
+	window.__winnerGuessRewardState = {
+		guessedSide: side,
+		correct: correct,
+		baseReward: baseReward,
+		multiplier: multiplier,
+		gain: gain,
+		hpDiffRatio: Number(state.hpDiffRatio || 0),
+		playerWon: !!state.playerWon
+	};
+	try{ window.dispatchEvent(new CustomEvent('winnerGuessResult', { detail:{ correct: correct, guessedSide: side, playerWon: !!state.playerWon } })); }catch(_e){}
+	const resolver = window.__winnerGuessPendingResolver;
+	window.__cleanupWinnerGuessMiniGame();
+	try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({ forceRefresh:true, showEnemy:true, allowDuringWinnerGuess:true }); }catch(_e){}
+	if (typeof resolver === 'function') resolver(!!state.playerWon);
+};
+
+window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame || function(state){
+	if (!window.__winnerGuessMiniGameEnabled) return false;
+	if (!state || window.__winnerGuessMiniGameActive) return false;
+	const diff = Math.abs(Number(state.hpDiffRatio || 0));
+	if (!(diff > 0 && diff <= 0.05)) return false;
+	window.__winnerGuessMiniGameActive = true;
+	window.__winnerGuessPendingState = Object.assign({}, state);
+	try{ if (typeof stopAutoBattle === 'function') stopAutoBattle(); }catch(_e){}
+	try{ isAutoBattle = false; }catch(_e){}
+	try{ window.__battleVisualTracking = false; }catch(_e){}
+	try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(900); }catch(_e){}
+	try{ if (typeof window.__cancelBattleVisuals === 'function') window.__cancelBattleVisuals(); }catch(_e){}
+	try{ document.body.classList.add('winner-guess-mode'); }catch(_e){}
+	try{ window.__mountWinnerGuessPanelNearRadar && window.__mountWinnerGuessPanelNearRadar(); }catch(_e){}
+	try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({ hide:true }); }catch(_e){}
+	try{
+		if (typeof window.toggleTopFold === 'function') {
+			const fold = document.getElementById('charInfoFold');
+			if (fold && fold.classList.contains('hidden')) window.toggleTopFold('char');
+		}
+	}catch(_e){}
+	const panel = document.getElementById('winnerGuessPanel');
+	const msg = document.getElementById('winnerGuessMessage');
+	const sub = document.getElementById('winnerGuessSubMessage');
+	if (panel) panel.classList.remove('hidden');
+	if (msg) msg.innerHTML = '僅差決着。<br>キャラクター情報・レーダー・HP推移だけを手掛かりに、勝者を選んでください。';
+	if (sub) {
+		const pct = (diff * 100).toFixed(2).replace(/\.00$/, '');
+		sub.textContent = `残HP差 ${pct}% / 電光掲示板はスキル名・Lv・回数を表示したままループします / 的中時は高倍率、外しても少量の魔通貨あり（倍率上限 x2.0）`;
+	}
+	try{ if (typeof window.__setBattleRewardBoardNotice === 'function') window.__setBattleRewardBoardNotice('勝者当て 発生中', 'レーダー下で勝者を予想してください', false); }catch(_e){}
+	const baseReward = Math.max(12, Math.min(240,
+		Math.round(Math.sqrt(Math.max(1, Number(state.enemyRarity || 1))) * 6 +
+			(state.specialMode === 'brutal' ? 10 : 0) +
+			(state.isBossBattle ? 28 : 0) +
+			(state.isGrowthBoss ? 18 : 0))
+	));
+	window.__winnerGuessPendingState.baseReward = baseReward;
+	try{ window.__renderWinnerGuessHpPreview((state.hpHistorySnapshot || []).slice(0, -1)); }catch(_e){}
+	return true;
+};
+
 // HP推移を記録（割合）
 window.recordHP = function() {
 	hpHistory.push([
@@ -1748,8 +1990,6 @@ window.recordHP = function() {
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
 	const isPlayer = (c === player);
-	const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
-	const safeHp = Math.max(0, c.hp);
 
 	return `
     <div class="name-and-streak">
@@ -1762,7 +2002,7 @@ window.formatStats = function(c) {
       <li>ATK: ${c.attack}</li>
       <li>DEF: ${c.defense}</li>
       <li>SPD: ${c.speed}</li>
-      <li>HP: ${safeHp} / ${c.maxHp}</li>
+      <li>HP: ${c.maxHp}</li>
     </ul>
   `;
 };
@@ -2556,7 +2796,7 @@ window.getSkillEffect = function(skill, user, target, log) {
 					console.log("[ItemReuse] No usable item to activate");
 				} else {
 					const item = usableItems[Math.floor(Math.random() * usableItems.length)];
-					log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が${item.skillName}を発動！`);
+					log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
 					console.log(`[ItemReuse] Activating item: ${item.color}${item.adjective}${item.noun} -> ${item.skillName}`);
 					const prevDamage = user.battleStats[item.skillName] || 0;
 					const itemSkillDef = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');

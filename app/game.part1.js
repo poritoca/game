@@ -1,3 +1,91 @@
+window.__escapeHtml = window.__escapeHtml || function(v){
+  try{
+    return String(v == null ? '' : v)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }catch(_e){ return ''; }
+};
+window.__plainSkillDisplay = window.__plainSkillDisplay || function(skill){
+  try{
+    if(!skill) return '';
+    const name = (typeof skill === 'string') ? skill : (skill.name || '');
+    const lvl = Math.max(1, Number(skill.level || 1) || 1);
+    const itemLv = Number(skill.itemLevel || skill.skillLevel || 0) || 0;
+    return itemLv > 0 ? `${name} Lv${lvl} ItemLv${itemLv}` : `${name} Lv${lvl}`;
+  }catch(_e){ return (skill && skill.name) ? String(skill.name) : String(skill || ''); }
+};
+window.__formatSkillDisplay = window.__formatSkillDisplay || function(skill){
+  try{
+    if(!skill) return '';
+    const name = (typeof skill === 'string') ? skill : (skill.name || '');
+    const lvl = Math.max(1, Number(skill.level || 1) || 1);
+    const itemLv = Number(skill.itemLevel || skill.skillLevel || 0) || 0;
+    const visual = Math.max(1, Math.min(7,
+      lvl >= 9000 ? 7 :
+      lvl >= 7000 ? 6 :
+      lvl >= 5000 ? 5 :
+      lvl >= 3000 ? 4 :
+      lvl >= 1200 ? 3 :
+      lvl >= 300 ? 2 : 1
+    ));
+    const safeName = window.__escapeHtml ? window.__escapeHtml(name) : String(name);
+    return `<span class="battle-skill lv${visual}" data-visual="${visual}" data-level="${lvl}"><span class="battle-skill-name">${safeName}</span><span class="battle-skill-meta"><span class="battle-skill-lv">Lv${lvl}</span>${itemLv > 0 ? `<span class="battle-skill-itemlv">ItemLv${itemLv}</span>` : ''}</span></span>`;
+  }catch(_e){
+    try{ return window.__escapeHtml ? window.__escapeHtml(skill && skill.name ? skill.name : skill) : String(skill && skill.name ? skill.name : skill || ''); }catch(_){ return ''; }
+  }
+};
+window.__lookupBattleSkillMeta = window.__lookupBattleSkillMeta || function(actorName, skillName, detail){
+  try{
+    const safe = function(v){ return String(v == null ? '' : v).trim(); };
+    const dn = function(v){
+      try{ return (typeof displayName === 'function') ? safe(displayName(v || '')) : safe(v); }catch(_e){ return safe(v); }
+    };
+    const actor = safe(actorName);
+    const skill = safe(skillName);
+    const detailText = safe(detail);
+    const actorMatches = function(ch){
+      if(!ch || typeof ch !== 'object') return false;
+      const names = [safe(ch.name), dn(ch.name), 'プレイヤー','自分','YOU','Player','主人公','敵','エネミー','ENEMY','相手'].filter(Boolean);
+      return names.some(function(n){ return n && (actor === n || actor.indexOf(n) >= 0 || n.indexOf(actor) >= 0); });
+    };
+    let side = null;
+    try{ if (typeof player !== 'undefined' && actorMatches(player)) side = 'player'; }catch(_e){}
+    try{ if (!side && window.player && actorMatches(window.player)) side = 'player'; }catch(_e){}
+    try{ if (!side && typeof enemy !== 'undefined' && actorMatches(enemy)) side = 'enemy'; }catch(_e){}
+    try{ if (!side && window.enemy && actorMatches(window.enemy)) side = 'enemy'; }catch(_e){}
+    const ch = side === 'player'
+      ? ((typeof player !== 'undefined' && player) ? player : window.player)
+      : side === 'enemy'
+        ? ((typeof enemy !== 'undefined' && enemy) ? enemy : window.enemy)
+        : null;
+    let level = 1, itemLevel = 0, kind = 'SKILL';
+    if (ch && Array.isArray(ch.skills)){
+      const sk = ch.skills.find(function(s){ return s && safe(s.name) === skill; });
+      if (sk){
+        level = Math.max(1, Number(sk.level || 1) || 1);
+        itemLevel = Number(sk.itemLevel || sk.skillLevel || 0) || 0;
+      }
+    }
+    if (ch && Array.isArray(ch.itemMemory)){
+      const item = ch.itemMemory.find(function(it){ return it && (safe(it.skillName) === skill || safe(it.name) === skill || safe((it.color||'')+(it.adjective||'')+(it.noun||'')) === skill); });
+      if (item){
+        kind = 'ITEM';
+        level = Math.max(1, Number(item.skillLevel || item.level || level || 1) || 1);
+        itemLevel = Math.max(itemLevel, Number(item.skillLevel || 0) || 0);
+      }
+    }
+    const lvm = detailText.match(/(?:^|\s)Lv\s*([0-9]+)/i);
+    if (lvm) level = Math.max(1, Number(lvm[1]) || level || 1);
+    const itemm = detailText.match(/ItemLv\s*([0-9]+)/i);
+    if (itemm) itemLevel = Math.max(itemLevel, Number(itemm[1]) || 0);
+    return { side: side, level: level, itemLevel: itemLevel, kind: kind };
+  }catch(_e){ return { side:null, level:1, itemLevel:0, kind:'SKILL' }; }
+};
+
+
 'use strict';
 
 // ===== GrowthBonus reset helper (used for non-progress loads) =====
@@ -77,53 +165,13 @@ window.toggleFoldById = window.toggleFoldById || function(id){
 window.__battleInProgress = window.__battleInProgress || false;
 window.__battleVisualTracking = window.__battleVisualTracking || false;
 window.__battleVisualTimers = window.__battleVisualTimers || [];
-window.__battleVisualRafs = window.__battleVisualRafs || [];
-window.__battleVisualAnimations = window.__battleVisualAnimations || [];
 
 window.__battleSetTimeout = window.__battleSetTimeout || function __battleSetTimeout(fn, ms) {
-	let id = null;
-	id = setTimeout(() => {
-		try {
-			fn();
-		} finally {
-			try {
-				if (Array.isArray(window.__battleVisualTimers)) {
-					const idx = window.__battleVisualTimers.indexOf(id);
-					if (idx >= 0) window.__battleVisualTimers.splice(idx, 1);
-				}
-			} catch (_) {}
-		}
-	}, ms);
+	const id = setTimeout(fn, ms);
 	if (window.__battleVisualTracking) {
 		window.__battleVisualTimers.push(id);
 	}
 	return id;
-};
-
-window.__battleRequestAnimationFrame = window.__battleRequestAnimationFrame || function __battleRequestAnimationFrame(fn) {
-	const raf = (window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); })(function(){
-		try {
-			fn();
-		} finally {
-			try {
-				if (Array.isArray(window.__battleVisualRafs)) {
-					const idx = window.__battleVisualRafs.indexOf(raf);
-					if (idx >= 0) window.__battleVisualRafs.splice(idx, 1);
-				}
-			} catch (_) {}
-		}
-	});
-	if (window.__battleVisualTracking) window.__battleVisualRafs.push(raf);
-	return raf;
-};
-
-window.__trackBattleAnimation = window.__trackBattleAnimation || function __trackBattleAnimation(anim) {
-	try {
-		if (anim && window.__battleVisualTracking && Array.isArray(window.__battleVisualAnimations)) {
-			window.__battleVisualAnimations.push(anim);
-		}
-	} catch (_) {}
-	return anim;
 };
 
 // =====================================================
@@ -145,33 +193,6 @@ window.__cancelBattleVisuals = window.__cancelBattleVisuals || function __cancel
 			}
 			window.__battleVisualTimers.length = 0;
 		}
-		if (Array.isArray(window.__battleVisualRafs)) {
-			for (const id of window.__battleVisualRafs) {
-				try { (window.cancelAnimationFrame || clearTimeout)(id); } catch (_) {}
-			}
-			window.__battleVisualRafs.length = 0;
-		}
-		if (Array.isArray(window.__battleVisualAnimations)) {
-			for (const anim of window.__battleVisualAnimations) {
-				try { if (anim && typeof anim.cancel === 'function') anim.cancel(); } catch (_) {}
-			}
-			window.__battleVisualAnimations.length = 0;
-		}
-		try {
-			const st = window.__battleRadarAnimState;
-			if (st && st.raf) {
-				try { (window.cancelAnimationFrame || clearTimeout)(st.raf); } catch (_) {}
-			}
-			window.__battleRadarAnimState = null;
-		} catch (_) {}
-		try {
-			const overlay2 = document.getElementById('faceRevealOverlay');
-			if (overlay2) overlay2.remove();
-		} catch (_) {}
-		try {
-			const gachaAnim = document.getElementById('gachaAnimation');
-			if (gachaAnim) gachaAnim.remove();
-		} catch (_) {}
 		const subtitleEl = document.getElementById('subtitleOverlay');
 		if (subtitleEl) {
 			subtitleEl.style.opacity = '0';
@@ -450,15 +471,25 @@ window.updateScoreOverlay = function() {
 	}
 };
 
-window.showCenteredPopup = function(message, duration = 3000) {
+window.__runCenteredPopupCloseHook = window.__runCenteredPopupCloseHook || function(popup) {
+	try {
+		const cb = popup && popup.__centeredPopupOnClose;
+		if (popup) popup.__centeredPopupOnClose = null;
+		if (typeof cb === 'function') cb();
+	} catch (_e) {}
+};
+
+window.showCenteredPopup = function(message, duration = 3000, options) {
 	const popup = document.getElementById("eventPopup");
 	const title = document.getElementById("eventPopupTitle");
 	const optionsEl = document.getElementById("eventPopupOptions");
 
 	if (!popup || !title || !optionsEl) return;
 
+	const opts = (options && typeof options === 'object') ? options : {};
 	title.innerHTML = message;
 	optionsEl.innerHTML = "";
+	popup.__centeredPopupOnClose = (typeof opts.onClose === 'function') ? opts.onClose : null;
 
 	popup.style.display = "block";
 	popup.style.visibility = "hidden";
@@ -467,12 +498,8 @@ window.showCenteredPopup = function(message, duration = 3000) {
 	const popupHeight = popup.offsetHeight;
 	popup.style.top = `${scrollTop + window.innerHeight / 2 - popupHeight / 2}px`;
 	popup.style.left = "50%";
-	popup.style.transform = "translateX(-50%)"; // ← ← ← 修正ポイント
+	popup.style.transform = "translateX(-50%)";
 	popup.style.visibility = "visible";
-
-
-
-
 
 	// clear previous auto-hide timer (so it never gets stuck)
 	try {
@@ -483,6 +510,7 @@ window.showCenteredPopup = function(message, duration = 3000) {
 	} catch (e) {}
 	popup.__centeredPopupTimer = window.__uiSetTimeout(() => {
 		popup.style.display = "none";
+		try { window.__runCenteredPopupCloseHook && window.__runCenteredPopupCloseHook(popup); } catch (_e) {}
 	}, duration);
 };
 
@@ -820,6 +848,7 @@ window.clearEventPopup = function(keepGrowthBar = false) {
 	// default: fully hide
 	popup.style.display = 'none';
 	popup.style.visibility = 'hidden';
+	try { window.__runCenteredPopupCloseHook && window.__runCenteredPopupCloseHook(popup); } catch (_e) {}
 };;
 
 window.toggleQuickGuideLog = function() {
@@ -3443,84 +3472,52 @@ function generateSkillName(activationProb, effectValue, config, kanaPart) {
 	};
 }
 
+window.__isMixedSkillPopupPauseActive = window.__isMixedSkillPopupPauseActive || function() {
+	try {
+		return !!(window.__mixedSkillPopupPauseUntil && Date.now() < window.__mixedSkillPopupPauseUntil);
+	} catch (_e) {
+		return false;
+	}
+};
+window.__releaseMixedSkillPopupPause = window.__releaseMixedSkillPopupPause || function(token) {
+	try {
+		if (token != null && window.__mixedSkillPopupPauseToken != null && token !== window.__mixedSkillPopupPauseToken) return;
+		window.__mixedSkillPopupPauseUntil = 0;
+		window.__mixedSkillPopupPauseToken = null;
+	} catch (_e) {}
+};
+window.__armMixedSkillPopupPause = window.__armMixedSkillPopupPause || function(durationMs) {
+	const dur = Math.max(0, Number(durationMs || 0) || 0);
+	const token = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+	try {
+		window.__mixedSkillPopupPauseToken = token;
+		window.__mixedSkillPopupPauseUntil = Date.now() + dur;
+	} catch (_e) {}
+	try {
+		if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(dur + 1200);
+	} catch (_e) {}
+	try {
+		if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) {
+			if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
+			try { isAutoBattle = false; } catch (_e2) {}
+		}
+	} catch (_e) {}
+	return token;
+};
+
 window.showMixedSkillSummaryPopup = function(skill) {
-	// 星の数が4未満ならスキップ
 	const starCount = typeof skill.starRating === 'string' ? (skill.starRating.match(/★/g) || []).length : 0;
 	if (starCount < 4) return;
 
-	// フラグを立てる
 	window.withmix = true;
-
-	let html = "";
-
-	function buildSkillDetail(skill, depth = 0) {
-		const indent = "&nbsp;&nbsp;&nbsp;&nbsp;".repeat(depth); // インデント（スペース）
-
-		if (depth === 0 && skill.isProtected) {
-			html += `<div style="color: gold;">🔒【保護中のスキル】</div>`;
+	const pauseToken = window.__armMixedSkillPopupPause ? window.__armMixedSkillPopupPause(1200) : null;
+	try{
+		if (typeof window.__notifyBattleSpecialSkillReward === 'function') {
+			window.__notifyBattleSpecialSkillReward(skill);
 		}
-
-		const name = skill.name || "(不明)";
-		const level = skill.level ?? "?";
-
-		if (depth === 0) {
-			const star = skill.starRating || "";
-			const rank = skill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "-";
-			const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
-			html += `<div style="font-size: 13px; font-weight: bold; color: #ffddaa;">【${star} / RANK: ${rank}】</div>`;
-			const lvNum = Math.max(1, Number(level || 1) || 1);
-			const lvScale = getMixedSkillLevelScale(lvNum);
-			const lvBonusPct = Math.round((lvScale - 1) * 1000) / 10; // 0.1%刻み
-			html += `<div style="color: #ffffff;">${name}（Lv${level}｜発動率: ${prob}%｜レベル補正: ×${lvScale.toFixed(3)}（+${lvBonusPct}%））</div>`;
-		} else {
-			html += `<div style="color: #cccccc;">${indent}${name}（Lv${level}）</div>`;
-		}
-		if (skill.isMixed && Array.isArray(skill.specialEffects)) {
-			for (const eff of skill.specialEffects) {
-				const prefix = `${indent}▶ 特殊効果: `;
-				const baseVal = Number(eff.baseValue ?? eff.value ?? eff.amount ?? eff.ratio ?? 0);
-				const scaledVal = getScaledMixedSpecialEffectValue(skill, { ...eff, baseValue: baseVal, value: baseVal });
-				let effectText = "";
-				switch (Number(eff.type)) {
-					case 1:
-						effectText = `敵の残りHPの<span style="color:#ff9999;">${baseVal}%</span>分の追加ダメージ（Lv補正後: ${scaledVal.toFixed(1)}%）`;
-						break;
-					case 2:
-						effectText = `戦闘不能時にHP<span style="color:#99ccff;">${baseVal}%</span>で自動復活（Lv補正後: ${scaledVal.toFixed(1)}%）`;
-						break;
-					case 3:
-						effectText = `継続ダメージ時に<span style="color:#aaffaa;">${baseVal}%</span>即時回復（Lv補正後: ${scaledVal.toFixed(1)}%）`;
-						break;
-					case 4:
-						effectText = `攻撃力 <span style="color:#ffaa88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`;
-						break;
-					case 5:
-						effectText = `防御力 <span style="color:#88ddff;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`;
-						break;
-					case 6:
-						effectText = `素早さ <span style="color:#ffee88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`;
-						break;
-					case 7:
-						effectText = `最大HP <span style="color:#d4ff88;">${baseVal}倍</span>（所持時バフ / Lv補正後: ${scaledVal.toFixed(2)}倍）`;
-						break;
-					default:
-						effectText = `不明な効果 type=${eff.type}`;
-						break;
-				}
-				html += `<div style="color: #dddddd;">${prefix}${effectText}</div>`;
-			}
-		}
+	}finally{
+		try { if (typeof window.__releaseMixedSkillPopupPause === 'function') window.__releaseMixedSkillPopupPause(pauseToken); } catch (_e) {}
 	}
-
-
-	buildSkillDetail(skill);
-
-	showCenteredPopup(
-		`<div style="font-size: 12px; line-height: 1.6; font-family: 'Segoe UI', sans-serif;">
-      ${html}
-    </div>`,
-		6000
-	);
 };
 
 // ==== 連勝バイアス用ユーティリティ（追加） ====
@@ -4085,99 +4082,106 @@ window.showMixedSkillEffectListPopup = function() {
 	document.body.appendChild(wrap);
 };
 
+function __describeMixedSpecialEffect(skill, eff) {
+	const lvNum = Math.max(1, Number((skill && skill.level) || 1) || 1);
+	const lvScale = (typeof getMixedSkillLevelScale === "function") ? getMixedSkillLevelScale(lvNum) : 1;
+	const baseVal = Number(eff && (eff.baseValue ?? eff.value ?? eff.amount ?? eff.ratio ?? 0));
+	const scaledVal = (typeof getScaledMixedSpecialEffectValue === "function")
+		? getScaledMixedSpecialEffectValue(skill, Object.assign({}, eff || {}, { baseValue: baseVal, value: baseVal }))
+		: baseVal;
+	const bonusPct = Math.round((lvScale - 1) * 1000) / 10;
+	const fmtPct = (v) => `${Number(v).toFixed(Number(v) % 1 === 0 ? 0 : 1)}%`;
+	const fmtMul = (v) => `${Number(v).toFixed(Number(v) % 1 === 0 ? 2 : 3)}倍`;
+	const type = Number(eff && eff.type);
+	let label = `type=${type}`;
+	let valueLine = `基礎値 ${baseVal}`;
+	if (type === 1) {
+		label = '敵残HP割合ダメージ';
+		valueLine = `基礎値 ${fmtPct(baseVal)} → Lv補正後 ${fmtPct(scaledVal)}`;
+	} else if (type === 2) {
+		label = '自動復活';
+		valueLine = `基礎値 ${fmtPct(baseVal)} → Lv補正後 ${fmtPct(scaledVal)}`;
+	} else if (type === 3) {
+		label = '継続ダメージ吸収';
+		valueLine = `基礎値 ${fmtPct(baseVal)} → Lv補正後 ${fmtPct(scaledVal)}`;
+	} else if (type === 4) {
+		label = '攻撃力バフ';
+		valueLine = `基礎値 ${fmtMul(baseVal)} → Lv補正後 ${fmtMul(scaledVal)}`;
+	} else if (type === 5) {
+		label = '防御力バフ';
+		valueLine = `基礎値 ${fmtMul(baseVal)} → Lv補正後 ${fmtMul(scaledVal)}`;
+	} else if (type === 6) {
+		label = '素早さバフ';
+		valueLine = `基礎値 ${fmtMul(baseVal)} → Lv補正後 ${fmtMul(scaledVal)}`;
+	} else if (type === 7) {
+		label = '最大HPバフ';
+		valueLine = `基礎値 ${fmtMul(baseVal)} → Lv補正後 ${fmtMul(scaledVal)}`;
+	}
+	return { label, valueLine, lvScale, bonusPct };
+}
+
+function __buildMixedSkillDetailPayload(mixedSkill) {
+	const skill = mixedSkill || {};
+	const name = skill.name || '(不明)';
+	const level = skill.level ?? '?';
+	const star = skill.starRating || '';
+	const rank = skill.rarityClass?.replace('skill-rank-', '').toUpperCase() || '-';
+	const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
+	const lvNum = Math.max(1, Number(level || 1) || 1);
+	const lvScale = (typeof getMixedSkillLevelScale === 'function') ? getMixedSkillLevelScale(lvNum) : 1;
+	const lvBonusPct = Math.round((lvScale - 1) * 1000) / 10;
+	const effects = Array.isArray(skill.specialEffects) ? skill.specialEffects : [];
+	const headLine = [`Lv${level}`, `発動率 ${prob}%`, `レベル補正 ×${lvScale.toFixed(3)}（+${lvBonusPct}%）`].join(' ｜ ');
+	const effectHtml = effects.length
+		? effects.map((eff, idx) => {
+			const meta = __describeMixedSpecialEffect(skill, eff || {});
+			return `<div class="battle-drop-detail-line"><span class="battle-drop-detail-bullet">${idx + 1}.</span><span class="battle-drop-detail-text"><b>${meta.label}</b><br>${meta.valueLine}<br>スキルLv補正倍率 ×${meta.lvScale.toFixed(3)}（+${meta.bonusPct}%）</span></div>`;
+		}).join('')
+		: '<div class="battle-drop-detail-line"><span class="battle-drop-detail-text">特殊効果はありません。</span></div>';
+	const protectedHtml = skill.isProtected ? '<div class="battle-drop-popup-sub">🔒 保護中</div>' : '';
+	return {
+		title: name,
+		html:
+			`<div class="battle-drop-popup-sub">【${star} / RANK: ${rank}】</div>` +
+			protectedHtml +
+			`<div class="battle-drop-detail-head">${headLine}</div>` +
+			`<div class="battle-drop-detail-section-title">特殊効果</div>` +
+			`<div class="battle-drop-detail-section">${effectHtml}</div>`,
+		duration: 12000
+	};
+}
+
+window.__buildMixedSkillDetailPayload = window.__buildMixedSkillDetailPayload || __buildMixedSkillDetailPayload;
+
 function showSpecialEffectDetail(mixedSkill, event) {
+	try {
+		const payload = __buildMixedSkillDetailPayload(mixedSkill);
+		if (typeof window.__openBattleHtmlDetail === 'function') {
+			window.__openBattleHtmlDetail(payload);
+			return;
+		}
+		if (typeof showCenteredPopup === 'function') {
+			showCenteredPopup(`<div class="battle-drop-popup"><div class="battle-drop-popup-title">${payload.title}</div><div class="battle-drop-popup-body">${payload.html}</div></div>`, payload.duration || 12000);
+			return;
+		}
+	} catch (_e) {}
+
 	const existingPopup = document.getElementById("effect-popup");
 	if (existingPopup) existingPopup.remove();
-
 	const popup = document.createElement("div");
 	popup.id = "effect-popup";
 	popup.className = "effect-popup";
-
-	let detailText = "";
-
-	function buildSkillDetail(skill, depth = 0) {
-		const indent = "　".repeat(depth); // 全角スペース
-
-		// 🔍 デバッグ出力：スキル構造確認
-		// console.log(`\n[DEBUG] Depth ${depth}`);
-		//console.log("Skill Name:", skill.name);
-		//console.log("isMixed:", skill.isMixed);
-		//console.log("specialEffects:", skill.specialEffects);
-		//console.log("baseSkills:", skill.baseSkills);
-
-		if (depth === 0 && skill.isProtected) {
-			detailText += `🔒 【保護中のスキル】\n`;
-		}
-
-		const name = skill.name || "(不明)";
-		const level = skill.level ?? "?";
-
-		// 最上位のみRANK表示
-		if (depth === 0) {
-			const star = skill.starRating || "";
-			const rank = skill.rarityClass?.replace("skill-rank-", "").toUpperCase() || "-";
-			const prob = skill.activationProb ? Math.floor(skill.activationProb * 100) : 0;
-			detailText += `【${star} / RANK: ${rank}】\n`;
-			detailText += `${name}（Lv${level}｜発動率: ${prob}%）\n`;
-		} else {
-			detailText += `${indent}${name}（Lv${level}）\n`;
-		}
-
-		// 特殊効果（特殊スキルのみ）
-		if (skill.isMixed && Array.isArray(skill.specialEffects)) {
-			for (const eff of skill.specialEffects) {
-				switch (eff.type) {
-					case 1:
-						detailText += `${indent}▶ 特殊効果: 敵の残りHPの${eff.value}%分の追加ダメージ\n`;
-						break;
-					case 2:
-						detailText += `${indent}▶ 特殊効果: 戦闘不能時にHP${eff.value}%で自動復活\n`;
-						break;
-					case 3:
-						detailText += `${indent}▶ 特殊効果: 継続ダメージ時に${eff.value}%即時回復\n`;
-						break;
-					case 4:
-						detailText += `${indent}▶ 特殊効果: 攻撃力 ${eff.value}倍（所持時バフ）\n`;
-						break;
-					case 5:
-						detailText += `${indent}▶ 特殊効果: 防御力 ${eff.value}倍（所持時バフ）\n`;
-						break;
-					case 6:
-						detailText += `${indent}▶ 特殊効果: 素早さ ${eff.value}倍（所持時バフ）\n`;
-						break;
-					case 7:
-						detailText += `${indent}▶ 特殊効果: 最大HP ${eff.value}倍（所持時バフ）\n`;
-						break;
-					default:
-						detailText += `${indent}▶ 特殊効果: 不明な効果 type=${eff.type}\n`;
-				}
-			}
-		}
-
-		// 構成スキル
-		if (Array.isArray(skill.baseSkills) && skill.baseSkills.length > 0) {
-			detailText += `${indent}▼ 構成スキル:\n`;
-			for (const base of skill.baseSkills) {
-				buildSkillDetail(base, depth + 1);
-			}
-		}
-	}
-
-	buildSkillDetail(mixedSkill);
-
-	popup.textContent = detailText;
-
-	// --- スタイル設定 ---
+	const payload = __buildMixedSkillDetailPayload(mixedSkill);
+	popup.innerHTML = `<div class="battle-drop-popup"><div class="battle-drop-popup-title">${payload.title}</div><div class="battle-drop-popup-body">${payload.html}</div></div>`;
 	popup.style.position = "absolute";
 	popup.style.left = `10px`;
 	popup.style.top = `${(event?.pageY || 0) + 10}px`;
 	popup.style.padding = "12px 16px";
-	popup.style.background = "rgba(0, 0, 0, 0.6)";
+	popup.style.background = "rgba(0, 0, 0, 0.82)";
 	popup.style.color = "#fff";
-	popup.style.border = "1px solid rgba(255, 255, 255, 0.2)";
-	popup.style.borderRadius = "8px";
+	popup.style.border = "1px solid rgba(255, 255, 255, 0.22)";
+	popup.style.borderRadius = "10px";
 	popup.style.fontSize = "14px";
-	popup.style.whiteSpace = "pre-line";
 	popup.style.overflowWrap = "break-word";
 	popup.style.backdropFilter = "blur(6px)";
 	popup.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.5)";
@@ -4187,16 +4191,9 @@ function showSpecialEffectDetail(mixedSkill, event) {
 	popup.style.minWidth = "420px";
 	popup.style.maxWidth = "800px";
 	popup.style.width = "fit-content";
-
-	if (mixedSkill.isProtected) {
-		popup.style.border = "2px solid gold";
-		popup.style.boxShadow = "0 0 12px gold";
-	}
-
 	popup.onclick = () => popup.remove();
 	document.body.appendChild(popup);
 	requestAnimationFrame(() => popup.style.opacity = "1");
-
 	window.__uiSetTimeout(() => {
 		if (popup.parentNode) {
 			popup.style.opacity = "0";
@@ -4351,14 +4348,14 @@ function showFaceRevealAnimation(facePath, rarity, mode) {
 		const startAnim = () => {
 			try { overlay.classList.add('loaded'); } catch(_){}
 		};
-		try { window.__battleRequestAnimationFrame(() => window.__battleRequestAnimationFrame(startAnim)); }
+		try { requestAnimationFrame(() => requestAnimationFrame(startAnim)); }
 		catch(_){ try { startAnim(); } catch(__){} }
 
 		// 保持時間（iPhone Safari でも「一瞬」にならないよう少し長め）
 		const holdMs = (m === 'boss') ? 1350 : 1500;
 		const exitMs = 650;
 
-		const _set = (typeof window.__battleSetTimeout === 'function') ? window.__battleSetTimeout : ((typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout);
+		const _set = (typeof window.__uiSetTimeout === 'function') ? window.__uiSetTimeout : setTimeout;
 
 		_set(() => {
 			try { overlay.classList.add('exit'); } catch(_){}
@@ -5103,14 +5100,47 @@ function __drawMagicMakeRadar(canvas, values) {
 			const stage = document.getElementById('battleRadarStage');
 			if (!stage) return;
 
+			window.__battleRadarSpriteCache = window.__battleRadarSpriteCache || {
+				player: { kind: '', sig: '' },
+				enemy:  { kind: '', sig: '' }
+			};
+
+			const hideEl = (el)=>{ try{ if (el) el.classList.add('hidden'); }catch(_){ } };
+			const showEl = (el)=>{ try{ if (el) el.classList.remove('hidden'); }catch(_){ } };
+			const setSrcIfChanged = (el, src)=>{
+				try{
+					if (!el) return;
+					const next = String(src || '');
+					if (el.getAttribute('src') !== next) el.setAttribute('src', next);
+				}catch(_){}
+			};
+			const drawCanvasIfChanged = (slotKey, canvasId, sig, nameText)=>{
+				try{
+					const cache = window.__battleRadarSpriteCache[slotKey] || (window.__battleRadarSpriteCache[slotKey] = { kind: '', sig: '' });
+					if (cache.kind === 'canvas' && cache.sig === sig && !opts.forceRefresh) return;
+					if (typeof drawCharacterImage === 'function') drawCharacterImage(nameText, canvasId);
+					cache.kind = 'canvas';
+					cache.sig = sig;
+				}catch(_){}
+			};
+			const rememberImg = (slotKey, sig)=>{
+				try{
+					const cache = window.__battleRadarSpriteCache[slotKey] || (window.__battleRadarSpriteCache[slotKey] = { kind: '', sig: '' });
+					cache.kind = 'img';
+					cache.sig = sig;
+				}catch(_){}
+			};
 			const hideAll = ()=>{
-				try{ if (pImg) pImg.classList.add('hidden'); }catch(_){}
-				try{ if (eImg) eImg.classList.add('hidden'); }catch(_){}
-				try{ if (pCv) pCv.classList.add('hidden'); }catch(_){}
-				try{ if (eCv) eCv.classList.add('hidden'); }catch(_){}
+				hideEl(pImg); hideEl(eImg); hideEl(pCv); hideEl(eCv);
 			};
 
 			if (opts.hide){ hideAll(); return; }
+			try{
+				if (window.__winnerGuessMiniGameActive && !opts.allowDuringWinnerGuess){
+					hideAll();
+					return;
+				}
+			}catch(_e){}
 
 			const resolve = (p)=>{
 				try{
@@ -5120,6 +5150,16 @@ function __drawMagicMakeRadar(canvas, values) {
 					try{ if (typeof resolveAssetPath === 'function') q = resolveAssetPath(q); }catch(_){}
 					return q;
 				}catch(_){ return p; }
+			};
+
+			const shouldHideEnemyForAuto = ()=>{
+				try{
+					if (opts && opts.showEnemy) return false;
+					if (window.__battleRevealEnemySpriteOnce) return false;
+					if ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) return true;
+					if (window.__battleStartedAsAuto && window.__battleInProgress) return true;
+				}catch(_){}
+				return false;
 			};
 
 			// ---- player ----
@@ -5134,25 +5174,28 @@ function __drawMagicMakeRadar(canvas, values) {
 			}catch(_){}
 
 			if (showPlayerFace && pImg){
-				try{ pImg.setAttribute('src', playerFaceSrc || ''); }catch(_){}
-				try{ pImg.classList.remove('hidden'); }catch(_){}
-				try{ if (pCv) pCv.classList.add('hidden'); }catch(_){}
+				setSrcIfChanged(pImg, playerFaceSrc || '');
+				rememberImg('player', String(playerFaceSrc || ''));
+				showEl(pImg);
+				hideEl(pCv);
 			}else{
-				// draw base to mini canvas
 				try{
 					const pObj = (window && window.player) ? window.player : (typeof player !== 'undefined' ? player : null);
 					let nm = (pObj && pObj.name) ? pObj.name : '';
 					try{ if (typeof displayName === 'function') nm = displayName(nm); }catch(_){}
-					if (pCv && typeof drawCharacterImage === 'function'){
-						// temporarily draw into this canvas id
-						drawCharacterImage(nm, 'battleRadarPlayerCanvasSprite');
-						try{ pCv.classList.remove('hidden'); }catch(_){}
-					}
+					if (pCv) drawCanvasIfChanged('player', 'battleRadarPlayerCanvasSprite', 'name:' + String(nm || ''), nm);
+					showEl(pCv);
 				}catch(_){}
-				try{ if (pImg) pImg.classList.add('hidden'); }catch(_){}
+				hideEl(pImg);
 			}
 
 			// ---- enemy ----
+			if (shouldHideEnemyForAuto()){
+				hideEl(eImg);
+				hideEl(eCv);
+				return;
+			}
+
 			let showEnemyFace = false;
 			let enemyFaceSrc = null;
 			try{
@@ -5165,25 +5208,25 @@ function __drawMagicMakeRadar(canvas, values) {
 			}catch(_){}
 
 			if (showEnemyFace && eImg){
-				try{ eImg.setAttribute('src', enemyFaceSrc || ''); }catch(_){}
-				try{ eImg.classList.remove('hidden'); }catch(_){}
-				try{ if (eCv) eCv.classList.add('hidden'); }catch(_){}
+				setSrcIfChanged(eImg, enemyFaceSrc || '');
+				rememberImg('enemy', String(enemyFaceSrc || ''));
+				showEl(eImg);
+				hideEl(eCv);
 			}else{
 				try{
 					const eObj = (window && window.enemy) ? window.enemy : (typeof enemy !== 'undefined' ? enemy : null);
 					let nm = (eObj && eObj.name) ? eObj.name : '';
 					try{ if (typeof displayName === 'function') nm = displayName(nm); }catch(_){}
-					if (eCv && typeof drawCharacterImage === 'function'){
-						drawCharacterImage(nm, 'battleRadarEnemyCanvasSprite');
-						try{ eCv.classList.remove('hidden'); }catch(_){}
-					}
+					if (eCv) drawCanvasIfChanged('enemy', 'battleRadarEnemyCanvasSprite', 'name:' + String(nm || ''), nm);
+					showEl(eCv);
 				}catch(_){}
-				try{ if (eImg) eImg.classList.add('hidden'); }catch(_){}
+				hideEl(eImg);
 			}
 		}catch(_e){}
 	};
 
-	window.__battleRadarSpritesStartBattleAnim = function(){
+	
+window.__battleRadarSpritesStartBattleAnim = function(){
 		try{
 			// refresh + show
 			try{ window.__updateBattleRadarSideSprites({}); }catch(_){}
@@ -5205,11 +5248,12 @@ function __drawMagicMakeRadar(canvas, values) {
 
 			const pEl = pick(pImg, pCv);
 			const eEl = pick(eImg, eCv);
-			if (!pEl || !eEl) return;
+			if (!pEl) return;
+			if (!eEl && !autoActive) return;
 
 			// cancel previous animations
 			try{
-				[pEl, eEl].forEach(el=>{
+				[pEl, eEl].filter(Boolean).forEach(el=>{
 					try{
 						if (el.getAnimations){
 							el.getAnimations().forEach(a=>{ try{ a.cancel(); }catch(_){ } });
@@ -5228,19 +5272,19 @@ function __drawMagicMakeRadar(canvas, values) {
 				try{
 					// keep base translateY(-50%) for sprites
 					const base = (el.classList && el.classList.contains('battle-radar-sprite-canvas')) ? 'translateY(-50%)' : 'translateY(-50%)';
-					return window.__trackBattleAnimation(el.animate(
+					return el.animate(
 						[
 							{ transform: base + ' translateY(0px) scale(1)' },
 							{ transform: base + ' translateY(-10px) scale(1.06)' },
 							{ transform: base + ' translateY(0px) scale(1)' }
 						],
 						{ duration: 180, easing: 'cubic-bezier(0.2,0.9,0.2,1)', delay: delayMs||0, fill: 'forwards' }
-					));
+					);
 				}catch(_){ return null; }
 			};
 
 			// ピョコン回数
-			const jumps = 10;
+			const jumps = autoActive ? 3 : 10;
 			
 			const gap = 110;
 			const one = 180;
@@ -5251,7 +5295,7 @@ function __drawMagicMakeRadar(canvas, values) {
 			for(let i = 0; i < jumps; i++){
 			    const t = i * (one + gap);
 			    jumpOnce(pEl, t);
-			    jumpOnce(eEl, t);
+			    if (!autoActive && eEl) jumpOnce(eEl, t);
 			}
 
 			return token;
@@ -5277,14 +5321,15 @@ function __drawMagicMakeRadar(canvas, values) {
 
 			const pEl = pick(pImg, pCv);
 			const eEl = pick(eImg, eCv);
-			if (!pEl || !eEl) return;
+			if (!pEl) return;
+			if (!eEl && !autoActive) return;
 
 			const token = window.__battleRadarSpriteAnimToken || 0;
 
 			const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 			const endsAt = (typeof window.__battleRadarSpritePreAnimEndsAt === 'number') ? window.__battleRadarSpritePreAnimEndsAt : now;
 
-			const delay = Math.max(0, endsAt - now) + 40; // 2回ジャンプの直後に少し間を置く
+			const delay = Math.max(0, endsAt - now) + 980; // 余韻を作ってからゆっくり消す
 
 			const loserIsPlayer = !playerWon;
 			const loserEl = loserIsPlayer ? pEl : eEl;
@@ -5312,14 +5357,15 @@ function __drawMagicMakeRadar(canvas, values) {
 			}catch(_){}
 
 			try{
-				window.__trackBattleAnimation(loserEl.animate(
+				loserEl.animate(
 					[
-						{ transform: 'translateY(-50%) translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1 },
-						{ transform: 'translateY(-50%) translate('+(dx*0.55).toFixed(1)+'px,'+(dy*0.55-18).toFixed(1)+'px) rotate(180deg) scale(0.96)', opacity: 0.95 },
-						{ transform: 'translateY(-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate(540deg) scale(0.90)', opacity: 0.0 }
+						{ transform: 'translateY(-50%) translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1, offset:0 },
+						{ transform: 'translateY(-50%) translate('+(dx*0.18).toFixed(1)+'px,'+(dy*0.18-4).toFixed(1)+'px) rotate(36deg) scale(0.995)', opacity: 1, offset:0.22 },
+						{ transform: 'translateY(-50%) translate('+(dx*0.52).toFixed(1)+'px,'+(dy*0.52-14).toFixed(1)+'px) rotate(180deg) scale(0.96)', opacity: 0.86, offset:0.68 },
+						{ transform: 'translateY(-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate(420deg) scale(0.90)', opacity: 0.0, offset:1 }
 					],
-					{ duration: 520, easing: 'cubic-bezier(0.15,0.85,0.15,1)', delay, fill: 'forwards' }
-				));
+					{ duration: 1480, easing: 'cubic-bezier(0.16,0.84,0.2,1)', delay, fill: 'forwards' }
+				);
 			}catch(_){}
 
 		}catch(_e){}
@@ -5347,7 +5393,7 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 				try{
 					wrap.classList.remove('hidden');
 					try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({hide:true}); }catch(_e){}
-					window.__battleRequestAnimationFrame(() => {
+					requestAnimationFrame(() => {
 						try { drawRadar(canvas, null, null, { note:true }); } catch (_e) {}
 					});
 				}catch(_e){}
@@ -5388,7 +5434,7 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 				window.__battleRadarLastE = e;
 				window.__battleRadarLast = { p, e };
 				window.__battleRadarAnimState = null;
-				window.__battleRequestAnimationFrame(() => {
+				requestAnimationFrame(() => {
 					try { drawRadar(canvas, p, e, { note:false }); } catch (_e) {}
 				});
 				return;
@@ -5431,10 +5477,10 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 						window.__battleRadarAnimState = null;
 						return;
 					}
-					cur.raf = window.__battleRequestAnimationFrame(step);
+					cur.raf = requestAnimationFrame(step);
 				}catch(_e){}
 			};
-			anim.raf = window.__battleRequestAnimationFrame(step);
+			anim.raf = requestAnimationFrame(step);
 		}catch(_e){}
 	};
 
@@ -6109,8 +6155,12 @@ function cleanUpMixedSkillsExceptOne() {
   if (window.__battleTickerV22FixInstalled) return;
   window.__battleTickerV22FixInstalled = true;
 
-  const DISPLAY_MS = 1400;
-  const FINAL_DELAY_MS = 900;
+  const DISPLAY_MS = 2200;
+  const FINAL_DELAY_MS = 1350;
+  const TYPEWRITER_BASE_MS = 105;
+  const TYPEWRITER_PUNCT_MS = 150;
+  const TYPEWRITER_MIN_TOTAL_MS = 900;
+  const TYPEWRITER_MAX_TOTAL_MS = 2400;
 
   function _num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function _safeName(v){ return String(v == null ? '' : v).trim(); }
@@ -6145,19 +6195,115 @@ function cleanUpMixedSkillsExceptOne() {
   function _formatTickerLabel(txt){
     let s = _safeName(txt);
     if (!s) return 'READY';
+    if (/<span\b/i.test(s)) return s;
     s = s.replace(/\s*\/\s*/g, '/');
-    s = s.replace(/\s+Lv\s*([0-9]+)/i, '<br>Lv$1');
-    if (s.indexOf('<br>') < 0 && s.length >= 10){
+    if (/^(WIN|LOSE)$/i.test(s)) return s;
+    s = s.replace(/\s+Lv\s*([0-9]+)/i, '<span class="battle-skill-inline-meta">Lv$1</span>');
+    s = s.replace(/\s+ItemLv\s*([0-9]+)/i, '<span class="battle-skill-inline-meta">ItemLv$1</span>');
+    if (s.indexOf('<br>') < 0 && s.length >= 22 && !/^(WIN|LOSE)$/i.test(s)){
       const parts = s.split('/');
       if (parts.length > 1) s = parts[0] + '<br>' + parts.slice(1).join('/');
-      else s = s.replace(/^(.{6,8})(.+)$/u, '$1<br>$2');
     }
     return s;
   }
+  function _clearTypewriter(el){
+    try{
+      if (!el) return;
+      if (el.__typeTimer){ try{ clearTimeout(el.__typeTimer); }catch(_){ } }
+      el.__typeTimer = 0;
+      el.__typeToken = (el.__typeToken || 0) + 1;
+      el.classList.remove('is-typewriting');
+      const textEl = el.querySelector('.battle-ticker-text');
+      if (textEl) textEl.classList.remove('is-typewriting');
+    }catch(_){ }
+  }
+  function _shouldTypewrite(opt){
+    try{
+      const o = opt || {};
+      if (o.finalState) return true;
+      if (o.isReady || o.isReward) return false;
+      if (!window.__battleStartedAsAuto) return true;
+      return !!window.__battleRevealEnemySpriteOnce;
+    }catch(_){ return true; }
+  }
+  function _typewriterSpeedFor(text){
+    try{
+      const s = String(text == null ? '' : text);
+      const len = s.replace(/\s+/g,'').length;
+      if (len >= 24) return 92;
+      if (len >= 16) return 100;
+      return TYPEWRITER_BASE_MS;
+    }catch(_){ return TYPEWRITER_BASE_MS; }
+  }
+  function _estimateHoldMs(label, opt){
+    try{
+      const o = opt || {};
+      if (o.finalState) return 2200;
+      if (o.isReady) return 10;
+      let plain = String(label == null ? '' : label)
+        .replace(/<br\s*\/?/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      let hold = DISPLAY_MS;
+      if (plain){
+        const chars = plain.replace(/\s+/g,'').length;
+        hold += Math.min(1200, chars * 42);
+      }
+      if (_shouldTypewrite(o)){
+        const speed = _typewriterSpeedFor(plain);
+        const chars = Math.max(1, plain.length);
+        hold = Math.max(hold, Math.min(TYPEWRITER_MAX_TOTAL_MS, Math.max(TYPEWRITER_MIN_TOTAL_MS, chars * speed + 520)));
+      }
+      if (o.tier === 'high') hold += 180;
+      if (o.tier === 'mythic') hold += 320;
+      return hold;
+    }catch(_){ return DISPLAY_MS; }
+  }
+  function _runTypewriter(el, opt){
+    try{
+      if (!el) return;
+      _clearTypewriter(el);
+      const textEl = el.querySelector('.battle-ticker-text');
+      if (!textEl) return;
+      if (!_shouldTypewrite(opt)) return;
+      const skillNameEl = textEl.querySelector('.battle-skill-name');
+      if (!skillNameEl) return;
+      const full = String(skillNameEl.textContent || '');
+      if (!full || full.length <= 1) return;
+      const token = (el.__typeToken || 0) + 1;
+      el.__typeToken = token;
+      el.classList.add('is-typewriting');
+      textEl.classList.add('is-typewriting');
+      skillNameEl.textContent = '';
+      let idx = 0;
+      const speed = _typewriterSpeedFor(full);
+      const step = function(){
+        try{
+          if ((el.__typeToken || 0) !== token) return;
+          idx += 1;
+          skillNameEl.textContent = full.slice(0, idx);
+          if (idx >= full.length){
+            el.__typeTimer = 0;
+            el.classList.remove('is-typewriting');
+            textEl.classList.remove('is-typewriting');
+            return;
+          }
+          const ch = full.charAt(idx - 1);
+          const wait = /[\s・、。,.!！?？]/.test(ch) ? TYPEWRITER_PUNCT_MS : speed;
+          el.__typeTimer = (window.__uiSetTimeout || window.setTimeout)(step, wait);
+        }catch(_){ }
+      };
+      el.__typeTimer = (window.__uiSetTimeout || window.setTimeout)(step, Math.max(70, Math.round(speed * 0.9)));
+    }catch(_){ }
+  }
   function _ensureState(){
     const st = window.__battleDigestState || (window.__battleDigestState = {});
-    if (!st.queues) st.queues = { player:{queue:[],current:null,timer:0}, enemy:{queue:[],current:null,timer:0} };
+    if (!st.queues) st.queues = { player:{queue:[],current:null,timer:0,loopIndex:0}, enemy:{queue:[],current:null,timer:0,loopIndex:0} };
+    if (!st.queues.player.loopIndex && st.queues.player.loopIndex !== 0) st.queues.player.loopIndex = 0;
+    if (!st.queues.enemy.loopIndex && st.queues.enemy.loopIndex !== 0) st.queues.enemy.loopIndex = 0;
     if (!st.usage) st.usage = { player:{}, enemy:{} };
+    if (!st.loopLists) st.loopLists = { player:[], enemy:[] };
     if (!Array.isArray(st.itemRewards)) st.itemRewards = [];
     if (typeof st.finalLocked !== 'boolean') st.finalLocked = false;
     return st;
@@ -6175,6 +6321,193 @@ function cleanUpMixedSkillsExceptOne() {
       }
       return layer;
     }catch(_){ return null; }
+  }
+  function _isTickerSuppressed(){
+    try{
+      if (window.__battleTickerForceShow) return false;
+      return !!(((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) && !window.__winnerGuessMiniGameActive);
+    }catch(_){ return false; }
+  }
+  function _applyTickerVisibility(){
+    try{
+      const hidden = _isTickerSuppressed();
+      const layer = document.getElementById('battleDigestLayer');
+      if (layer) layer.classList.toggle('is-auto-minimal', !!hidden);
+      ['battleTickerPlayer','battleTickerEnemy'].forEach(function(id){
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('is-suppressed', !!hidden);
+      });
+    }catch(_){ }
+  }
+  function _clearDigestTimers(prev){
+    try{
+      const st = prev || window.__battleDigestState;
+      if (!st) return;
+      try{
+        ['player','enemy'].forEach(function(side){
+          const q = st.queues && st.queues[side];
+          if (q && q.timer){ try{ clearTimeout(q.timer); }catch(_){ } q.timer = 0; }
+        });
+      }catch(_){ }
+      try{ if (st.finalTimer){ clearTimeout(st.finalTimer); st.finalTimer = 0; } }catch(_){ }
+      try{
+        ['battleTickerPlayer','battleTickerEnemy'].forEach(function(id){
+          const el = document.getElementById(id);
+          if (el) _clearTypewriter(el);
+        });
+      }catch(_){ }
+    }catch(_){ }
+  }
+  function _escapeHtml(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function _ensureRewardDetailState(){
+    const store = window.__battleRewardDetailStore || (window.__battleRewardDetailStore = {});
+    if (!window.__battleRewardDetailSeq) window.__battleRewardDetailSeq = 0;
+    return store;
+  }
+  function _registerRewardDetail(payload){
+    try{
+      const store = _ensureRewardDetailState();
+      const id = 'reward_' + (++window.__battleRewardDetailSeq);
+      store[id] = Object.assign({ title:'詳細', html:'', duration:9000 }, payload || {});
+      return id;
+    }catch(_){ return ''; }
+  }
+  function _getRewardDetailPayload(detailRef){
+    try{
+      if (!detailRef) return null;
+      if (typeof detailRef === 'object' && detailRef.html != null) {
+        return Object.assign({ title:'詳細', html:'', duration:9000 }, detailRef || {});
+      }
+      const raw = String(detailRef || '');
+      if (/^%7B/i.test(raw) || /^\{/.test(raw)) {
+        try{
+          const decoded = /^%7B/i.test(raw) ? decodeURIComponent(raw) : raw;
+          const parsed = JSON.parse(decoded);
+          if (parsed && typeof parsed === 'object') {
+            return Object.assign({ title:'詳細', html:'', duration:9000 }, parsed);
+          }
+        }catch(_jsonErr){}
+      }
+      const store = _ensureRewardDetailState();
+      return store && raw ? store[raw] : null;
+    }catch(_){ return null; }
+  }
+  function _encodeRewardDetailPayload(payload){
+    try{
+      if (!payload) return '';
+      return encodeURIComponent(JSON.stringify({
+        title: String(payload.title || '詳細'),
+        html: String(payload.html || ''),
+        duration: Math.max(4500, Number(payload.duration || 9000) || 9000)
+      }));
+    }catch(_){ return ''; }
+  }
+  function _openRewardDetail(detailRef){
+    try{
+      const payload = _getRewardDetailPayload(detailRef);
+      if (!payload) return;
+
+      const overlayId = 'battleRewardDetailOverlay';
+      const old = document.getElementById(overlayId);
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+
+      const overlay = document.createElement('div');
+      overlay.id = overlayId;
+      overlay.className = 'battle-reward-detail-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.style.position = 'fixed';
+      overlay.style.left = '0';
+      overlay.style.top = '0';
+      overlay.style.right = '0';
+      overlay.style.bottom = '0';
+      overlay.style.zIndex = '10050';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+      overlay.style.pointerEvents = 'auto';
+      overlay.innerHTML = '' +
+        '<div class="battle-reward-detail-backdrop" data-close="1" style="position:absolute;inset:0;background:rgba(0,0,0,.58);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);"></div>' +
+        '<div class="battle-reward-detail-card" style="position:relative;z-index:1;width:min(92vw,560px);max-height:min(82vh,720px);overflow:auto;padding:16px 14px 14px;border-radius:16px;border:1px solid rgba(120,180,255,.28);background:linear-gradient(180deg, rgba(10,16,28,.98), rgba(7,11,20,.96));box-shadow:0 18px 48px rgba(0,0,0,.55),0 0 24px rgba(90,150,255,.12);">' +
+          '<button type="button" class="battle-reward-detail-close" aria-label="閉じる" style="position:absolute;top:8px;right:8px;width:32px;height:32px;padding:0;margin:0;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-size:18px;line-height:1;">×</button>' +
+          '<div class="battle-drop-popup" style="max-width:none;">' +
+            '<div class="battle-drop-popup-title">' + _escapeHtml(payload.title || '詳細') + '</div>' +
+            '<div class="battle-drop-popup-body">' + String(payload.html || '') + '</div>' +
+          '</div>' +
+        '</div>';
+
+      const closeOverlay = function(){
+        try{
+          if (overlay.__timer){ window.__uiClearTimeout ? window.__uiClearTimeout(overlay.__timer) : clearTimeout(overlay.__timer); }
+        }catch(_e){}
+        try{
+          document.removeEventListener('keydown', onKeydown, true);
+        }catch(_e){}
+        try{
+          if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }catch(_e){}
+      };
+      const onKeydown = function(ev){
+        try{
+          if (ev && ev.key === 'Escape'){
+            ev.preventDefault();
+            closeOverlay();
+          }
+        }catch(_e){}
+      };
+
+      overlay.addEventListener('click', function(ev){
+        try{
+          const t = ev && ev.target;
+          if (!t) return;
+          if ((t.closest && t.closest('.battle-reward-detail-close')) || (t.dataset && t.dataset.close === '1')) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            closeOverlay();
+          }
+        }catch(_e){}
+      }, true);
+
+      try{
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKeydown, true);
+        const duration = Math.max(4500, Number(payload.duration || 9000) || 9000);
+        overlay.__timer = window.__uiSetTimeout ? window.__uiSetTimeout(closeOverlay, duration) : setTimeout(closeOverlay, duration);
+      }catch(_e){
+        try{
+          if (typeof window.showCenteredPopup === 'function') {
+            const html = '<div class="battle-drop-popup"><div class="battle-drop-popup-title">' + _escapeHtml(payload.title || '詳細') + '</div><div class="battle-drop-popup-body">' + String(payload.html || '') + '</div></div>';
+            window.showCenteredPopup(html, Math.max(3200, Number(payload.duration || 9000) || 9000));
+          }
+        }catch(__e){}
+      }
+    }catch(_){ }
+  }
+  function _renderRewardSummaryHtml(entries){
+    try{
+      const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+      if (!list.length) return '';
+      const rows = list.slice(-4).map(function(entry){
+        const type = String(entry.type || 'item').toLowerCase();
+        const chip = type === 'mixed-skill' ? 'MIX' : (type === 'skill' ? 'SKL' : 'DROP');
+        const cls = type === 'mixed-skill' ? ' is-mixed-skill' : (entry.detailId ? ' is-detail' : '');
+        const label = _escapeHtml(entry.summary || entry.label || '報酬あり');
+        const count = (Number(entry.count || 0) > 1) ? '<span class="battle-drop-mult">×' + Math.floor(Number(entry.count)) + '</span>' : '';
+        const payload = entry.detailId ? _getRewardDetailPayload(entry.detailId) : null;
+        const payloadAttr = payload ? ' data-detail-payload="' + _escapeHtml(_encodeRewardDetailPayload(payload)) + '"' : '';
+        const detail = entry.detailId ? '<button type="button" class="battle-drop-detail-btn" data-detail-id="' + _escapeHtml(entry.detailId) + '"' + payloadAttr + ' onclick="try{window.__openBattleRewardDetailFromInline&&window.__openBattleRewardDetailFromInline(this);}catch(_e){};return false;" onpointerup="try{window.__openBattleRewardDetailFromInline&&window.__openBattleRewardDetailFromInline(this);}catch(_e){}" ontouchend="try{window.__openBattleRewardDetailFromInline&&window.__openBattleRewardDetailFromInline(this);}catch(_e){}">詳細</button>' : '';
+        return '<div class="battle-drop-entry' + cls + '"><span class="battle-drop-chip">' + chip + '</span><span class="battle-drop-entry-label">' + label + count + '</span>' + detail + '</div>';
+      }).join('');
+      return '<div class="battle-drop-list">' + rows + '</div>';
+    }catch(_){ return ''; }
   }
   function _ensureTickerBoards(){
     try{
@@ -6194,6 +6527,7 @@ function cleanUpMixedSkillsExceptOne() {
       return { player: make('player'), enemy: make('enemy') };
     }catch(_){ return null; }
   }
+
   function _ensureRewardBoard(){
     try{
       const layer = _ensureLayer();
@@ -6203,15 +6537,38 @@ function cleanUpMixedSkillsExceptOne() {
         el = document.createElement('div');
         el.id = 'battleRewardBoard';
         el.className = 'battle-radar-reward-board';
+        el.style.pointerEvents = 'auto';
         el.innerHTML = '<div class="battle-drop-title"></div><div class="battle-drop-body"></div>';
         layer.appendChild(el);
       }
+      try{ el.style.pointerEvents = 'auto'; }catch(_e){}
       return el;
     }catch(_){ return null; }
+  }
+  function _setRewardBoardNotice(title, body, isItem, opt){
+    try{
+      const rb = _ensureRewardBoard();
+      if (!rb) return;
+      const tt = rb.querySelector('.battle-drop-title');
+      const bd = rb.querySelector('.battle-drop-body');
+      const o = (opt && typeof opt === 'object') ? opt : {};
+      if (tt) tt.textContent = String(title || '');
+      if (bd){
+        if (o.html) bd.innerHTML = String(o.html || '');
+        else bd.textContent = String(body || '');
+      }
+      rb.classList.remove('is-item','show','is-compact','is-bit');
+      if (isItem) rb.classList.add('is-item');
+      if (o.compact !== false) rb.classList.add('is-compact');
+      if (o.bit !== false) rb.classList.add('is-bit');
+      if (title || body || o.html) rb.classList.add('show');
+    }catch(_){ }
   }
   function _setBoard(side, kind, text, count, opt){
     try{
       _ensureTickerBoards();
+      _applyTickerVisibility();
+      if (_isTickerSuppressed() && !(opt && opt.finalState) && !window.__winnerGuessMiniGameActive) return;
       const id = side === 'enemy' ? 'battleTickerEnemy' : 'battleTickerPlayer';
       const el = document.getElementById(id);
       if (!el) return;
@@ -6219,17 +6576,22 @@ function cleanUpMixedSkillsExceptOne() {
       const textEl = el.querySelector('.battle-ticker-text');
       const countEl = el.querySelector('.battle-ticker-count');
       const o = opt || {};
+      _clearTypewriter(el);
       if (kindEl) kindEl.textContent = String(kind || (side === 'enemy' ? 'ENEMY' : 'YOU'));
-      if (textEl){ textEl.innerHTML = _formatTickerLabel(text); textEl.setAttribute('data-tier', String(o.tier || 'normal')); }
+      if (textEl){
+        textEl.innerHTML = _formatTickerLabel(text);
+        textEl.setAttribute('data-tier', String(o.tier || 'normal'));
+      }
       if (countEl) countEl.textContent = (count && Number(count) > 1) ? ('×' + Math.floor(Number(count))) : '';
       el.classList.remove('is-ready','is-final-win','is-final-lose','is-reward','is-flash');
       if (o.isReady) el.classList.add('is-ready');
       if (o.finalState === 'win') el.classList.add('is-final-win');
       if (o.finalState === 'lose') el.classList.add('is-final-lose');
       if (o.isReward) el.classList.add('is-reward');
+      _runTypewriter(el, o);
       void el.offsetWidth;
       el.classList.add('is-flash');
-      (window.__uiSetTimeout || window.setTimeout)(function(){ try{ el.classList.remove('is-flash'); }catch(_){ } }, Math.max(520, Number(o.flashMs || 900) || 900));
+      (window.__uiSetTimeout || window.setTimeout)(function(){ try{ el.classList.remove('is-flash'); }catch(_){ } }, Math.max(480, Number(o.flashMs || 760) || 760));
     }catch(_){ }
   }
   function _clearQueueTimer(side){
@@ -6239,13 +6601,39 @@ function cleanUpMixedSkillsExceptOne() {
       if (qs && qs.timer){ try{ clearTimeout(qs.timer); }catch(_){} qs.timer = 0; }
     }catch(_){ }
   }
+  function _stopWinnerGuessLoops(){
+    try{
+      const st = _ensureState();
+      ['player','enemy'].forEach(function(side){
+        const qs = st.queues && st.queues[side];
+        if (!qs) return;
+        _clearQueueTimer(side);
+        qs.loopIndex = 0;
+      });
+    }catch(_){ }
+  }
   function _drain(side){
     try{
       const st = _ensureState();
       const qs = st.queues[side];
       if (!qs || st.finalLocked) return;
+      if (_isTickerSuppressed() && !window.__winnerGuessMiniGameActive){
+        _clearQueueTimer(side);
+        qs.current = null;
+        qs.queue = [];
+        return;
+      }
       _clearQueueTimer(side);
       if (!qs.current) qs.current = qs.queue.shift() || null;
+      if (!qs.current && window.__winnerGuessMiniGameActive){
+        const list = (st.loopLists && st.loopLists[side]) || [];
+        if (list.length){
+          const idx = Math.max(0, Number(qs.loopIndex || 0) || 0) % list.length;
+          const src = list[idx];
+          qs.loopIndex = (idx + 1) % list.length;
+          qs.current = Object.assign({}, src, { holdMs: Math.max(Number(src.holdMs || 0) || 0, 1400) });
+        }
+      }
       const item = qs.current;
       if (!item) return;
       _setBoard(side, item.kind, item.label, item.count, { tier:item.tier, flashMs:item.holdMs || DISPLAY_MS });
@@ -6265,47 +6653,102 @@ function cleanUpMixedSkillsExceptOne() {
     try{
       const st = _ensureState();
       if (st.finalLocked || !side || !label) return;
+      if (_isTickerSuppressed() && !window.__winnerGuessMiniGameActive){
+        const qsSilent = st.queues && st.queues[side];
+        if (qsSilent){ _clearQueueTimer(side); qsSilent.current = null; qsSilent.queue = []; }
+        return;
+      }
       const qs = st.queues[side];
       if (!qs) return;
-      const entry = { kind, label, count: Math.max(1, _num(count) || 1), tier:tier || 'normal', key:key || (kind+'::'+label), holdMs:DISPLAY_MS };
+      const entryOpt = { tier:tier || 'normal' };
+      const entry = { kind, label, count: Math.max(1, _num(count) || 1), tier:tier || 'normal', key:key || (kind+'::'+label), holdMs:_estimateHoldMs(label, entryOpt) };
+      const loopList = st.loopLists && st.loopLists[side];
+      if (Array.isArray(loopList)){
+        const loopIdx = loopList.findIndex(function(it){ return it && it.key === entry.key; });
+        if (loopIdx >= 0) loopList[loopIdx] = Object.assign({}, loopList[loopIdx], entry);
+        else loopList.push(Object.assign({}, entry));
+        if (loopList.length > 12) st.loopLists[side] = loopList.slice(-12);
+      }
       if (qs.current && qs.current.key === entry.key){
         qs.current.count = entry.count;
-        _setBoard(side, qs.current.kind, qs.current.label, qs.current.count, { tier:qs.current.tier, flashMs:840 });
+        qs.current.holdMs = Math.max(Number(qs.current.holdMs || 0) || 0, Number(entry.holdMs || DISPLAY_MS) || DISPLAY_MS);
+        _setBoard(side, qs.current.kind, qs.current.label, qs.current.count, { tier:qs.current.tier, flashMs:720 });
         return;
       }
       const tail = qs.queue.length ? qs.queue[qs.queue.length-1] : null;
-      if (tail && tail.key === entry.key){ tail.count = entry.count; return; }
+      if (tail && tail.key === entry.key){ tail.count = entry.count; tail.label = entry.label; tail.tier = entry.tier; tail.holdMs = entry.holdMs; return; }
       qs.queue.push(entry);
       if (qs.queue.length > 6) qs.queue = qs.queue.slice(-6);
       if (!qs.current) _drain(side);
     }catch(_){ }
   }
+  function _replayUsageBoards(){
+    try{
+      const st = _ensureState();
+      if (!st || st.finalLocked) return;
+      ['player','enemy'].forEach(function(side){
+        const bucket = st.usage && st.usage[side] ? st.usage[side] : null;
+        if (!bucket) return;
+        const entries = Object.keys(bucket).map(function(key){
+          const it = bucket[key] || {};
+          const kind = String(it.kind || (/ITEM/.test(key) ? 'ITEM' : 'SKILL'));
+          const label = String(it.label || key.split('::').slice(1).join(' / ') || (side === 'enemy' ? 'ENEMY' : 'YOU'));
+          const count = Math.max(1, Number(it.count || 1) || 1);
+          const tier = (kind === 'ITEM') ? 'high' : ((/Lv(\d{4,})/.test(label)) ? 'mythic' : 'normal');
+          return { key:key, kind:kind, label:label, count:count, tier:tier, holdMs:_entryHoldMs(label, count) };
+        }).filter(Boolean).sort(function(a,b){ return (b.count - a.count) || String(a.label).localeCompare(String(b.label), 'ja'); });
+        st.loopLists[side] = entries.slice(0, 6).map(function(it){ return Object.assign({}, it); });
+        const qs = st.queues && st.queues[side];
+        if (!qs) return;
+        _clearQueueTimer(side);
+        qs.queue = st.loopLists[side].map(function(it){ return Object.assign({}, it); });
+        qs.current = null;
+        qs.loopIndex = 0;
+        if (qs.queue.length) _drain(side);
+        else _setBoard(side, side === 'enemy' ? 'ENEMY' : 'YOU', 'READY', 0, { isReady:true, tier:'none', flashMs:10 });
+      });
+      _applyTickerVisibility();
+    }catch(_){ }
+  }
+  window.__battleDigestForceShowTickers = function(){
+    try{
+      window.__battleTickerForceShow = true;
+      _replayUsageBoards();
+    }catch(_){ }
+  };
+
   function _rewardSummary(){
     const st = _ensureState();
     if (st.itemRewards && st.itemRewards.length){
-      const last = st.itemRewards[st.itemRewards.length-1];
-      return { title:'ITEM GET', body:String((last && last.label) || '通常/ボス報酬あり'), isGet:true };
+      return { title:'DROP', body:'', html:_renderRewardSummaryHtml(st.itemRewards), isGet:true };
     }
     try{
       const lines = Array.isArray(window.log) ? window.log.join('\n') : '';
-      if (/(ボス報酬|クラッチ報酬|魔道具：|獲得！|入手！)/.test(lines)) return { title:'ITEM GET', body:'通常/ボス報酬あり', isGet:true };
+      if (/(ボス報酬|クラッチ報酬|魔道具：|獲得！|入手！)/.test(lines)) return { title:'DROP', body:'通常/ボス報酬あり', isGet:true };
     }catch(_){ }
     return { title:'DROP NONE', body:'通常/ボス報酬なし', isGet:false };
   }
 
   window.__battleDigestReset = function(battleId){
     try{
-      const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, queues:{player:{queue:[],current:null,timer:0},enemy:{queue:[],current:null,timer:0}}, finalLocked:false, finalTimer:0 };
+      window.__battleTickerForceShow = false;
+      _clearDigestTimers(window.__battleDigestState);
+      const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, loopLists:{player:[],enemy:[]}, queues:{player:{queue:[],current:null,timer:0,loopIndex:0},enemy:{queue:[],current:null,timer:0,loopIndex:0}}, finalLocked:false, finalTimer:0 };
       const layer = _ensureLayer();
       if (layer) layer.innerHTML = '';
       _ensureTickerBoards();
       _ensureRewardBoard();
-      _setBoard('player','YOU','READY',0,{ isReady:true, tier:'none', flashMs:10 });
-      _setBoard('enemy','ENEMY','READY',0,{ isReady:true, tier:'none', flashMs:10 });
+      _applyTickerVisibility();
+      if (!_isTickerSuppressed() || window.__winnerGuessMiniGameActive){
+        _setBoard('player','YOU','READY',0,{ isReady:true, tier:'none', flashMs:10 });
+        _setBoard('enemy','ENEMY','READY',0,{ isReady:true, tier:'none', flashMs:10 });
+      }
       const rb = document.getElementById('battleRewardBoard');
       if (rb) rb.classList.remove('show','is-item');
     }catch(_){ }
   };
+
+  window.__setBattleRewardBoardNotice = _setRewardBoardNotice;
 
   window.__notifyBattleItemReward = function(info){
     try{
@@ -6316,8 +6759,28 @@ function cleanUpMixedSkillsExceptOne() {
       let label = itemName || 'ITEM';
       if (skillName) label += '/' + skillName;
       if (Number.isFinite(lv) && lv > 0) label += ' Lv' + Math.floor(lv);
-      st.itemRewards.push({ label, itemName, skillName, level:Number.isFinite(lv) ? Math.floor(lv) : null });
+      st.itemRewards.push({ type:'item', label, summary:label, itemName, skillName, level:Number.isFinite(lv) ? Math.floor(lv) : null, count:1 });
       if (st.itemRewards.length > 8) st.itemRewards = st.itemRewards.slice(-8);
+    }catch(_){ }
+  };
+
+  window.__notifyBattleSpecialSkillReward = function(skill){
+    try{
+      if (!skill) return;
+      const st = _ensureState();
+      const star = _safeName(skill.starRating || '');
+      const rank = _safeName((skill.rarityClass || '').replace('skill-rank-','').toUpperCase() || '-');
+      const lv = Math.max(1, Number(skill.level || 1) || 1);
+      const prob = Math.max(0, Math.floor(Number(skill.activationProb || 0) * 100) || 0);
+      const title = '高ランク特殊スキル入手';
+      const summary = (skill.name || '特殊スキル') + ' Lv' + lv;
+      const html = '<div class="battle-drop-detail-head">【' + _escapeHtml(star) + ' / RANK: ' + _escapeHtml(rank) + '】</div>' +
+        '<div class="battle-drop-detail-main">' + _escapeHtml(skill.name || '特殊スキル') + '（Lv' + lv + '｜発動率: ' + prob + '%）</div>' +
+        '<div class="battle-drop-detail-desc">特殊効果や構成スキルは、所持スキル一覧からも確認できます。</div>';
+      const detailId = _registerRewardDetail({ title:title, html:html, duration:10000 });
+      st.itemRewards.push({ type:'mixed-skill', label:summary, summary:'特殊スキル ' + summary, detailId, count:1 });
+      if (st.itemRewards.length > 8) st.itemRewards = st.itemRewards.slice(-8);
+      _setRewardBoardNotice('DROP', '', true, { html:_renderRewardSummaryHtml(st.itemRewards), compact:true, bit:true });
     }catch(_){ }
   };
 
@@ -6327,6 +6790,7 @@ function cleanUpMixedSkillsExceptOne() {
       if (!line) return;
       const st = _ensureState();
       if (st.finalLocked) return;
+      const suppressed = _isTickerSuppressed() && !window.__winnerGuessMiniGameActive;
 
       let m = line.match(/^(.+?)の(.+?)：(.*)$/);
       if (m){
@@ -6335,15 +6799,20 @@ function cleanUpMixedSkillsExceptOne() {
         const detail = _safeName(m[3]);
         const side = _sideFromName(actorName);
         if (side && skillName){
-          const kind = (/魔道具|アイテム/.test(skillName) || /魔道具|アイテム/.test(detail)) ? 'ITEM' : 'SKILL';
-          let label = skillName;
-          const lvMatch = detail.match(/Lv\s*([0-9]+)/i);
-          if (lvMatch) label += ' Lv' + Math.floor(Number(lvMatch[1]) || 0);
+          const meta = (typeof window.__lookupBattleSkillMeta === 'function')
+            ? window.__lookupBattleSkillMeta(actorName, skillName, detail)
+            : { level:1, itemLevel:0, kind:(/魔道具|アイテム/.test(skillName) || /魔道具|アイテム/.test(detail)) ? 'ITEM' : 'SKILL' };
+          const kind = meta.kind || ((/魔道具|アイテム/.test(skillName) || /魔道具|アイテム/.test(detail)) ? 'ITEM' : 'SKILL');
+          const label = (typeof window.__formatSkillDisplay === 'function')
+            ? window.__formatSkillDisplay({ name: skillName, level: meta.level || 1, itemLevel: meta.itemLevel || 0 })
+            : skillName;
           const key = kind + '::' + skillName;
           if (!st.usage[side][key]) st.usage[side][key] = { kind, label, count:0 };
           st.usage[side][key].count += 1;
           st.usage[side][key].label = label;
-          _enqueue(side, kind, label, st.usage[side][key].count, kind === 'ITEM' ? 'high' : 'normal', key);
+          if (!suppressed || window.__battleTickerForceShow) {
+            _enqueue(side, kind, label, st.usage[side][key].count, (kind === 'ITEM' || (meta.itemLevel||0) > 0) ? 'high' : ((meta.level||1) >= 5000 ? 'mythic' : 'normal'), key);
+          }
         }
         return;
       }
@@ -6356,7 +6825,9 @@ function cleanUpMixedSkillsExceptOne() {
         const key = 'ITEM::' + item + '::' + skill;
         if (!st.usage[side][key]) st.usage[side][key] = { kind:'ITEM', label:item + '/' + skill, count:0 };
         st.usage[side][key].count += 1;
-        _enqueue(side, 'ITEM', st.usage[side][key].label, st.usage[side][key].count, 'high', key);
+        if (!suppressed || window.__battleTickerForceShow) {
+          _enqueue(side, 'ITEM', st.usage[side][key].label, st.usage[side][key].count, 'high', key);
+        }
         return;
       }
 
@@ -6368,7 +6839,9 @@ function cleanUpMixedSkillsExceptOne() {
         const key = 'ITEM::' + item;
         if (!st.usage[side][key]) st.usage[side][key] = { kind:'ITEM', label:item, count:0 };
         st.usage[side][key].count += 1;
-        _enqueue(side, 'ITEM', item, st.usage[side][key].count, 'high', key);
+        if (!suppressed || window.__battleTickerForceShow) {
+          _enqueue(side, 'ITEM', item, st.usage[side][key].count, 'high', key);
+        }
       }
     }catch(_){ }
   };
@@ -6387,31 +6860,107 @@ function cleanUpMixedSkillsExceptOne() {
     }catch(_){ return arr; }
   };
 
+  window.__openBattleRewardDetail = function(detailRef){
+    try{ _openRewardDetail(detailRef); }catch(_){ }
+  };
+
+  window.__openBattleRewardDetailFromInline = function(btnOrPayload){
+    try{
+      if (!btnOrPayload) return;
+      if (typeof btnOrPayload === 'string') {
+        _openRewardDetail(btnOrPayload);
+        return;
+      }
+      const btn = btnOrPayload && btnOrPayload.nodeType === 1 ? btnOrPayload : null;
+      const payload = btn && btn.getAttribute ? (btn.getAttribute('data-detail-payload') || '') : '';
+      const detailId = btn && btn.getAttribute ? (btn.getAttribute('data-detail-id') || '') : '';
+      _openRewardDetail(payload || detailId);
+    }catch(_){ }
+  };
+
+  window.__openBattleHtmlDetail = function(payload){
+    try{
+      if (!payload) return;
+      const detailId = _registerRewardDetail(payload);
+      if (!detailId) return;
+      _openRewardDetail(detailId);
+    }catch(_){ }
+  };
+
   window.__finalizeBattleDigest = function(result){
     try{
       const st = _ensureState();
       if (st.finalLocked) return;
       st.finalLocked = true;
+      _stopWinnerGuessLoops();
       ['player','enemy'].forEach(_clearQueueTimer);
       if (st.finalTimer){ try{ clearTimeout(st.finalTimer); }catch(_){} st.finalTimer = 0; }
+      _applyTickerVisibility();
       const playerWon = !!(result && result.playerWon);
+      const tickerSuppressed = _isTickerSuppressed() && !window.__winnerGuessMiniGameActive;
+      const pendingMs = tickerSuppressed ? 0 : Math.max(0,
+        Number(st.queues && st.queues.player && st.queues.player.current && st.queues.player.current.holdMs || 0) || 0,
+        Number(st.queues && st.queues.enemy && st.queues.enemy.current && st.queues.enemy.current.holdMs || 0) || 0
+      );
+      const RESULT_SETTLE_MS = tickerSuppressed ? 0 : 700;
       st.finalTimer = (window.__uiSetTimeout || window.setTimeout)(function(){
         try{
-          _setBoard('player', 'RESULT', playerWon ? 'WIN' : 'LOSE', 0, { finalState: playerWon ? 'win' : 'lose', flashMs: 1800 });
-          _setBoard('enemy', 'RESULT', playerWon ? 'LOSE' : 'WIN', 0, { finalState: playerWon ? 'lose' : 'win', flashMs: 1800 });
+          if (!tickerSuppressed){
+            _setBoard('player', 'RESULT', playerWon ? 'WIN' : 'LOSE', 0, { finalState: playerWon ? 'win' : 'lose', flashMs: 1800 });
+            _setBoard('enemy', 'RESULT', playerWon ? 'LOSE' : 'WIN', 0, { finalState: playerWon ? 'lose' : 'win', flashMs: 1800 });
+          }
           const rb = _ensureRewardBoard();
           const summary = _rewardSummary();
           if (rb){
             const tt = rb.querySelector('.battle-drop-title');
             const bd = rb.querySelector('.battle-drop-body');
             if (tt) tt.textContent = summary.title;
-            if (bd) bd.textContent = summary.body;
-            rb.classList.remove('is-item','show');
+            if (bd){
+              if (summary.html) bd.innerHTML = summary.html;
+              else bd.textContent = summary.body;
+            }
+            rb.classList.remove('is-item','show','is-compact','is-bit');
             if (summary.isGet) rb.classList.add('is-item');
-            rb.classList.add('show');
+            rb.classList.add('show','is-compact','is-bit');
           }
         }catch(_){ }
-      }, FINAL_DELAY_MS);
+      }, (tickerSuppressed ? 0 : FINAL_DELAY_MS) + Math.min(7000, Math.round(pendingMs * 0.22)) + RESULT_SETTLE_MS);
     }catch(_){ }
   };
 })();
+
+window.addEventListener('click', function(ev){
+  try{
+    const btn = ev && ev.target && ev.target.closest ? ev.target.closest('.battle-drop-detail-btn[data-detail-id]') : null;
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof window.__openBattleRewardDetailFromInline === 'function') {
+      window.__openBattleRewardDetailFromInline(btn);
+    } else if (typeof window.__openBattleRewardDetail === 'function') {
+      window.__openBattleRewardDetail((btn.getAttribute('data-detail-payload') || btn.getAttribute('data-detail-id') || ''));
+    }
+  }catch(_){ }
+}, true);
+
+/* winner guess result visual effect */
+window.showWinnerGuessEffect = function(isCorrect){
+  try{
+    const el=document.getElementById("winnerGuessEffect");
+    if(!el) return;
+    el.className="";
+    el.textContent=isCorrect?"CORRECT!":"MISS!";
+    el.classList.add("show");
+    el.classList.add(isCorrect?"correct":"wrong");
+    setTimeout(()=>{el.classList.remove("show");},900);
+  }catch(e){}
+};
+
+/* optional event hook */
+window.addEventListener("winnerGuessResult",function(e){
+  try{
+    if(e && typeof e.detail?.correct!=="undefined"){
+      window.showWinnerGuessEffect(!!e.detail.correct);
+    }
+  }catch(_){ }
+});

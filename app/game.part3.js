@@ -15,10 +15,20 @@ window.startBattle = function() {
 			return;
 		}
 
+	// 最上位特殊スキル表示中は、次戦を絶対に開始しない
+	try {
+		if (typeof window.__isMixedSkillPopupPauseActive === 'function' && window.__isMixedSkillPopupPauseActive()) {
+			try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(800); }catch(_e){}
+			return;
+		}
+	} catch (_e) {}
+
 	// 既に戦闘処理中なら二重起動しない（AutoBattleのバックログ防止）
 	if (window.__battleInProgress) return;
 	window.__battleInProgress = true;
 
+	try{ window.__battleStartedAsAuto = ((typeof isAutoBattle !== 'undefined') && !!isAutoBattle); }catch(_e){ window.__battleStartedAsAuto = false; }
+	try{ window.__battleRevealEnemySpriteOnce = false; }catch(_e){}
 	// レーダーチャート左右のキャラをピョコン（演出）
 	try{ if (typeof window.__battleRadarSpritesStartBattleAnim === 'function') window.__battleRadarSpritesStartBattleAnim(); }catch(_e){}
 
@@ -318,7 +328,9 @@ window.startBattle = function() {
 			}
 		}catch(_e){}
 		// ここで戻る場合は二重起動ガードを解除しておく（未開始なのにロックされるのを防止）
-		try{ window.__battleInProgress = false; }catch(_e){}
+		try{ window.__battleInProgress = false;
+		try{ window.__battleStartedAsAuto = false; }catch(_e){}
+		try{ window.__battleRevealEnemySpriteOnce = false; }catch(_e){} }catch(_e){}
 		return;
 	}
 
@@ -898,7 +910,7 @@ window.startBattle = function() {
 								opponent.hp = Math.max(0, opponent.hp - counterDamage);
 								log.push(`${displayName(ch.name)}の${eff.skillName}：${displayName(opponent.name)}に${counterDamage}ダメージ（反撃）`);
 								ch.battleStats[eff.skillName] = (ch.battleStats[eff.skillName] || 0) + counterDamage;
-								//console.log(`[Counter] ${displayName(ch.name)}'s ${eff.skillName} dealt ${counterDamage} damage on expiration`);
+								console.log(`[Counter] ${displayName(ch.name)}'s ${eff.skillName} dealt ${counterDamage} damage on expiration`);
 							}
 						}
 						return false;
@@ -990,7 +1002,7 @@ window.startBattle = function() {
 
 						const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
 						if (skill) {
-							log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} を発動！`);
+							log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
 
 							getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
 
@@ -1234,667 +1246,513 @@ window.startBattle = function() {
 		(__endedByTurnLimit && __hpShareDiff >= 0)
 	);
 
-	// バトル結果に応じて、負けた側を右上/左上へ飛ばす（レーダーチャート枠内）
-	try{ if (typeof window.__battleRadarSpritesFinishBattleAnim === 'function') window.__battleRadarSpritesFinishBattleAnim(playerWon); }catch(_e){}
+	const __winnerGuessBattleState = {
+		playerWon,
+		hpDiffRatio: Math.abs((typeof __hpRatioPlayer === 'number' ? __hpRatioPlayer : Math.max(0, player.hp) / Math.max(1, (__battleStartMaxHp_player || player.maxHp || 1))) - (typeof __hpRatioEnemy === 'number' ? __hpRatioEnemy : Math.max(0, enemy.hp) / Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || 1)))),
+		playerHpRatio: (typeof __hpRatioPlayer === 'number' ? __hpRatioPlayer : Math.max(0, player.hp) / Math.max(1, (__battleStartMaxHp_player || player.maxHp || 1))),
+		enemyHpRatio: (typeof __hpRatioEnemy === 'number' ? __hpRatioEnemy : Math.max(0, enemy.hp) / Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || 1))),
+		hpHistorySnapshot: (Array.isArray(typeof hpHistory !== 'undefined' ? hpHistory : null) ? hpHistory.map(function(row){ return Array.isArray(row) ? row.slice() : row; }) : []),
+		enemyRarity: Number(enemy && enemy.rarity || 0),
+		specialMode: window.specialMode,
+		isBossBattle: !!window.isBossBattle,
+		isGrowthBoss: !!window.isGrowthBoss
+	};
 
-	// -------------------------
-	// -------------------------
-	// クラッチ報酬：優劣バー差が小さい「僅差勝利」ほどレア寄り魔道具を付与
-	// - 2%差以内のみ（バー長差）
-	// - 0.5%以内: tier3 / 1%以内: tier2 / 2%以内: tier1
-	// -------------------------
-	if (playerWon && __endedByTurnLimit && typeof __hpShareDiff === 'number') {
-		const absDiff = Math.abs(__hpShareDiff);
-		if (absDiff <= 0.02) {
-			let tier = 1;
-			if (absDiff <= 0.005) tier = 3;
-			else if (absDiff <= 0.01) tier = 2;
-
-			if (typeof grantClutchRewardItem === 'function') {
-				grantClutchRewardItem(tier, absDiff, log);
-			}
-		}
-	}
-
-
-	// 戦闘終了：混合開始時効果を必ずリセット（次戦の開始ログ欠落防止）
-	resetMixedStartAfterBattle(player);
-	resetMixedStartAfterBattle(enemy);
-
-
-	// 戦闘終了：混合開始時効果＆一時ステータスを必ずリセット
-	resetMixedStartAfterBattle(player);
-	resetMixedStartAfterBattle(enemy);
-	// recordHP();
-
-	streakBonus = 1 + currentStreak * 0.01;
-	const effectiveRarity = enemy.rarity * streakBonus;
-
-	let baseRate = 0.1;
-	if (window.specialMode === 'brutal') {
-		baseRate = 0.00003;
-	}
-
-	// 緩やかな減少（下限0.2倍まで）
-	const streakFactor = Math.max(1 - currentStreak * 0.005, 0.2);
-	const rawFinalRate = baseRate * streakFactor;
-	const minGuaranteedRate = 0.005;
-	const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
-
-	// --- Manual boost: Normal mode only (isAutoBattle === false) ---
-	let adjustedFinalRate = finalRate;
-	if (window.specialMode === 'normal') {
-		adjustedFinalRate = Math.min(1, finalRate * 8);
-	}
-
-
-
-	if (!window.isFirstBattle &&
-		playerWon &&
-		window.allowGrowthEvent &&
-		Math.random() < adjustedFinalRate) {
-
-		// 成長選択（自動/手動トグル対応）
-		const __growthOptions = [
-			{ label: "攻撃を上げる", value: 'attack' },
-			{ label: "防御を上げる", value: 'defense' },
-			{ label: "速度を上げる", value: 'speed' },
-			{ label: "HPを上げる", value: 'maxHp' },
-			{ label: `次回成長x${window.getNextGrowthMultiplier()}`, value: 'skip' }
-  
-		];
-		const __onGrowthChosen = (chosen) => {
-			if (chosen === 'skip') {
-				window.skipGrowth();
-			} else {
-				window.chooseGrowth(chosen);
-			}
-
-			//   const logEl = document.getElementById('battleLog');
-			//   logEl.textContent += `\n（連勝数が上がるほど、成長確率は低下します）\n`;
-		
+	const __continueBattleOutcomeResolution = (playerWonResolved) => {
+		const playerWon = !!playerWonResolved;
+		const __winnerGuessReward = (typeof window.__consumeWinnerGuessReward === 'function') ? window.__consumeWinnerGuessReward() : null;
+		const __applyWinnerGuessRewardIfAny = () => {
+			if (!__winnerGuessReward) return;
+			try {
+				window.faceCoins = Number(window.faceCoins || 0) + Number(__winnerGuessReward.gain || 0);
+				if (typeof update魔通貨Display === 'function') update魔通貨Display();
+			} catch(_e){}
+			const __guessLabel = (__winnerGuessReward.guessedSide === 'player') ? displayName(player.name) : displayName(enemy.name);
+			const __correctLabel = playerWon ? displayName(player.name) : displayName(enemy.name);
+			log.push(`【勝者当て】予想:${__guessLabel} / 正解:${__correctLabel} / ${__winnerGuessReward.correct ? '的中' : '外れ'} / 魔通貨 +${__winnerGuessReward.gain}（x${Number(__winnerGuessReward.multiplier || 1).toFixed(2)}）`);
+			try {
+				if (typeof showCustomAlert === 'function') {
+					showCustomAlert(`勝者当て ${__winnerGuessReward.correct ? '的中' : '外れ'}！<br>魔通貨 +${__winnerGuessReward.gain}（x${Number(__winnerGuessReward.multiplier || 1).toFixed(2)}）`, 2400, __winnerGuessReward.correct ? '#173d2a' : '#3a2a19', '#fff');
+				}
+			} catch(_e){}
 		};
 
-		let __growthAuto = false;
-		try{ __growthAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()); }catch(_e){ __growthAuto = false; }
-		if (__growthAuto){
-			// 自動：AutoBattleと同じ重みで選ぶ（ポップアップは出さない）
-			let __picked = null;
-			try{ __picked = window.__autoPickGrowthOptionLikeAutoBattle ? window.__autoPickGrowthOptionLikeAutoBattle(__growthOptions) : null; }catch(_e){ __picked = null; }
-			const __val = (__picked && __picked.value != null) ? String(__picked.value) : 'attack';
-			try{ __onGrowthChosen(__val); }catch(_e){}
-			try{ isWaitingGrowth = false; }catch(_e){}
-		}else{
-			// 手動：UIで選ばせる（選ぶまで戦闘を止める）
-			isWaitingGrowth = true;
-			showEventOptions("成長選択", __growthOptions, __onGrowthChosen);
-		}
-} else if (playerWon) {
-		const logEl = document.getElementById('battleLog');
-		logEl.textContent += `\n今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）\n`;
-	}
+		// バトル結果に応じて、負けた側を右上/左上へ飛ばす（レーダーチャート枠内）
+		try{ if (typeof window.__battleRadarSpritesFinishBattleAnim === 'function') window.__battleRadarSpritesFinishBattleAnim(playerWon); }catch(_e){}
 
-	player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
+		// -------------------------
+		// -------------------------
+		// クラッチ報酬：優劣バー差が小さい「僅差勝利」ほどレア寄り魔道具を付与
+		// - 2%差以内のみ（バー長差）
+		// - 0.5%以内: tier3 / 1%以内: tier2 / 2%以内: tier1
+		// -------------------------
+		if (playerWon && __endedByTurnLimit && typeof __hpShareDiff === 'number') {
+			const absDiff = Math.abs(__hpShareDiff);
+			if (absDiff <= 0.02) {
+				let tier = 1;
+				if (absDiff <= 0.005) tier = 3;
+				else if (absDiff <= 0.01) tier = 2;
 
-
-	if (playerWon) {
-		if (currentStreak > sessionMaxStreak) {
-			sessionMaxStreak = currentStreak;
+				if (typeof grantClutchRewardItem === 'function') {
+					grantClutchRewardItem(tier, absDiff, log);
+				}
+			}
 		}
 
-		// ★ 20戦ごとのボス勝利時：魔道具 or ステータス成長
-		if (window.isBossBattle) {
-			// 強ボス撃破カウント（5体でエンディング）
-			if (window.isStrongBossBattle) {
-				try{
-					let c = Number(window.strongBossKillCount || 0);
-					if(!Number.isFinite(c)) c = 0;
-					const starMax = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
-					c = Math.max(0, Math.min(starMax, Math.floor(c + 1)));
-					window.strongBossKillCount = c;
-					if (typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
-					if (typeof showCustomAlert === 'function') {
-						const starMax2 = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
-						showCustomAlert(`強ボス撃破！ ★ ${c}/${starMax2}`);
-					}
-					const clearKills = Number.isFinite(window.STRONG_BOSS_ENDING_KILLS) ? window.STRONG_BOSS_ENDING_KILLS : 5;
-					if (c >= clearKills && typeof window.triggerEndingSequence === 'function') {
-						window.triggerEndingSequence();
-					}
-				}catch(e){}
+
+		// 戦闘終了：混合開始時効果を必ずリセット（次戦の開始ログ欠落防止）
+		resetMixedStartAfterBattle(player);
+		resetMixedStartAfterBattle(enemy);
+
+
+		// 戦闘終了：混合開始時効果＆一時ステータスを必ずリセット
+		resetMixedStartAfterBattle(player);
+		resetMixedStartAfterBattle(enemy);
+		// recordHP();
+
+		streakBonus = 1 + currentStreak * 0.01;
+		const effectiveRarity = enemy.rarity * streakBonus;
+
+		let baseRate = 0.1;
+		if (window.specialMode === 'brutal') {
+			baseRate = 0.00003;
+		}
+
+		// 緩やかな減少（下限0.2倍まで）
+		const streakFactor = Math.max(1 - currentStreak * 0.005, 0.2);
+		const rawFinalRate = baseRate * streakFactor;
+		const minGuaranteedRate = 0.005;
+		const finalRate = Math.max(rawFinalRate, minGuaranteedRate);
+
+		// --- Manual boost: Normal mode only (isAutoBattle === false) ---
+		let adjustedFinalRate = finalRate;
+		if (window.specialMode === 'normal') {
+			adjustedFinalRate = Math.min(1, finalRate * 8);
+		}
+
+
+
+		if (!window.isFirstBattle &&
+			playerWon &&
+			window.allowGrowthEvent &&
+			Math.random() < adjustedFinalRate) {
+
+			// 成長選択（自動/手動トグル対応）
+			const __growthOptions = [
+				{ label: "攻撃を上げる", value: 'attack' },
+				{ label: "防御を上げる", value: 'defense' },
+				{ label: "速度を上げる", value: 'speed' },
+				{ label: "HPを上げる", value: 'maxHp' },
+				{ label: `次回成長x${window.getNextGrowthMultiplier()}`, value: 'skip' }
+  
+			];
+			const __onGrowthChosen = (chosen) => {
+				if (chosen === 'skip') {
+					window.skipGrowth();
+				} else {
+					window.chooseGrowth(chosen);
+				}
+			};
+
+			let __growthAuto = false;
+			try{ __growthAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()); }catch(_e){ __growthAuto = false; }
+			if (__growthAuto){
+				let __picked = null;
+				try{ __picked = window.__autoPickGrowthOptionLikeAutoBattle ? window.__autoPickGrowthOptionLikeAutoBattle(__growthOptions) : null; }catch(_e){ __picked = null; }
+				const __val = (__picked && __picked.value != null) ? String(__picked.value) : 'attack';
+				try{ __onGrowthChosen(__val); }catch(_e){}
+				try{ isWaitingGrowth = false; }catch(_e){}
+			}else{
+				isWaitingGrowth = true;
+				showEventOptions("成長選択", __growthOptions, __onGrowthChosen);
+			}
+		} else if (playerWon) {
+			const logEl = document.getElementById('battleLog');
+			logEl.textContent += `
+今回は成長なし（確率 ${(effectiveRarity * 0.03 * 100).toFixed(2)}%）
+`;
+		}
+
+		player.tempEffects = { attackMod: 1.0, defenseMod: 1.0, speedMod: 1.0 };
+
+
+		if (playerWon) {
+			if (currentStreak > sessionMaxStreak) {
+				sessionMaxStreak = currentStreak;
 			}
 
-			const bossRoll = Math.random(); // 0〜1
-			const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.75;
-
-			if (bossRoll < bossStatRate) {
-
-				// ---- 10%：ステータス成長ボーナス ----
-				currentStreak += 1;
-
-				const statKeys = ['attack', 'defense', 'speed', 'maxHp'];
-				let numStats = Math.floor(Math.random() * 4) + 1; // 1〜4個
-
-				// 重複なしでランダム選択
-				const pool = statKeys.slice();
-				const chosenStats = [];
-				while (pool.length > 0 && chosenStats.length < numStats) {
-					const idx = Math.floor(Math.random() * pool.length);
-					chosenStats.push(pool.splice(idx, 1)[0]);
+			if (window.isBossBattle) {
+				if (window.isStrongBossBattle) {
+					try{
+						let c = Number(window.strongBossKillCount || 0);
+						if(!Number.isFinite(c)) c = 0;
+						const starMax = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+						c = Math.max(0, Math.min(starMax, Math.floor(c + 1)));
+						window.strongBossKillCount = c;
+						if (typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
+						if (typeof showCustomAlert === 'function') {
+							const starMax2 = Number.isFinite(window.STRONG_BOSS_STAR_MAX) ? window.STRONG_BOSS_STAR_MAX : 100;
+							showCustomAlert(`強ボス撃破！ ★ ${c}/${starMax2}`);
+						}
+						const clearKills = Number.isFinite(window.STRONG_BOSS_ENDING_KILLS) ? window.STRONG_BOSS_ENDING_KILLS : 5;
+						if (c >= clearKills && typeof window.triggerEndingSequence === 'function') {
+							window.triggerEndingSequence();
+						}
+					}catch(e){}
 				}
 
-				// baseStats / growthBonus が無い場合のフォールバック
-				if (!player.baseStats) {
-					player.baseStats = {
-						attack: player.attack || 0,
-						defense: player.defense || 0,
-						speed: player.speed || 0,
-						maxHp: player.maxHp || player.hp || 0
-					};
-				}
-				if (!player.growthBonus) {
-					player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-				}
+				const bossRoll = Math.random();
+				const bossStatRate = (window.specialMode === 'brutal') ? 0.1 : 0.75;
 
-				// 低倍率寄り、たまに超高倍率（10倍は約1/10000）
-				function getBossStatMultiplierByBase(baseValue) {
-					// ボス勝利時の「成長倍率」を、元ステータスの大きさに応じて急激に抑える
-					// 例（目安）:
-					//  - base=1万    -> 約1.20倍
-					//  - base=1000万 -> 約1.03倍
-					//  - base=1億    -> 約1.01倍
-					//
-					// ※超インフレ防止のため、従来の 1.5〜10倍抽選は廃止し、
-					//   「元が大きいほど伸びにくい」倍率に変更しています。
+				if (bossRoll < bossStatRate) {
+					currentStreak += 1;
 
-					const x = Math.max(1, Number(baseValue || 1));
-					const lg = Math.log10(x);
-
-					let target;
-					if (lg <= 4) {
-						target = 1.20;
-					} else if (lg <= 7) {
-						const t = (lg - 4) / 3; // 0..1
-						target = 1.20 + (1.03 - 1.20) * t;
-					} else if (lg <= 8) {
-						const t = (lg - 7) / 1; // 0..1
-						target = 1.03 + (1.01 - 1.03) * t;
-					} else {
-						target = 1.01 - 0.003 * (lg - 8);
-						target = Math.max(1.001, target);
+					const statKeys = ['attack', 'defense', 'speed', 'maxHp'];
+					let numStats = Math.floor(Math.random() * 4) + 1;
+					const pool = statKeys.slice();
+					const chosenStats = [];
+					while (pool.length > 0 && chosenStats.length < numStats) {
+						const idx = Math.floor(Math.random() * pool.length);
+						chosenStats.push(pool.splice(idx, 1)[0]);
 					}
-
-					// ほんの少しだけランダム性（±15%）を付与（体感の揺らぎ用）
-					const add = Math.max(0, target - 1);
-					const jitter = 0.85 + Math.random() * 0.30; // 0.85..1.15
-					const m = 1 + add * jitter;
-
-					return Math.max(1.001, m);
-				}
-
-				const messages = [];
-				chosenStats.forEach(stat => {
-					const baseVal = (player.baseStats[stat] || 0) + (player.growthBonus[stat] || 0);
-					const mult = getBossStatMultiplierByBase(baseVal);
-					const boosted = Math.floor(baseVal * mult);
-					const diff = boosted - baseVal;
-					if (diff <= 0) return;
-
-					player.growthBonus[stat] = (player.growthBonus[stat] || 0) + diff;
-
-					if (stat === 'maxHp') {
-						player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-						player.hp = player.maxHp;
-					} else {
-						player[stat] = player.baseStats[stat] + player.growthBonus[stat];
+					const messages = [];
+					chosenStats.forEach(stat => {
+						const mult = 1 + Math.random() * 0.5;
+						const original = player[stat];
+						const boosted = Math.round(original * mult);
+						const diff = boosted - original;
+						if (player.growthBonus && stat in player.growthBonus) {
+							player.growthBonus[stat] += diff;
+							player[stat] = player.baseStats[stat] + player.growthBonus[stat];
+						} else {
+							player[stat] = player.baseStats[stat] + player.growthBonus[stat];
+						}
+						let jpName = '';
+						if (stat === 'attack') jpName = '攻撃';
+						else if (stat === 'defense') jpName = '防御';
+						else if (stat === 'speed') jpName = '素早さ';
+						else if (stat === 'maxHp') jpName = '最大HP';
+						messages.push(`${jpName} が x${mult.toFixed(2)}（+${diff}）`);
+					});
+					if (messages.length > 0) {
+						const popupMsg = 'ボスの加護！<br>' + messages.join('<br>');
+						showCustomAlert(popupMsg, 4000);
+						log.push('【ボス報酬】' + messages.join(' / '));
 					}
-
-					let jpName = '';
-					if (stat === 'attack') jpName = '攻撃';
-					else if (stat === 'defense') jpName = '防御';
-					else if (stat === 'speed') jpName = '素早さ';
-					else if (stat === 'maxHp') jpName = '最大HP';
-
-					messages.push(`${jpName} が x${mult.toFixed(2)}（+${diff}）`);
-				});
-
-				if (messages.length > 0) {
-					const popupMsg = 'ボスの加護！<br>' + messages.join('<br>');
-					showCustomAlert(popupMsg, 4000);
-					log.push('【ボス報酬】' + messages.join(' / '));
+				} else {
+					currentStreak += 1;
+					if (typeof grantBossRewardItem === 'function') {
+						grantBossRewardItem();
+					}
+					if (window.specialMode === 'brutal') {
+						maybeGainItemMemory();
+						if (!isAutoBattle) {
+							maybeGainItemMemory();
+							if (Math.random() < 0.5) maybeGainItemMemory();
+						}
+					}
 				}
-			} else {
-				// ---- 90%：ボス専用の確定魔道具報酬（モードに関係なく1個以上） ----
-				currentStreak += 1;
-				if (typeof grantBossRewardItem === 'function') {
-					grantBossRewardItem();
-				}
-				// 鬼畜モード時だけ、従来のドロップ抽選も追加で行う
+			}
+			else if (window.isGrowthBoss) {
+				try{
+					const scale = (typeof window.__growthBossScale === 'number') ? window.__growthBossScale : 1;
+					const base = Number(window.GROWTH_BOSS_COIN_BASE || 0);
+					const per = Number(window.GROWTH_BOSS_COIN_PER_SCALE || 0);
+					const cap = Number(window.GROWTH_BOSS_COIN_CAP || 999999);
+					let gain = Math.floor(base + per * Math.max(0, scale));
+					if (!isFinite(gain) || gain < 0) gain = 0;
+					gain = Math.min(cap, gain);
+					window.faceCoins = Number(window.faceCoins || 0) + gain;
+					try { if (typeof update魔通貨Display === 'function') update魔通貨Display(); } catch(_e){}
+					try { if (typeof showCustomAlert === 'function') showCustomAlert(`成長ボス撃破！魔通貨 +${gain}（x${scale.toFixed(2)}）`, 2600); } catch(_e){}
+				}catch(_e){}
+			}
+ 			else {
 				if (window.specialMode === 'brutal') {
+					currentStreak += 1;
 					maybeGainItemMemory();
 					if (!isAutoBattle) {
 						maybeGainItemMemory();
 						if (Math.random() < 0.5) maybeGainItemMemory();
 					}
+				} else {
+					currentStreak += 1;
 				}
 			}
-		}
-		else if (window.isGrowthBoss) {
+
+			__applyWinnerGuessRewardIfAny();
+			let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
+			if (window.growthMultiplier && window.growthMultiplier !== 1) {
+				victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
+			}
+
 			try{
-				const scale = (typeof window.__growthBossScale === 'number') ? window.__growthBossScale : 1;
-				const base = Number(window.GROWTH_BOSS_COIN_BASE || 0);
-				const per = Number(window.GROWTH_BOSS_COIN_PER_SCALE || 0);
-				const cap = Number(window.GROWTH_BOSS_COIN_CAP || 999999);
+				window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(victoryMessage, { autoDismissMs: 1200, fadeOutMs: 400 });
+			}catch(_e){
+				try{ showCustomAlert(victoryMessage, 1200); }catch(_e2){}
+			}
 
-				let gain = Math.floor(base + per * Math.max(0, scale));
-				if (!isFinite(gain) || gain < 0) gain = 0;
-				gain = Math.min(cap, gain);
-
-				window.faceCoins = Number(window.faceCoins || 0) + gain;
-				try { if (typeof update魔通貨Display === 'function') update魔通貨Display(); } catch(_e){}
-				try { if (typeof showCustomAlert === 'function') showCustomAlert(`成長ボス撃破！魔通貨 +${gain}（x${scale.toFixed(2)}）`, 2600); } catch(_e){}
-			}catch(_e){}
-		}
- else {
-			// 通常戦闘時の勝利処理（従来どおり）
-			if (window.specialMode === 'brutal') {
-				currentStreak += 1;
-
-				maybeGainItemMemory();
-
-				// --- Manual bonus in brutal mode: extra drops ---
-				if (!isAutoBattle) {
-					maybeGainItemMemory();
-					if (Math.random() < 0.5) maybeGainItemMemory();
+			log.push(`
+勝者：${displayName(player.name)}
+連勝数：${currentStreak}`);
+			saveBattleLog(log);
+			player.skills.forEach(sk => {
+				const isExempt = window.levelCapExemptSkills.includes(sk.name);
+				let levelUpChance = 0.2;
+				if (sk.level >= 5000) {
+					levelUpChance = 1 / 5000;
+				} else if (sk.level >= 999 && !isExempt) {
+					levelUpChance = 1 / 2500;
 				}
-			} else {
-				currentStreak += 1;
-			}
-		}
-
-		let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
-		if (window.growthMultiplier && window.growthMultiplier !== 1) {
-			victoryMessage += `<br>現在の成長倍率：x${window.growthMultiplier}`;
-		}
-
-		try{
-			window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(victoryMessage, { autoDismissMs: 1200, fadeOutMs: 400 });
-		}catch(_e){
-			try{ showCustomAlert(victoryMessage, 1200); }catch(_e2){}
-		}
-
-		log.push(`\n勝者：${displayName(player.name)}\n連勝数：${currentStreak}`);
-		saveBattleLog(log);
-		// 単発バトル回数ボーナス（処理は一旦無効化／後で再調整）
-
-
-		player.skills.forEach(sk => {
-			const isExempt = window.levelCapExemptSkills.includes(sk.name);
-			let levelUpChance = 0.2; // 通常の確率
-
-			if (sk.level >= 5000) {
-				levelUpChance = 1 / 5000; // Lv5000以上は超低確率
-			} else if (sk.level >= 999 && !isExempt) {
-				levelUpChance = 1 / 2500; // 制限ありスキルは低確率
-			}
-
-			if (Math.random() < levelUpChance) {
-				sk.level++;
-				player.skillMemory[sk.name] = sk.level;
-				log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
-				syncSkillsUI();
-			}
-		});
-
-		// --- startBattle関数（または勝利判定部分）の中に追記 ---
-		// （例）勝利時報酬処理の直後に以下を追加
-		// 最高スコアの合計を取得
-		let totalScore = 0;
-		if (window.maxScores && typeof window.maxScores === 'object') {
-			for (const score of Object.values(window.maxScores)) {
-				if (typeof score === 'number' && score > 0) {
-					totalScore += score;
-				}
-			}
-		}
-
-		// ドロップ確率チェック
-		// ドロップ確率チェック（鬼畜モード限定）
-		if (window.specialMode === 'brutal' && Math.random() < FACE_COIN_DROP_RATE) {
-			// スコアが高いほど平均魔通貨数が増える（最大10枚）
-			const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2);
-			const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1);
-
-			faceCoins += coinGain;
-
-			const coinElem = document.getElementById('faceCoinCount');
-			if (coinElem) coinElem.innerText = faceCoins;
-		}
-
-		updateFaceUI();
-
-
-		// 新スキル習得のチャンス
-		// 敵のRarityに応じたスキル取得確率
-		const rarity = enemy.rarity * (0.02 + currentStreak * 0.002);
-		let skillGainChance = Math.min(1.0, 0.01 * rarity);
-		if (window.specialMode === 'brutal') {
-			skillGainChance = 0.005; // 鬼畜モードで変更する
-		}
-		// log.push(`\n新スキル獲得率（最大5%×Rarity）: ${(skillGainChance * 100).toFixed(1)}%`);
-		if (Math.random() < skillGainChance) {
-			const owned = new Set(player.skills.map(s => s.name));
-			const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
-			if (enemyOwned.length > 0) {
-				const newSkill = enemyOwned[Math.floor(Math.random() * enemyOwned.length)];
-				const savedLv = player.skillMemory[newSkill.name] || 1;
-				player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
-
-
-				onSkillAcquired(newSkill)
-
-				log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
-				showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1000, "#a8ffb0", "#000");
-				if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
+				if (Math.random() < levelUpChance) {
+					sk.level++;
+					player.skillMemory[sk.name] = sk.level;
+					log.push(`スキル熟練: ${sk.name} が Lv${sk.level} にアップ！`);
 					syncSkillsUI();
 				}
+			});
+			let totalScore = 0;
+			if (window.maxScores && typeof window.maxScores === 'object') {
+				for (const score of Object.values(window.maxScores)) {
+					if (typeof score === 'number' && score > 0) {
+						totalScore += score;
+					}
+				}
 			}
-		}
-
-		// Rarity倍率ベースで変数を増やす（超低確率）
-		const chance = enemy.rarity / 100000;
-		if (Math.random() < chance) {
-			if (sslot < 8) {
-				sslot = (sslot || 0) + 1;
-				log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
-				alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
+			if (window.specialMode === 'brutal' && Math.random() < FACE_COIN_DROP_RATE) {
+				const averageCoins = Math.min(10, 1 + (totalScore / 400000) * 2);
+				const coinGain = Math.max(1, Math.floor(Math.random() * averageCoins) + 1);
+				faceCoins += coinGain;
+				const coinElem = document.getElementById('faceCoinCount');
+				if (coinElem) coinElem.innerText = faceCoins;
 			}
-			syncSkillsUI();
+			updateFaceUI();
+			const rarity = enemy.rarity * (0.02 + currentStreak * 0.002);
+			let skillGainChance = Math.min(1.0, 0.01 * rarity);
+			if (window.specialMode === 'brutal') {
+				skillGainChance = 0.005;
+			}
+			if (Math.random() < skillGainChance) {
+				const owned = new Set(player.skills.map(s => s.name));
+				const enemyOwned = enemy.skills.filter(s => !owned.has(s.name));
+				if (enemyOwned.length > 0) {
+					const newSkill = enemyOwned[Math.floor(Math.random() * enemyOwned.length)];
+					const savedLv = player.skillMemory[newSkill.name] || 1;
+					player.skills.push({ name: newSkill.name, level: savedLv, uses: 0 });
+					onSkillAcquired(newSkill)
+					log.push(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`);
+					showCustomAlert(`新スキル習得: ${newSkill.name} (Lv${savedLv}) を習得！`, 1000, "#a8ffb0", "#000");
+					if (!document.getElementById("skillMemoryList").classList.contains("hidden")) {
+						syncSkillsUI();
+					}
+				}
+			}
+			const chance = enemy.rarity / 100000;
+			if (Math.random() < chance) {
+				if (sslot < 8) {
+					sslot = (sslot || 0) + 1;
+					log.push(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
+					alert(`[超低確率]] このキャラのスキルスロットが永久増加！（スキルが先頭からスキルスロット分残ります）現在: ${sslot + 3}`);
+				}
+				syncSkillsUI();
+			}
+			const coinChance = enemy.rarity / 1000;
+			if (Math.random() < coinChance) {
+				const coinGain = Math.floor(Math.random() * 200);
+				window.faceCoins = (window.faceCoins || 0) + coinGain;
+				showCenteredPopup(`[低確率] 魔通貨を${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
+				const coinElem = document.getElementById('faceCoinCount');
+				if (coinElem) coinElem.innerText = window.faceCoins;
+			}
 
-		}
-
-		// --- 超低確率で 魔通貨 入手イベント ---
-		const coinChance = enemy.rarity / 1000;
-		if (Math.random() < coinChance) {
-			const coinGain = Math.floor(Math.random() * 200); // 最大500
-			window.faceCoins = (window.faceCoins || 0) + coinGain;
-
-
-			showCenteredPopup(`[低確率] 魔通貨を${coinGain}枚獲得！（累計：${window.faceCoins}枚）`);
-
-			const coinElem = document.getElementById('faceCoinCount');
-			if (coinElem) coinElem.innerText = window.faceCoins;
-		}
-
-	} else {
-
-		//stopAutoBattle()
-
-		let resetMessage = '';
-		if (window.growthMultiplier !== 1) {
-			resetMessage = `<br>成長倍率リセット：→ x1`;
-		}
-
-		window.growthMultiplier = 1;
-		window.growthSkipCount = 0;
-
-		window.skillDeleteUsesLeft = 3;
-
-		streakBonus = 1;
-
-		cleanUpAllMixedSkills();
-
-		log.push(`\n敗北：${displayName(enemy.name)}に敗北\n連勝数：0`);
-		saveBattleLog(log);
-
-
-
-
-
-
-		// スキル記憶を更新（各スキルの最高Lvを保持）
-		for (const sk of player.skills) {
-			player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
-		}
-
-		rebuildPlayerSkillsFromMemory(player, typeof sslot === 'number' ? sslot : 0);
-
-		//stopAutoBattle();
-
-
-		// --- 敗北後のランダム成長（連勝数 × 敵倍率の切り上げ）---
-		const multiplierInt = Math.max(1, Math.ceil(enemyMultiplier)); // 切り上げ整数（最低1）
-		const growthTotal = Math.max(1, currentStreak * multiplierInt); // 連勝数×倍率（最低1）
-
-		const stats = ["attack", "defense", "speed", "maxHp"];
-		const labels = { attack: "攻撃", defense: "防御", speed: "素早さ", maxHp: "最大HP" };
-		const chosen = stats[Math.floor(Math.random() * stats.length)];
-
-		// ✅ 敗北時のボーナスも「growthBonus」に積む（baseStatsは直接いじらない）
-		// - 勝利時の成長選択と同じ領域に積むことで、セーブ/ロードや表示の整合性を保つ
-		// - baseStats は“素の基礎値”として固定し、敗北ボーナスも含めて growthBonus で表現する
-		if (!player.baseStats || typeof player.baseStats !== 'object') {
-			const gb = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-			player.baseStats = {
-				attack: Math.max(0, Math.floor((Number(player.attack) || 0) - (Number(gb.attack) || 0))),
-				defense: Math.max(0, Math.floor((Number(player.defense) || 0) - (Number(gb.defense) || 0))),
-				speed: Math.max(0, Math.floor((Number(player.speed) || 0) - (Number(gb.speed) || 0))),
-				maxHp: Math.max(0, Math.floor((Number(player.maxHp) || 0) - (Number(gb.maxHp) || 0))),
-			};
-		}
-		// growthBonus を増やす（敗北しても引き継ぐが、baseStatsは固定）
-		if (!player.growthBonus || typeof player.growthBonus !== 'object') {
-			player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-		}
-		if (!Number.isFinite(player.growthBonus[chosen])) player.growthBonus[chosen] = 0;
-		player.growthBonus[chosen] = Math.floor((Number(player.growthBonus[chosen]) || 0) + growthTotal);
-
-		// 表示用の“成長説明”を組み立て（サブタイトルに埋め込む）
-		const growthMsg =
-			`<br><span style="font-size:12px;color:#a8ffb0">` +
-			`<br>${labels[chosen]} +${growthTotal}` +
-			`<br>(連勝 ${currentStreak} × 敵倍率切り上げ ${multiplierInt})</span>`;
-
-		// ステータス再計算（敗北時はHPを満タンにしない仕様は維持）
-		const __oldHp = Number(player.hp) || 0;
-		const gb2 = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
-		player.attack = (Number(player.baseStats.attack) || 0) + (Number(gb2.attack) || 0);
-		player.defense = (Number(player.baseStats.defense) || 0) + (Number(gb2.defense) || 0);
-		player.speed = (Number(player.baseStats.speed) || 0) + (Number(gb2.speed) || 0);
-		player.maxHp = (Number(player.baseStats.maxHp) || 0) + (Number(gb2.maxHp) || 0);
-		player.hp = Math.min(__oldHp, player.maxHp);
-
-		try{ markLocalSaveDirty && markLocalSaveDirty(); }catch(_e){}
-		if (typeof updateStats === "function") updateStats();
-
-		try {
-			window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(
-				`敗北：${displayName(enemy.name)}に敗北<br>` +
-				`最終連勝数：${currentStreak}<br>
+		} else {
+			let resetMessage = '';
+			if (window.growthMultiplier !== 1) {
+				resetMessage = `<br>成長倍率リセット：→ x1`;
+			}
+			window.growthMultiplier = 1;
+			window.growthSkipCount = 0;
+			window.skillDeleteUsesLeft = 3;
+			streakBonus = 1;
+			cleanUpAllMixedSkills();
+			__applyWinnerGuessRewardIfAny();
+			log.push(`
+敗北：${displayName(enemy.name)}に敗北
+連勝数：0`);
+			saveBattleLog(log);
+			for (const sk of player.skills) {
+				player.skillMemory[sk.name] = Math.max(sk.level, player.skillMemory[sk.name] || 1);
+			}
+			rebuildPlayerSkillsFromMemory(player, typeof sslot === 'number' ? sslot : 0);
+			const multiplierInt = Math.max(1, Math.ceil(enemyMultiplier));
+			const growthTotal = Math.max(1, currentStreak * multiplierInt);
+			const stats = ["attack", "defense", "speed", "maxHp"];
+			const labels = { attack: "攻撃", defense: "防御", speed: "素早さ", maxHp: "最大HP" };
+			const chosen = stats[Math.floor(Math.random() * stats.length)];
+			if (!player.baseStats || typeof player.baseStats !== 'object') {
+				const gb = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+				player.baseStats = {
+					attack: Math.max(0, Math.floor((Number(player.attack) || 0) - (Number(gb.attack) || 0))),
+					defense: Math.max(0, Math.floor((Number(player.defense) || 0) - (Number(gb.defense) || 0))),
+					speed: Math.max(0, Math.floor((Number(player.speed) || 0) - (Number(gb.speed) || 0))),
+					maxHp: Math.max(0, Math.floor((Number(player.maxHp) || 0) - (Number(gb.maxHp) || 0))),
+				};
+			}
+			if (!player.growthBonus || typeof player.growthBonus !== 'object') {
+				player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+			}
+			if (!Number.isFinite(player.growthBonus[chosen])) player.growthBonus[chosen] = 0;
+			player.growthBonus[chosen] = Math.floor((Number(player.growthBonus[chosen]) || 0) + growthTotal);
+			const growthMsg =
+				`<br><span style="font-size:12px;color:#a8ffb0">` +
+				`<br>${labels[chosen]} +${growthTotal}` +
+				`<br>(連勝 ${currentStreak} × 敵倍率切り上げ ${multiplierInt})</span>`;
+			const __oldHp = Number(player.hp) || 0;
+			const gb2 = player.growthBonus || { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+			player.attack = (Number(player.baseStats.attack) || 0) + (Number(gb2.attack) || 0);
+			player.defense = (Number(player.baseStats.defense) || 0) + (Number(gb2.defense) || 0);
+			player.speed = (Number(player.baseStats.speed) || 0) + (Number(gb2.speed) || 0);
+			player.maxHp = (Number(player.baseStats.maxHp) || 0) + (Number(gb2.maxHp) || 0);
+			player.hp = Math.min(__oldHp, player.maxHp);
+			try{ markLocalSaveDirty && markLocalSaveDirty(); }catch(_e){}
+			if (typeof updateStats === "function") updateStats();
+			try {
+				window.__showBattleDockResultWindow && window.__showBattleDockResultWindow(
+					`敗北：${displayName(enemy.name)}に敗北<br>` +
+					`最終連勝数：${currentStreak}<br>
 	敵倍率: ${enemyMultiplier.toFixed(3)}
 	
 	${resetMessage}` +
-				`${growthMsg}` +
-				`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`,
-				{ autoDismissMs: 1500, fadeOutMs: 400 }
-			);
-		} catch (e) {
-			try { console.warn('[BattleDockResultWindow] failed', e); } catch (_e) {}
-		}
-
-		//showSubtitle(
-		//  `敗北：${displayName(enemy.name)}に敗北<br>最終連勝数：${currentStreak}${resetMessage}<br><span style="font-size:12px;">※スキルは記憶に基づいて再構成されます</span>`,
-		//  2500
-		//);
-		updateSkillOverlay();
-		syncSkillsUI();
-		currentStreak = 0;
-	}
-
-	
-	// 最終HP表示
-	log.push(`\n${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
-	log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
-
-	// 戦闘終了時に残る強化・弱体を解除
-
-	player.effects.forEach(eff => {
-		if (eff.type === 'buff') player[eff.stat] = eff.original;
-		if (eff.type === 'debuff') player[eff.stat] = eff.original;
-		if (eff.type === 'berserk') {
-			player.attack = eff.originalAttack;
-			player.defense = eff.originalDefense;
-		}
-	});
-	player.effects = [];
-	clearPassiveStatBuffs(player);
-
-	if (player && player.baseStats && player.growthBonus) {
-		player.attack = player.baseStats.attack + player.growthBonus.attack;
-		player.defense = player.baseStats.defense + player.growthBonus.defense;
-		player.speed = player.baseStats.speed + player.growthBonus.speed;
-		player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
-
-
-
-		// HPは勝利時のみ最大に回復。敗北時は回復しない
-		if (playerWon) {
-			player.hp = player.maxHp;
-		} else {
-			player.hp = Math.max(0, player.hp); // 敗北後の残りHPがマイナスなら0に
-		}
-	}
-
-
-
-	// ダメージ内訳表示
-	//log.push(`\n${displayName(player.name)} のダメージ内訳`);
-	//for (let key in player.battleStats) {
-	// log.push(`${key}：${player.battleStats[key]}`);}
-
-	//if (player.hp > player.maxHp) player.hp = player.maxHp;
-
-	// 現在の連勝数をログに追加
-	log.push(`現在の連勝数: ${currentStreak}`);
-	// 最大連勝数（セッション内）をログに追加
-	log.push(`最大連勝数: ${sessionMaxStreak}`);
-
-	const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
-	if (currentStreak > maxStreak) {
-		localStorage.setItem('maxStreak', currentStreak);
-	}
-
-	try{ if (typeof window.__finalizeBattleDigest === 'function') window.__finalizeBattleDigest({ playerWon }); }catch(_e){}
-
-	maybeTriggerEvent();
-
-	displayBattleLogWithoutAsync(log);
-
-	drawHPGraph();
-	updateStats();
-
-
-	window.returnToTitleScreen = function() {
-		// 画面の各部品を取得
-		const gameScreen = document.getElementById('gameScreen');
-		const titleScreen = document.getElementById('titleScreen');
-		const finalResults = document.getElementById('finalResults');
-		const battleArea = document.getElementById('battleArea');
-		const remainDisplay = document.getElementById('remainingBattlesDisplay');
-		const streakDisplay = document.getElementById('currentStreakDisplay');
-
-		// 表示切り替え
-		if (gameScreen) gameScreen.classList.add('hidden');
-		if (titleScreen) titleScreen.classList.remove('hidden');
-		try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_e) {}
-		try { window.resetTitleStartPanel && window.resetTitleStartPanel(); } catch (_e) {}
-		if (finalResults) finalResults.style.display = 'none';
-		if (battleArea) battleArea.classList.add('hidden');
-		if (remainDisplay) remainDisplay.style.display = 'none';
-		if (streakDisplay) streakDisplay.textContent = '';
-
-		document.getElementById('loadGameBtn')?.classList.add('hidden');
-		document.getElementById('loadSection')?.classList.add('hidden');
-
-		// ゲーム内変数を初期化（window を通して安全に）
-		window.returnToTitleScreen = function() {
-			// ...（既存のタイトル画面表示切替処理）...
-			if ('player' in window) window.player = null;
-			if ('enemy' in window) window.enemy = null;
-			if ('currentStreak' in window) window.currentStreak = 0;
-			if ('sessionMaxStreak' in window) window.sessionMaxStreak = 0;
-			if ('remainingBattles' in window) window.remainingBattles = null;
-			if ('targetBattles' in window) window.targetBattles = null;
-			if ('initialAndSlotSkills' in window) window.initialAndSlotSkills = [];
-			if ('isLoadedFromSave' in window) window.isLoadedFromSave = false; // セーブフラグリセット
-		};
-	};
-	// （勝敗処理・ログ更新・updateStats()等の直後）
-	try {
-		// ★追加: 戦闘回数のカウントダウンと結果表示
-		if (window.remainingBattles != null) {
-			window.remainingBattles--;
-			const remainDisplay = document.getElementById('remainingBattlesDisplay');
-			if (window.remainingBattles > 0) {
-				// 残り回数がある場合：表示を更新
-				if (remainDisplay) {
-					updateRemainingBattleDisplay();
-				}
-			} else if (window.remainingBattles <= 0) {
-				// 戦闘回数が0になった場合：結果を集計して表示
-				window.remainingBattles = 0;
-				if (remainDisplay) {
-					remainDisplay.style.display = 'none';
-				}
-				// 最大連勝数・最終ステータスを取得
-				const maxStreak = window.maxStreak || 0;
-				const finalAtk = player.attack || 0;
-				const finalDef = player.defense || 0;
-				const finalSpd = player.speed || 0;
-				const finalHP = player.maxHp || 0;
-				// 所持魔道具の総レアリティを計算（ドロップ率の逆数の合計）
-				let totalRarity = 0;
-				if (player.itemMemory && player.itemMemory.length > 0) {
-					for (const item of player.itemMemory) {
-						const adjDef = itemAdjectives.find(a => a.word === item.adjective);
-						const nounDef = itemNouns.find(n => n.word === item.noun);
-						const colorDef = itemColors.find(c => c.word === item.color);
-						let dropRate = 1;
-						if (colorDef && colorDef.dropRateMultiplier) dropRate *= colorDef.dropRateMultiplier;
-						if (adjDef && adjDef.dropRate) dropRate *= adjDef.dropRate;
-						if (nounDef && nounDef.dropRateMultiplier) dropRate *= nounDef.dropRateMultiplier;
-						if (dropRate < 1e-9) dropRate = 1e-9; // ゼロ除算防止
-						totalRarity += (1 / dropRate);
-					}
-				}
-				// 合計スコアを算出（攻撃力・防御力・素早さ・最大HP・総レアリティの合計）
-				const totalScore = Math.round(
-					(finalAtk + finalDef + finalSpd + finalHP * 0.1 + totalRarity) * sessionMaxStreak
+					`${growthMsg}` +
+					`<br><span style="font-size:12px;">※スキルは記憶に基づいて<br>再構成されます</span>`,
+					{ autoDismissMs: 1500, fadeOutMs: 400 }
 				);
-				// レアリティ合計は小数点2桁まで表示（整数の場合は整数表示）
-				let rarityStr = (Math.round(totalRarity * 100) / 100).toFixed(2);
-				if (rarityStr.endsWith('.00')) {
-					rarityStr = parseInt(rarityStr, 10).toString();
-				}
-				// 結果表示ボックスに内容を挿入して表示
-				const finalResEl = document.getElementById('finalResults');
+			} catch (e) {
+				try { console.warn('[BattleDockResultWindow] failed', e); } catch (_e) {}
+			}
+			updateSkillOverlay();
+			syncSkillsUI();
+			currentStreak = 0;
+		}
 
-				if (finalResEl) {
-					const maxStreak = sessionMaxStreak || 0;
+		log.push(`
+${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
+		log.push(`${displayName(enemy.name)} 残HP: ${enemy.hp}/${enemy.maxHp}`);
 
-					// ★変更: 設定戦闘回数で決着がつかない場合は「残りHP割合」で勝敗を判定
-					//   - 同率はプレイヤー勝ち
-					const pMax = Math.max(1, (player && (player.maxHp || player.hp)) || 1);
-					const eMax = Math.max(1, (enemy && (enemy.maxHp || enemy.hp)) || 1);
-					const pRatio = Math.max(0, Math.min(1, (player && (player.hp ?? 0)) / pMax));
-					const eRatio = Math.max(0, Math.min(1, (enemy && (enemy.hp ?? 0)) / eMax));
-					const playerWinsByRatio = (pRatio >= eRatio);
+		player.effects.forEach(eff => {
+			if (eff.type === 'buff') player[eff.stat] = eff.original;
+			if (eff.type === 'debuff') player[eff.stat] = eff.original;
+			if (eff.type === 'berserk') {
+				player.attack = eff.originalAttack;
+				player.defense = eff.originalDefense;
+			}
+		});
+		player.effects = [];
+		clearPassiveStatBuffs(player);
 
-					const finalOutcomeTitle = playerWinsByRatio ?
-						`${displayName(player.name)} の勝利！（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）` :
-						`${displayName(player.name)} は敗北…（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）`;
+		if (player && player.baseStats && player.growthBonus) {
+			player.attack = player.baseStats.attack + player.growthBonus.attack;
+			player.defense = player.baseStats.defense + player.growthBonus.defense;
+			player.speed = player.baseStats.speed + player.growthBonus.speed;
+			player.maxHp = player.baseStats.maxHp + player.growthBonus.maxHp;
+			if (playerWon) {
+				player.hp = player.maxHp;
+			} else {
+				player.hp = Math.max(0, player.hp);
+			}
+		}
 
-					finalResEl.innerHTML = `<div class="final-death-title">${finalOutcomeTitle}</div>
+		log.push(`現在の連勝数: ${currentStreak}`);
+		log.push(`最大連勝数: ${sessionMaxStreak}`);
+
+		const maxStreak = parseInt(localStorage.getItem('maxStreak') || '0');
+		if (currentStreak > maxStreak) {
+			localStorage.setItem('maxStreak', currentStreak);
+		}
+
+		try{ if (typeof window.__finalizeBattleDigest === 'function') window.__finalizeBattleDigest({ playerWon }); }catch(_e){}
+		maybeTriggerEvent();
+		displayBattleLogWithoutAsync(log);
+		drawHPGraph();
+		updateStats();
+
+		window.returnToTitleScreen = function() {
+			const gameScreen = document.getElementById('gameScreen');
+			const titleScreen = document.getElementById('titleScreen');
+			const finalResults = document.getElementById('finalResults');
+			const battleArea = document.getElementById('battleArea');
+			const remainDisplay = document.getElementById('remainingBattlesDisplay');
+			const streakDisplay = document.getElementById('currentStreakDisplay');
+			if (gameScreen) gameScreen.classList.add('hidden');
+			if (titleScreen) titleScreen.classList.remove('hidden');
+			try { window.resetTitleLoadPanel && window.resetTitleLoadPanel(); } catch (_e) {}
+			try { window.resetTitleStartPanel && window.resetTitleStartPanel(); } catch (_e) {}
+			if (finalResults) finalResults.style.display = 'none';
+			if (battleArea) battleArea.classList.add('hidden');
+			if (remainDisplay) remainDisplay.style.display = 'none';
+			if (streakDisplay) streakDisplay.textContent = '';
+			document.getElementById('loadGameBtn')?.classList.add('hidden');
+			document.getElementById('loadSection')?.classList.add('hidden');
+			window.returnToTitleScreen = function() {
+				if ('player' in window) window.player = null;
+				if ('enemy' in window) window.enemy = null;
+				if ('currentStreak' in window) window.currentStreak = 0;
+				if ('sessionMaxStreak' in window) window.sessionMaxStreak = 0;
+				if ('remainingBattles' in window) window.remainingBattles = null;
+				if ('targetBattles' in window) window.targetBattles = null;
+				if ('initialAndSlotSkills' in window) window.initialAndSlotSkills = [];
+				if ('isLoadedFromSave' in window) window.isLoadedFromSave = false;
+			};
+		};
+		try {
+			if (window.remainingBattles != null) {
+				window.remainingBattles--;
+				const remainDisplay = document.getElementById('remainingBattlesDisplay');
+				if (window.remainingBattles > 0) {
+					if (remainDisplay) {
+						updateRemainingBattleDisplay();
+					}
+				} else if (window.remainingBattles <= 0) {
+					window.remainingBattles = 0;
+					if (remainDisplay) {
+						remainDisplay.style.display = 'none';
+					}
+					const maxStreak = window.maxStreak || 0;
+					const finalAtk = player.attack || 0;
+					const finalDef = player.defense || 0;
+					const finalSpd = player.speed || 0;
+					const finalHP = player.maxHp || 0;
+					let totalRarity = 0;
+					if (player.itemMemory && player.itemMemory.length > 0) {
+						for (const item of player.itemMemory) {
+							const adjDef = itemAdjectives.find(a => a.word === item.adjective);
+							const nounDef = itemNouns.find(n => n.word === item.noun);
+							const colorDef = itemColors.find(c => c.word === item.color);
+							let dropRate = 1;
+							if (colorDef && colorDef.dropRateMultiplier) dropRate *= colorDef.dropRateMultiplier;
+							if (adjDef && adjDef.dropRate) dropRate *= adjDef.dropRate;
+							if (nounDef && nounDef.dropRateMultiplier) dropRate *= nounDef.dropRateMultiplier;
+							if (dropRate < 1e-9) dropRate = 1e-9;
+							totalRarity += (1 / dropRate);
+						}
+					}
+					const totalScore = Math.round((finalAtk + finalDef + finalSpd + finalHP * 0.1 + totalRarity) * sessionMaxStreak);
+					let rarityStr = (Math.round(totalRarity * 100) / 100).toFixed(2);
+					if (rarityStr.endsWith('.00')) {
+						rarityStr = parseInt(rarityStr, 10).toString();
+					}
+					const finalResEl = document.getElementById('finalResults');
+					if (finalResEl) {
+						const maxStreak = sessionMaxStreak || 0;
+						const pMax = Math.max(1, (player && (player.maxHp || player.hp)) || 1);
+						const eMax = Math.max(1, (enemy && (enemy.maxHp || enemy.hp)) || 1);
+						const pRatio = Math.max(0, Math.min(1, (player && (player.hp ?? 0)) / pMax));
+						const eRatio = Math.max(0, Math.min(1, (enemy && (enemy.hp ?? 0)) / eMax));
+						const playerWinsByRatio = (pRatio >= eRatio);
+						const finalOutcomeTitle = playerWinsByRatio ?
+							`${displayName(player.name)} の勝利！（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）` :
+							`${displayName(player.name)} は敗北…（残りHP割合 ${Math.round(pRatio*100)}% vs ${Math.round(eRatio*100)}%）`;
+						finalResEl.innerHTML = `<div class="final-death-title">${finalOutcomeTitle}</div>
 
 <div class="final-stats">
   <p>設定戦闘回数: ${window.targetBattles || "未設定"}</p>
@@ -1946,76 +1804,78 @@ window.startBattle = function() {
     cursor: pointer;
 		
 `;
-
-					// スコア記録（無制限を除く）
-					const validTargets = [100, 200, 500, 1000, 5000, 10000];
-					const target = Number(window.targetBattles);
-					if (validTargets.includes(target)) {
-						if (!window.maxScores) window.maxScores = {};
-						const prev = window.maxScores[target] ?? null;
-						if (prev === null || totalScore > prev) {
-							window.maxScores[target] = totalScore;
-							if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+						const validTargets = [100, 200, 500, 1000, 5000, 10000];
+						const target = Number(window.targetBattles);
+						if (validTargets.includes(target)) {
+							if (!window.maxScores) window.maxScores = {};
+							const prev = window.maxScores[target] ?? null;
+							if (prev === null || totalScore > prev) {
+								window.maxScores[target] = totalScore;
+								if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+							}
 						}
+						finalResEl.style.display = 'block';
+						window.targetBattles = null;
+						window.remainingBattles = null;
+						document.getElementById('remainingBattlesDisplay').style.display = 'none';
+						finalResEl.onclick = () => {
+							finalResEl.style.display = 'none';
+							battleBtn.classList.add("hidden");
+						};
 					}
-
-					finalResEl.style.display = 'block';
-
-
-					window.targetBattles = null;
-					window.remainingBattles = null;
-					document.getElementById('remainingBattlesDisplay').style.display = 'none';
-
-
-					finalResEl.onclick = () => {
-						finalResEl.style.display = 'none';
-						battleBtn.classList.add("hidden");
-
-
-
-
-
-					};
+					if (typeof stopAutoBattle === 'function') stopAutoBattle();
+					(function() { var onceBtn = document.getElementById('startBattleOnceBtn'); if (onceBtn) onceBtn.disabled = true; })();
 				}
-				// 自動戦闘を停止し、戦闘ボタンを無効化
-				if (typeof stopAutoBattle === 'function') stopAutoBattle();
-				(function() { var onceBtn = document.getElementById('startBattleOnceBtn'); if (onceBtn) onceBtn.disabled = true; })();
 			}
-		}
-
-		// ★自動保存（10戦ごと）
-		try { if (typeof window.maybeAutoLocalSave === 'function') window.maybeAutoLocalSave(); } catch (_) {}
-
-		// 20戦ごとにオートバトルを停止
-		try {
-			if (typeof window.battlesPlayed === 'number' &&
-				window.battlesPlayed > 0 &&
-				window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
-				typeof stopAutoBattle === 'function') {
-				try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(650); }catch(_e){}
-			stopAutoBattle();
+			try { if (typeof window.maybeAutoLocalSave === 'function') window.maybeAutoLocalSave(); } catch (_) {}
+			try {
+				if (typeof window.battlesPlayed === 'number' &&
+					window.battlesPlayed > 0 &&
+					window.battlesPlayed % window.BOSS_BATTLE_INTERVAL === 0 &&
+					typeof stopAutoBattle === 'function') {
+					try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(650); }catch(_e){}
+					stopAutoBattle();
+				}
+			} catch (e2) {
+				console.warn('auto battle stop (20-battle chunk) failed', e2);
 			}
-		} catch (e2) {
-			console.warn('auto battle stop (20-battle chunk) failed', e2);
+		} catch (e) {
 		}
-		// ★追加ここまで
-	} catch (e) {
-		// （エラーハンドリング）
+		syncSkillsUI();
+		try {} catch (error) {}
+		try{ if (typeof window.__cleanupWinnerGuessMiniGame === 'function') window.__cleanupWinnerGuessMiniGame(); }catch(_e){}
+		window.__battleVisualTracking = false;
+		window.__battleInProgress = false;
+		try{ window.__battleStartedAsAuto = false; }catch(_e){}
+		try{ window.__battleRevealEnemySpriteOnce = false; }catch(_e){}
+	};
+
+	let __winnerGuessDeferred = false;
+	try {
+		if (typeof window.__maybeStartWinnerGuessMiniGame === 'function' && window.__maybeStartWinnerGuessMiniGame(__winnerGuessBattleState)) {
+			__winnerGuessDeferred = true;
+			try{ if (typeof showCustomAlert === 'function') showCustomAlert('勝者当てミニゲーム開始：画像を隠し、前半ログだけで予想します', 1700, '#1f2430', '#fff', true); }catch(_e){}
+			window.__winnerGuessPendingResolver = function(playerWonResolved){
+				try { __continueBattleOutcomeResolution(!!playerWonResolved); } catch (e) {
+					console.error('[winnerGuessMiniGame] resolution failed', e);
+					try{ if (typeof window.__cleanupWinnerGuessMiniGame === 'function') window.__cleanupWinnerGuessMiniGame(); }catch(_e){}
+					try{ window.__battleVisualTracking = false; }catch(_e){}
+					try{ window.__battleInProgress = false; }catch(_e){}
+				}
+			};
+		}
+	} catch(_e){}
+	if (!__winnerGuessDeferred) {
+		__continueBattleOutcomeResolution(playerWon);
 	}
-
-	syncSkillsUI();
-
-	try {} catch (error) {}
-
-	// --- 戦闘処理終了：次の戦闘に備えてフラグを戻す ---
-	window.__battleVisualTracking = false;
-	window.__battleInProgress = false;
 	} catch (e) {
 		console.error('[startBattle] failed', e);
 		try{ console.error('[startBattle] message', (e && e.message) ? e.message : String(e)); }catch(_e2){}
 		try{ if (e && e.stack) console.error('[startBattle] stack', e.stack); }catch(_e2){}
 		try{ window.__battleVisualTracking = false; }catch(_e){}
 		try{ window.__battleInProgress = false; }catch(_e){}
+		try{ window.__battleStartedAsAuto = false; }catch(_e){}
+		try{ window.__battleRevealEnemySpriteOnce = false; }catch(_e){}
 		try{ if (typeof showCustomAlert === 'function') showCustomAlert('戦闘開始に失敗しました（再読み込み or コンソール確認）', 3200); }catch(_e){}
 	}
 };
@@ -2090,7 +1950,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (Number.isFinite(n) && n > 0) __battleStartBlockUntil = Date.now() + n;
 	};
 	battleBtn.addEventListener('click', (e) => {
-		if (__suppressBattleClickOnce || (Date.now() < __battleStartBlockUntil)) {
+		const mixedPopupPaused = (typeof window.__isMixedSkillPopupPauseActive === 'function') && window.__isMixedSkillPopupPauseActive();
+		if (__suppressBattleClickOnce || (Date.now() < __battleStartBlockUntil) || mixedPopupPaused) {
 			try { if (e && e.preventDefault) e.preventDefault(); } catch(_e){}
 			try { if (e && e.stopImmediatePropagation) e.stopImmediatePropagation(); } catch(_e){}
 			try { if (e && e.stopPropagation) e.stopPropagation(); } catch(_e){}
@@ -2107,6 +1968,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const tick = () => {
 			if (!isAutoBattle) { battleInterval = null; return; }
+
+			// 最上位特殊スキルの表示に入ったら、その場で完全停止する
+			try {
+				if (typeof window.__isMixedSkillPopupPauseActive === 'function' && window.__isMixedSkillPopupPauseActive()) {
+					try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(1000); }catch(_e){}
+					try{ if (typeof stopAutoBattle === 'function') stopAutoBattle(); }catch(_e){}
+					try{ isAutoBattle = false; }catch(_e){}
+					battleInterval = null;
+					return;
+				}
+			} catch (_e) {}
 
 			// 「前回の戦闘が終わる前に次を予約し続ける」ことが重くなる主因なので、
 			// ここで必ず “前回が終わってから次” にする（バックログを作らない）
@@ -2134,6 +2006,21 @@ document.addEventListener('DOMContentLoaded', () => {
 		isAutoBattle = false; // ← 長押し終了
 		try { clearTimeout(battleInterval); } catch (_) {}
 		battleInterval = null;
+		try{
+			if (window.__battleInProgress) {
+				window.__battleRevealEnemySpriteOnce = true;
+				window.__battleStartedAsAuto = false;
+				window.__battleTickerForceShow = true;
+				if (typeof window.__battleDigestForceShowTickers === 'function') {
+					window.__battleDigestForceShowTickers();
+					(window.__battleSetTimeout || window.setTimeout)(() => { try{ window.__battleDigestForceShowTickers(); }catch(_e){} }, 30);
+					(window.__battleSetTimeout || window.setTimeout)(() => { try{ window.__battleDigestForceShowTickers(); }catch(_e){} }, 120);
+				}
+				if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({ forceRefresh:true, showEnemy:true });
+			} else {
+				window.__battleTickerForceShow = false;
+			}
+		}catch(_e){}
 		updateStats(); // ボタンを離したときに最新情報を描画
 	}
 	window.stopAutoBattle = stopAutoBattle;
