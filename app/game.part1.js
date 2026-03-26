@@ -5329,7 +5329,11 @@ window.__battleRadarSpritesStartBattleAnim = function(){
 			const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 			const endsAt = (typeof window.__battleRadarSpritePreAnimEndsAt === 'number') ? window.__battleRadarSpritePreAnimEndsAt : now;
 
-			const delay = Math.max(0, endsAt - now) + 980; // 余韻を作ってからゆっくり消す
+			const isLargeBossFace = !!(window.isBossBattle || window.isGrowthBoss || window.isStrongBossBattle);
+			const resultReadyDelay = Math.max(0, endsAt - now) + (isLargeBossFace ? 1480 : 1180);
+			const delay = resultReadyDelay + (isLargeBossFace ? 860 : 640); // WIN/LOSE を見せる余韻を確保してから敗者をゆっくり消す
+			window.__battleRadarResultReadyAt = Math.max(Number(window.__battleRadarResultReadyAt || 0) || 0, now + resultReadyDelay);
+			window.__battleRadarLoserFadeStartsAt = Math.max(Number(window.__battleRadarLoserFadeStartsAt || 0) || 0, now + delay);
 
 			const loserIsPlayer = !playerWon;
 			const loserEl = loserIsPlayer ? pEl : eEl;
@@ -5360,11 +5364,12 @@ window.__battleRadarSpritesStartBattleAnim = function(){
 				loserEl.animate(
 					[
 						{ transform: 'translateY(-50%) translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1, offset:0 },
-						{ transform: 'translateY(-50%) translate('+(dx*0.18).toFixed(1)+'px,'+(dy*0.18-4).toFixed(1)+'px) rotate(36deg) scale(0.995)', opacity: 1, offset:0.22 },
-						{ transform: 'translateY(-50%) translate('+(dx*0.52).toFixed(1)+'px,'+(dy*0.52-14).toFixed(1)+'px) rotate(180deg) scale(0.96)', opacity: 0.86, offset:0.68 },
-						{ transform: 'translateY(-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate(420deg) scale(0.90)', opacity: 0.0, offset:1 }
+						{ transform: 'translateY(-50%) translate('+(dx*0.12).toFixed(1)+'px,'+(dy*0.12-2).toFixed(1)+'px) rotate(18deg) scale(1.0)', opacity: 1, offset:0.18 },
+						{ transform: 'translateY(-50%) translate('+(dx*0.34).toFixed(1)+'px,'+(dy*0.34-8).toFixed(1)+'px) rotate(92deg) scale(0.985)', opacity: 0.98, offset:0.48 },
+						{ transform: 'translateY(-50%) translate('+(dx*0.64).toFixed(1)+'px,'+(dy*0.64-18).toFixed(1)+'px) rotate(210deg) scale(0.95)', opacity: 0.72, offset:0.82 },
+						{ transform: 'translateY(-50%) translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) rotate(420deg) scale(0.88)', opacity: 0.0, offset:1 }
 					],
-					{ duration: 1480, easing: 'cubic-bezier(0.16,0.84,0.2,1)', delay, fill: 'forwards' }
+					{ duration: isLargeBossFace ? 1760 : 1560, easing: 'cubic-bezier(0.16,0.84,0.2,1)', delay, fill: 'forwards' }
 				);
 			}catch(_){}
 
@@ -6734,6 +6739,8 @@ function cleanUpMixedSkillsExceptOne() {
       window.__battleTickerForceShow = false;
       _clearDigestTimers(window.__battleDigestState);
       const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, loopLists:{player:[],enemy:[]}, queues:{player:{queue:[],current:null,timer:0,loopIndex:0},enemy:{queue:[],current:null,timer:0,loopIndex:0}}, finalLocked:false, finalTimer:0 };
+      window.__battleRadarResultReadyAt = 0;
+      window.__battleRadarLoserFadeStartsAt = 0;
       const layer = _ensureLayer();
       if (layer) layer.innerHTML = '';
       _ensureTickerBoards();
@@ -6776,7 +6783,7 @@ function cleanUpMixedSkillsExceptOne() {
       const summary = (skill.name || '特殊スキル') + ' Lv' + lv;
       const html = '<div class="battle-drop-detail-head">【' + _escapeHtml(star) + ' / RANK: ' + _escapeHtml(rank) + '】</div>' +
         '<div class="battle-drop-detail-main">' + _escapeHtml(skill.name || '特殊スキル') + '（Lv' + lv + '｜発動率: ' + prob + '%）</div>' +
-        '<div class="battle-drop-detail-desc">特殊効果や構成スキルは、所持スキル一覧からも確認できます。</div>';
+        '<div class="battle-drop-detail-desc">詳細は、所持スキル一覧からも確認できます。</div>';
       const detailId = _registerRewardDetail({ title:title, html:html, duration:10000 });
       st.itemRewards.push({ type:'mixed-skill', label:summary, summary:'特殊スキル ' + summary, detailId, count:1 });
       if (st.itemRewards.length > 8) st.itemRewards = st.itemRewards.slice(-8);
@@ -6903,6 +6910,9 @@ function cleanUpMixedSkillsExceptOne() {
         Number(st.queues && st.queues.enemy && st.queues.enemy.current && st.queues.enemy.current.holdMs || 0) || 0
       );
       const RESULT_SETTLE_MS = tickerSuppressed ? 0 : 700;
+      const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const radarReadyAt = Number(window.__battleRadarResultReadyAt || 0) || 0;
+      const radarExtraWaitMs = tickerSuppressed ? 0 : Math.max(0, Math.round(radarReadyAt - nowTs));
       st.finalTimer = (window.__uiSetTimeout || window.setTimeout)(function(){
         try{
           if (!tickerSuppressed){
@@ -6924,7 +6934,7 @@ function cleanUpMixedSkillsExceptOne() {
             rb.classList.add('show','is-compact','is-bit');
           }
         }catch(_){ }
-      }, (tickerSuppressed ? 0 : FINAL_DELAY_MS) + Math.min(7000, Math.round(pendingMs * 0.22)) + RESULT_SETTLE_MS);
+      }, (tickerSuppressed ? 0 : FINAL_DELAY_MS) + Math.min(7000, Math.round(pendingMs * 0.22)) + RESULT_SETTLE_MS + radarExtraWaitMs);
     }catch(_){ }
   };
 })();
@@ -6946,13 +6956,41 @@ window.addEventListener('click', function(ev){
 /* winner guess result visual effect */
 window.showWinnerGuessEffect = function(isCorrect){
   try{
-    const el=document.getElementById("winnerGuessEffect");
-    if(!el) return;
-    el.className="";
-    el.textContent=isCorrect?"CORRECT!":"MISS!";
-    el.classList.add("show");
-    el.classList.add(isCorrect?"correct":"wrong");
-    setTimeout(()=>{el.classList.remove("show");},900);
+    const el = document.getElementById('winnerGuessEffect');
+    if (!el) return;
+
+    const isIPhone = /iPhone/i.test((navigator && navigator.userAgent) || '');
+    const vv = (window.visualViewport && typeof window.visualViewport.height === 'number') ? window.visualViewport : null;
+    const viewportH = vv ? vv.height : window.innerHeight;
+    const viewportW = vv ? vv.width : window.innerWidth;
+    const topPx = Math.max(56, Math.round(viewportH * (isIPhone ? 0.22 : 0.18)));
+    const leftPx = Math.round((vv ? vv.offsetLeft : 0) + (viewportW / 2));
+
+    el.className = '';
+    el.textContent = isCorrect ? '的中！' : 'ハズレ…';
+    el.setAttribute('aria-hidden', 'false');
+    el.style.left = leftPx + 'px';
+    el.style.top = topPx + 'px';
+    el.style.position = 'fixed';
+    el.style.transform = 'translate(-50%, 0)';
+    el.style.zIndex = '2147483646';
+    if (isIPhone) {
+      el.style.maxWidth = 'calc(100vw - 28px)';
+    } else {
+      el.style.maxWidth = 'min(92vw, 540px)';
+    }
+
+    void el.offsetWidth;
+    el.classList.add('show');
+    el.classList.add(isCorrect ? 'correct' : 'wrong');
+
+    try { if (el.__hideTimer) clearTimeout(el.__hideTimer); } catch(_e) {}
+    el.__hideTimer = setTimeout(function(){
+      try{
+        el.classList.remove('show', 'correct', 'wrong');
+        el.setAttribute('aria-hidden', 'true');
+      }catch(_e){}
+    }, 1850);
   }catch(e){}
 };
 

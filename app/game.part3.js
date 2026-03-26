@@ -1240,17 +1240,19 @@ window.startBattle = function() {
 		log.push(`\n【${__MAX_TURNS}ターン終了：優劣バー判定】青(自) ${pBar}% / 赤(敵) ${eBar}%（差 ${sign}${diffBar}%）→ ${verdict}\n（参考：自HP ${pPct}% / 敵HP ${ePct}%）`);
 	}
 
+	const __finalPlayerHpRatio = (typeof __hpRatioPlayer === 'number' ? __hpRatioPlayer : Math.max(0, player.hp) / Math.max(1, (__battleStartMaxHp_player || player.maxHp || 1)));
+	const __finalEnemyHpRatio = (typeof __hpRatioEnemy === 'number' ? __hpRatioEnemy : Math.max(0, enemy.hp) / Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || 1)));
+	const __finalHpRatioDiff = Math.abs(__finalPlayerHpRatio - __finalEnemyHpRatio);
 	const playerWon = player.hp > 0 && (
 		enemy.hp <= 0 ||
-		(!__endedByTurnLimit && player.hp > enemy.hp) ||
-		(__endedByTurnLimit && __hpShareDiff >= 0)
+		(player.hp > 0 && enemy.hp > 0 && __finalPlayerHpRatio >= __finalEnemyHpRatio)
 	);
 
 	const __winnerGuessBattleState = {
 		playerWon,
-		hpDiffRatio: Math.abs((typeof __hpRatioPlayer === 'number' ? __hpRatioPlayer : Math.max(0, player.hp) / Math.max(1, (__battleStartMaxHp_player || player.maxHp || 1))) - (typeof __hpRatioEnemy === 'number' ? __hpRatioEnemy : Math.max(0, enemy.hp) / Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || 1)))),
-		playerHpRatio: (typeof __hpRatioPlayer === 'number' ? __hpRatioPlayer : Math.max(0, player.hp) / Math.max(1, (__battleStartMaxHp_player || player.maxHp || 1))),
-		enemyHpRatio: (typeof __hpRatioEnemy === 'number' ? __hpRatioEnemy : Math.max(0, enemy.hp) / Math.max(1, (__battleStartMaxHp_enemy || enemy.maxHp || 1))),
+		hpDiffRatio: __finalHpRatioDiff,
+		playerHpRatio: __finalPlayerHpRatio,
+		enemyHpRatio: __finalEnemyHpRatio,
 		hpHistorySnapshot: (Array.isArray(typeof hpHistory !== 'undefined' ? hpHistory : null) ? hpHistory.map(function(row){ return Array.isArray(row) ? row.slice() : row; }) : []),
 		enemyRarity: Number(enemy && enemy.rarity || 0),
 		specialMode: window.specialMode,

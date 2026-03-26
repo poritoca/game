@@ -681,6 +681,7 @@ function onMixedSkillClick(skill, event) {
 	detailBtn.textContent = "詳細";
 	detailBtn.onclick = () => {
 		try {
+			clearEventPopup(true);
 			if (typeof window.__buildMixedSkillDetailPayload === 'function' && typeof window.__openBattleHtmlDetail === 'function') {
 				window.__openBattleHtmlDetail(window.__buildMixedSkillDetailPayload(skill));
 			} else if (typeof showSpecialEffectDetail === 'function') {
@@ -1754,6 +1755,7 @@ window.__winnerGuessMiniGameActive = false;
 window.__winnerGuessPendingState = null;
 window.__winnerGuessRewardState = null;
 window.__winnerGuessPendingResolver = null;
+window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT = Number.isFinite(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT) ? Number(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT) : 0.03;
 
 window.__syncWinnerGuessToggleButton = function(){
 	try{
@@ -1916,7 +1918,8 @@ window.__resolveWinnerGuessMiniGame = window.__resolveWinnerGuessMiniGame || fun
 	const state = window.__winnerGuessPendingState;
 	const guessedPlayerWon = (side === 'player');
 	const correct = guessedPlayerWon === !!state.playerWon;
-	const closeness = Math.max(0, Math.min(1, 1 - (Number(state.hpDiffRatio || 0) / 0.05)));
+	const closenessBase = Math.max(0.0001, Number(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT || 0.03));
+	const closeness = Math.max(0, Math.min(1, 1 - (Number(state.hpDiffRatio || 0) / closenessBase)));
 	const baseReward = Math.max(12, Number(state.baseReward || 12));
 	let multiplier = correct ? (1.5 + closeness) : (0.1 + closeness * 0.4);
 	multiplier = Math.max(0.1, Math.min(2.0, multiplier));
@@ -1941,7 +1944,8 @@ window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame 
 	if (!window.__winnerGuessMiniGameEnabled) return false;
 	if (!state || window.__winnerGuessMiniGameActive) return false;
 	const diff = Math.abs(Number(state.hpDiffRatio || 0));
-	if (!(diff > 0 && diff <= 0.05)) return false;
+	const limit = Math.max(0.0001, Number(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT || 0.03));
+	if (!(diff > 0 && diff <= limit)) return false;
 	window.__winnerGuessMiniGameActive = true;
 	window.__winnerGuessPendingState = Object.assign({}, state);
 	try{ if (typeof stopAutoBattle === 'function') stopAutoBattle(); }catch(_e){}
@@ -1965,7 +1969,7 @@ window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame 
 	if (msg) msg.innerHTML = '僅差決着。<br>キャラクター情報・レーダー・HP推移だけを手掛かりに、勝者を選んでください。';
 	if (sub) {
 		const pct = (diff * 100).toFixed(2).replace(/\.00$/, '');
-		sub.textContent = `残HP差 ${pct}% / 電光掲示板はスキル名・Lv・回数を表示したままループします / 的中時は高倍率、外しても少量の魔通貨あり（倍率上限 x2.0）`;
+		sub.textContent = `残HP割合差 ${pct}% / 電光掲示板はスキル名・Lv・回数を表示したままループします / 的中時は高倍率、外しても少量の魔通貨あり（倍率上限 x2.0）`;
 	}
 	try{ if (typeof window.__setBattleRewardBoardNotice === 'function') window.__setBattleRewardBoardNotice('勝者当て 発生中', 'レーダー下で勝者を予想してください', false); }catch(_e){}
 	const baseReward = Math.max(12, Math.min(240,
