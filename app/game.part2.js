@@ -1969,7 +1969,7 @@ window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame 
 	if (msg) msg.innerHTML = '僅差決着。<br>キャラクター情報・レーダー・HP推移だけを手掛かりに、勝者を選んでください。';
 	if (sub) {
 		const pct = (diff * 100).toFixed(2).replace(/\.00$/, '');
-		sub.textContent = `残HP割合差 ${pct}% / 電光掲示板はスキル名・Lv・回数を表示したままループします / 的中時は高倍率、外しても少量の魔通貨あり（倍率上限 x2.0）`;
+		sub.textContent = `残HP割合差 ${pct}% /  的中時は高倍率、外しても少量の魔通貨あり（倍率上限 x2.0）`;
 	}
 	try{ if (typeof window.__setBattleRewardBoardNotice === 'function') window.__setBattleRewardBoardNotice('勝者当て 発生中', 'レーダー下で勝者を予想してください', false); }catch(_e){}
 	const baseReward = Math.max(12, Math.min(240,

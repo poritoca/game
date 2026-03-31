@@ -2267,7 +2267,7 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 };
 
 
-window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(minimized) {
+window.__commitBattleDockMinimized = window.__commitBattleDockMinimized || function(minimized) {
 	try {
 		const v = minimized ? '1' : '0';
 		try { localStorage.setItem(window.__battleDockMinKey, v); } catch (_) {}
@@ -2292,6 +2292,41 @@ window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(mi
 			}
 		} catch(_e) {}
 
+	} catch (e) {
+		console.warn('[BattleDock] set minimized failed', e);
+	}
+};
+
+window.__setBattleDockMinimized = window.__setBattleDockMinimized || function(minimized) {
+	try {
+		const wantMin = !!minimized;
+		let currentMin = false;
+		try { currentMin = (localStorage.getItem(window.__battleDockMinKey) === '1'); } catch (_) {}
+
+		if (wantMin === currentMin && !window.__battleDockHideAnimating) {
+			if (!wantMin) {
+				try { window.__playBattleDockShowTransition && window.__playBattleDockShowTransition(); } catch (_) {}
+			}
+			return;
+		}
+
+		if (wantMin) {
+			if (window.__battleDockHideAnimating) return;
+			window.__battleDockHideAnimating = true;
+			try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+			window.__playBattleDockHideTransition && window.__playBattleDockHideTransition(() => {
+				try {
+					window.__battleDockHideAnimating = false;
+					window.__commitBattleDockMinimized && window.__commitBattleDockMinimized(true);
+					try { window.__battleDockPulseMiniBar && window.__battleDockPulseMiniBar(); } catch (_) {}
+				} catch (_e) {}
+			});
+			return;
+		}
+
+		window.__battleDockHideAnimating = false;
+		window.__commitBattleDockMinimized && window.__commitBattleDockMinimized(false);
+		try { window.__playBattleDockShowTransition && window.__playBattleDockShowTransition(); } catch (_) {}
 	} catch (e) {
 		console.warn('[BattleDock] set minimized failed', e);
 	}
@@ -2343,12 +2378,81 @@ window.__battleDockPulseMiniBar = window.__battleDockPulseMiniBar || function(){
 	try{
 		const miniBar = document.getElementById('battleDockMiniBar');
 		if(!miniBar) return;
-		miniBar.classList.add('scroll-minimized');
+		miniBar.classList.remove('scroll-minimized','cinematic-awaken','cinematic-hide-bar');
 		try{ void miniBar.offsetWidth; }catch(_){}
-		setTimeout(()=>{ try{ miniBar.classList.remove('scroll-minimized'); }catch(_){} }, 650);
+		miniBar.classList.add('scroll-minimized');
+		(window.__uiSetTimeout || window.setTimeout)(()=>{ try{ miniBar.classList.remove('scroll-minimized'); }catch(_){} }, 760);
 	}catch(_){}
 };
 
+window.__clearBattleDockCinematicTimers = window.__clearBattleDockCinematicTimers || function(){
+	try{
+		if (window.__battleDockHideAnimTimer) {
+			(window.__uiClearTimeout || window.clearTimeout)(window.__battleDockHideAnimTimer);
+			window.__battleDockHideAnimTimer = null;
+		}
+		if (window.__battleDockShowAnimTimer) {
+			(window.__uiClearTimeout || window.clearTimeout)(window.__battleDockShowAnimTimer);
+			window.__battleDockShowAnimTimer = null;
+		}
+	}catch(_e){}
+};
+
+window.__playBattleDockHideTransition = window.__playBattleDockHideTransition || function(onDone){
+	try{
+		window.__clearBattleDockCinematicTimers && window.__clearBattleDockCinematicTimers();
+		const dock = document.getElementById('battleOverlayDock');
+		const miniBar = document.getElementById('battleDockMiniBar');
+		if (!dock || dock.style.display === 'none') {
+			if (typeof onDone === 'function') onDone();
+			return;
+		}
+		dock.classList.remove('cinematic-show');
+		miniBar && miniBar.classList.remove('cinematic-awaken');
+		try { void dock.offsetWidth; } catch (_e) {}
+		dock.classList.add('cinematic-hide');
+		if (miniBar) {
+			miniBar.classList.remove('cinematic-hide-bar');
+			try { void miniBar.offsetWidth; } catch (_e) {}
+			miniBar.classList.add('cinematic-hide-bar');
+		}
+		window.__battleDockHideAnimTimer = (window.__uiSetTimeout || window.setTimeout)(() => {
+			try {
+				window.__battleDockHideAnimTimer = null;
+				dock.classList.remove('cinematic-hide');
+				if (miniBar) miniBar.classList.remove('cinematic-hide-bar');
+				if (typeof onDone === 'function') onDone();
+			} catch(_e) {}
+		}, 190);
+	}catch(_e){
+		try{ if (typeof onDone === 'function') onDone(); }catch(_){}
+	}
+};
+
+window.__playBattleDockShowTransition = window.__playBattleDockShowTransition || function(){
+	try{
+		window.__clearBattleDockCinematicTimers && window.__clearBattleDockCinematicTimers();
+		const dock = document.getElementById('battleOverlayDock');
+		const miniBar = document.getElementById('battleDockMiniBar');
+		if (dock) {
+			dock.classList.remove('cinematic-hide','cinematic-show');
+			try { void dock.offsetWidth; } catch (_e) {}
+			dock.classList.add('cinematic-show');
+		}
+		if (miniBar) {
+			miniBar.classList.remove('scroll-minimized','cinematic-hide-bar','cinematic-awaken');
+			try { void miniBar.offsetWidth; } catch (_e) {}
+			miniBar.classList.add('cinematic-awaken');
+		}
+		window.__battleDockShowAnimTimer = (window.__uiSetTimeout || window.setTimeout)(() => {
+			try {
+				window.__battleDockShowAnimTimer = null;
+				if (dock) dock.classList.remove('cinematic-show');
+				if (miniBar) miniBar.classList.remove('cinematic-awaken');
+			} catch(_e) {}
+		}, 680);
+	}catch(_e){}
+};
 
 // ---------------------------------------------------------
 
@@ -2389,7 +2493,7 @@ window.__showAutoMinimizeNotice = window.__showAutoMinimizeNotice || function(){
 	}catch(_e){}
 };
 
-window.__battleDockAutoRestoreDelayMs = window.__battleDockAutoRestoreDelayMs || 2500;
+window.__battleDockAutoRestoreDelayMs = window.__battleDockAutoRestoreDelayMs || 820;
 window.__clearBattleDockAutoRestoreTimer = window.__clearBattleDockAutoRestoreTimer || function(){
 	try{
 		if (window.__battleDockAutoRestoreTimer) {
@@ -2559,7 +2663,7 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 					
 // Otherwise: auto-minimize only after a smaller amount of scrolling
-const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 220); // px
+const threshold = Number(window.__battleDockAutoMinScrollThresholdPx || 72); // px
 if (!window.__battleDockScrollStartY || !Number.isFinite(Number(window.__battleDockScrollStartY))) {
 	window.__battleDockScrollStartY = window.scrollY || 0;
 }
@@ -2570,7 +2674,6 @@ if (dy < threshold) {
 // Enough scroll: minimize (scroll-triggered effect)
 	window.__setBattleDockMinimized && window.__setBattleDockMinimized(true);
 	window.__showAutoMinimizeNotice && window.__showAutoMinimizeNotice();
-window.__battleDockPulseMiniBar && window.__battleDockPulseMiniBar();
 window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
 window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
 window.__battleDockScrollStartY = null;

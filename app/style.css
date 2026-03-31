@@ -4667,16 +4667,109 @@ body.battle-dock-dragging{
   bottom: auto !important;
 }
 
+
+#battleOverlayDock,
+#battleDockMiniBar{
+  transform-origin: center bottom;
+}
+
+@keyframes battleDockCinematicHide {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1) saturate(1);
+    box-shadow: 0 20px 42px rgba(0,0,0,0.34), 0 0 0 rgba(0,0,0,0);
+  }
+  45% {
+    opacity: 0.92;
+    transform: translateY(3px) scale(0.985);
+    filter: brightness(0.88) saturate(1.08);
+    box-shadow: 0 28px 54px rgba(0,0,0,0.48), 0 0 26px rgba(70, 115, 255, 0.18);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.90);
+    filter: brightness(0.52) saturate(0.74) blur(0.4px);
+    box-shadow: 0 36px 66px rgba(0,0,0,0.70), 0 0 34px rgba(0, 0, 0, 0.42);
+  }
+}
+
+@keyframes battleDockCinematicShow {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.90);
+    filter: brightness(0.55) saturate(0.72) blur(0.6px);
+    box-shadow: 0 38px 72px rgba(0,0,0,0.72), 0 0 0 rgba(0,0,0,0);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.02);
+    filter: brightness(1.18) saturate(1.16);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.34), 0 0 24px rgba(90, 140, 255, 0.22);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1) saturate(1);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.26), 0 0 0 rgba(0,0,0,0);
+  }
+}
+
+@keyframes battleMiniBarAwaken {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scaleX(0.64) scaleY(0.82);
+    filter: brightness(0.65) blur(0.6px);
+  }
+  58% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px) scaleX(1.08) scaleY(1.08);
+    filter: brightness(1.30) blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scaleX(1) scaleY(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes battleMiniBarDarkSlip {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1) scaleY(1);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0.16;
+    transform: translateX(-50%) translateY(8px) scaleX(0.68) scaleY(0.82);
+    filter: brightness(0.5) blur(0.5px);
+  }
+}
+
+#battleOverlayDock.cinematic-hide{
+  pointer-events: none;
+  animation: battleDockCinematicHide 0.19s cubic-bezier(.22,.61,.36,1) 1 both;
+}
+#battleOverlayDock.cinematic-show{
+  animation: battleDockCinematicShow 0.46s cubic-bezier(.16,1,.3,1) 1 both;
+}
+#battleDockMiniBar.cinematic-awaken{
+  animation: battleMiniBarAwaken 0.44s cubic-bezier(.16,1,.3,1) 1, battleMiniGlow 2.2s ease-in-out infinite;
+}
+#battleDockMiniBar.cinematic-hide-bar{
+  animation: battleMiniBarDarkSlip 0.18s cubic-bezier(.4,0,.2,1) 1 both;
+}
+
 /* Auto-minimized-by-scroll pulse (only when minimized due to scroll) */
 @keyframes battleMiniPop {
-  0%   { transform: translateX(-50%) scaleX(1.0); filter: brightness(1.0); }
-  35%  { transform: translateX(-50%) scaleX(1.16); filter: brightness(1.35); }
-  70%  { transform: translateX(-50%) scaleX(1.06); filter: brightness(1.15); }
-  100% { transform: translateX(-50%) scaleX(1.0); filter: brightness(1.0); }
+  0%   { transform: translateX(-50%) scaleX(0.88) scaleY(0.88); filter: brightness(0.72) saturate(0.82); }
+  32%  { transform: translateX(-50%) scaleX(1.18) scaleY(1.10); filter: brightness(1.30) saturate(1.12); }
+  70%  { transform: translateX(-50%) scaleX(1.04) scaleY(1.02); filter: brightness(1.08) saturate(1.04); }
+  100% { transform: translateX(-50%) scaleX(1.0) scaleY(1.0); filter: brightness(1.0) saturate(1.0); }
 }
 #battleDockMiniBar.scroll-minimized{
-  animation: battleMiniPop 0.65s ease-out 1, battleMiniGlow 2.2s ease-in-out infinite;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.24), 0 0 20px color-mix(in srgb, var(--battleDock-glow) 55%, rgba(255,255,255,0.0));
+  animation: battleMiniPop 0.76s cubic-bezier(.16,1,.3,1) 1, battleMiniGlow 2.2s ease-in-out infinite;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.28), 0 0 24px color-mix(in srgb, var(--battleDock-glow) 58%, rgba(255,255,255,0.0));
 }
 
 
