@@ -502,7 +502,9 @@ let hpShineOffset = 0; // アニメーション用オフセット
 
 function drawItemMemoryList() {
 	const list = document.getElementById('itemMemoryList');
+	if (!list) return;
 	list.innerHTML = '';
+	try { if (typeof window.updateProtectionLimitHints === 'function') window.updateProtectionLimitHints(); } catch (e) {}
 	player.itemMemory.forEach((item, idx) => {
 		const li = document.createElement('li');
 		const name = `${item.color}${item.adjective}${item.noun}`;

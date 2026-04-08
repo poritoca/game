@@ -2020,7 +2020,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 				if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({ forceRefresh:true, showEnemy:true });
 			} else {
-				window.__battleTickerForceShow = false;
+				// AutoBattle中でも掲示板を常時表示するため、ここで force show を落とさない。
 			}
 		}catch(_e){}
 		updateStats(); // ボタンを離したときに最新情報を描画

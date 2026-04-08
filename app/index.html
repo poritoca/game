@@ -568,7 +568,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </ul>
 <p>
         プレイヤーが同じスキルを所持していれば、そのレベルが魔道具発動時に反映されます。魔道具でスキルが発動するごとに、該当スキルのレベルが成長する可能性もあります。<br/>
-<strong>魔道具保護機能：</strong>所持魔道具は<strong>最大3つまで</strong>保護可能です。保護された魔道具は削除や破損の対象になりません。魔道具名をタップ（クリック）すると「保護する／保護を外す／削除する」のメニューが表示されます（保護中の魔道具は削除できません）。
+<strong>魔道具保護機能：</strong>所持魔道具は<strong>通常は最大3つまで</strong>保護可能です。魔メイク効果により上限が増える場合があります。保護された魔道具は削除や破損の対象になりません。魔道具名をタップ（クリック）すると「保護する／保護を外す／削除する」のメニューが表示されます（保護中の魔道具は削除できません）。
     </p>
 <h3>魔通貨と魔メイク</h3>
 <p>
@@ -774,13 +774,13 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div class="hidden" id="memoryContent" style="margin-top: 10px;">
 <!-- 特殊スキル -->
 <h4>特殊スキル</h4>
-<div class="subnote">※選択で保護 / 解除可能</div>
+<div class="subnote" id="mixedSkillProtectLimitNote">※選択で1つまで保護 / 解除可能</div>
 <div id="combinedSkillContainer">
 <ul id="combinedSkillList"></ul>
 </div>
 <!-- 所持魔道具 -->
 <h4>所持魔道具</h4>
-<div class="subnote">※選択で3つまで保護 / 解除可能</div>
+<div class="subnote" id="itemProtectLimitNote">※選択で3つまで保護 / 解除可能</div>
 <div id="itemMemoryContainer">
 <ul id="itemMemoryList"></ul>
 </div>

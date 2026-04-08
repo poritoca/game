@@ -4690,9 +4690,48 @@ function __ensureFaceBonus(path) {
 	return obj;
 }
 
+function __normalizeFaceBonusPathCandidates(path) {
+	if (!path) return [];
+	const raw = String(path);
+	const set = new Set();
+	const push = (v) => {
+		if (!v) return;
+		const s = String(v);
+		if (s) set.add(s);
+	};
+	push(raw);
+	try { if (typeof normalizeFacePath === 'function') push(normalizeFacePath(raw)); } catch (e) {}
+	const stripped = raw.replace(/^\.\.\//, '').replace(/^\//, '');
+	push(stripped);
+	if (stripped.startsWith('face/')) {
+		push(stripped);
+		push('../' + stripped);
+	}
+	return Array.from(set);
+}
+
 function __getEquippedFaceBonus() {
-	if (!window.faceItemEquipped) return null;
-	return __ensureFaceBonus(window.faceItemEquipped);
+	let equipped = null;
+	try {
+		equipped = window.faceItemEquipped || (typeof faceItemEquipped !== 'undefined' ? faceItemEquipped : null) || null;
+	} catch (e) {
+		equipped = window.faceItemEquipped || null;
+	}
+	if (!equipped) return null;
+
+	const candidates = __normalizeFaceBonusPathCandidates(equipped);
+	for (const key of candidates) {
+		try {
+			if (window.faceItemBonusMap && window.faceItemBonusMap[key]) return window.faceItemBonusMap[key];
+		} catch (e) {}
+	}
+	for (const key of candidates) {
+		try {
+			const bonus = __ensureFaceBonus(key);
+			if (bonus) return bonus;
+		} catch (e) {}
+	}
+	return null;
 }
 
 
@@ -4717,10 +4756,25 @@ window.getItemProtectLimit = function getItemProtectLimit() {
 	let add = 0;
 	try {
 		const bonus = (typeof __getEquippedFaceBonus === 'function') ? __getEquippedFaceBonus() : null;
-		if (bonus && typeof bonus.protectItemAdd === 'number') add = bonus.protectItemAdd;
+		if (bonus && typeof bonus.protectItemAdd === 'number') add = Number(bonus.protectItemAdd) || 0;
 	} catch (e) {}
 	const v = base + add;
 	return (v >= 0) ? v : 0;
+};
+
+window.updateProtectionLimitHints = window.updateProtectionLimitHints || function updateProtectionLimitHints() {
+	try {
+		const itemNote = document.getElementById('itemProtectLimitNote');
+		if (itemNote) {
+			const limit = (typeof window.getItemProtectLimit === 'function') ? window.getItemProtectLimit() : 3;
+			itemNote.textContent = `※選択で${limit}つまで保護 / 解除可能`;
+		}
+		const skillNote = document.getElementById('mixedSkillProtectLimitNote');
+		if (skillNote) {
+			const limit = (typeof window.getSpecialSkillProtectLimit === 'function') ? window.getSpecialSkillProtectLimit() : 1;
+			skillNote.textContent = `※選択で${limit}つまで保護 / 解除可能`;
+		}
+	} catch (e) {}
 };
 
 // 詳細描画（updateFaceUI から呼ばれる）
@@ -6432,8 +6486,9 @@ function cleanUpMixedSkillsExceptOne() {
   }
   function _isTickerSuppressed(){
     try{
-      if (window.__battleTickerForceShow) return false;
-      return !!(((typeof isAutoBattle !== 'undefined') && !!isAutoBattle) && !window.__winnerGuessMiniGameActive);
+      // AutoBattle中でも電光掲示板の通常表示を一切省略しない。
+      // 軽量化は別レイヤーで行い、掲示板の状態機械には干渉させない。
+      return false;
     }catch(_){ return false; }
   }
   function _applyTickerVisibility(){

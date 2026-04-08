@@ -107,6 +107,9 @@ function syncSkillsUI() {
 	if (typeof createMixedSkillProtectionUI === "function") {
 		createMixedSkillProtectionUI();
 	}
+	if (typeof window.updateProtectionLimitHints === "function") {
+		window.updateProtectionLimitHints();
+	}
 }
 
 document.addEventListener('DOMContentLoaded', setupToggleButtons);
