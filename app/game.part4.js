@@ -1368,6 +1368,104 @@ function updateLocalSaveButton2() {
 
 
 
+
+window.__getFaceItemsOwnedForSave = window.__getFaceItemsOwnedForSave || function(){
+	try{
+		if (Array.isArray(window.faceItemsOwned)) return window.faceItemsOwned.slice();
+	}catch(_e){}
+	try{
+		if (typeof faceItemsOwned !== 'undefined' && Array.isArray(faceItemsOwned)) return faceItemsOwned.slice();
+	}catch(_e){}
+	return [];
+};
+
+window.__getFaceItemEquippedForSave = window.__getFaceItemEquippedForSave || function(){
+	try{
+		if (typeof window.faceItemEquipped !== 'undefined') return window.faceItemEquipped ?? null;
+	}catch(_e){}
+	try{
+		if (typeof faceItemEquipped !== 'undefined') return faceItemEquipped ?? null;
+	}catch(_e){}
+	return null;
+};
+
+window.__collectExtendedUiStateForSave = window.__collectExtendedUiStateForSave || function(){
+	const out = {};
+	try{ out.winnerGuessMiniGameEnabled = !!window.__winnerGuessMiniGameEnabled; }catch(_e){}
+	try{ out.uiOpacityPercent = (typeof window.__getUIOpacityPercent === 'function') ? window.__getUIOpacityPercent() : Number(localStorage.getItem(window.__uiOpacityKey || 'rpg_ui_opacity_percent')); }catch(_e){}
+	try{ out.battleDockPos = (typeof window.__readBattleDockPos === 'function') ? window.__readBattleDockPos() : null; }catch(_e){}
+	try{ out.battleDockSide = localStorage.getItem(window.__battleDockSideKey || 'battleDockSide'); }catch(_e){}
+	try{ out.battleDockMinimized = localStorage.getItem(window.__battleDockMinKey || 'battleDockMinimized'); }catch(_e){}
+	try{ out.battleDockMiniFollow = localStorage.getItem(window.__battleDockMiniFollowKey || 'battleDockMiniFollow'); }catch(_e){}
+	return out;
+};
+
+window.__persistExtendedUiStateToLocalStorage = window.__persistExtendedUiStateToLocalStorage || function(state){
+	const s = state && typeof state === 'object' ? state : {};
+	try{
+		if (typeof s.winnerGuessMiniGameEnabled === 'boolean') {
+			if (typeof window.__setWinnerGuessMiniGameEnabled === 'function') window.__setWinnerGuessMiniGameEnabled(!!s.winnerGuessMiniGameEnabled);
+			else {
+				window.__winnerGuessMiniGameEnabled = !!s.winnerGuessMiniGameEnabled;
+				try{ localStorage.setItem('winnerGuessMiniGameEnabled', s.winnerGuessMiniGameEnabled ? '1' : '0'); }catch(_e){}
+			}
+		}
+	}catch(_e){}
+	try{
+		if (Number.isFinite(Number(s.uiOpacityPercent))) {
+			if (typeof window.__setUIOpacityPercent === 'function') window.__setUIOpacityPercent(Number(s.uiOpacityPercent));
+			else localStorage.setItem(window.__uiOpacityKey || 'rpg_ui_opacity_percent', String(Math.max(0, Math.min(100, Math.round(Number(s.uiOpacityPercent))))));
+		}
+	}catch(_e){}
+	try{
+		if (s.battleDockPos && typeof s.battleDockPos.x === 'number' && typeof s.battleDockPos.y === 'number') {
+			if (typeof window.__writeBattleDockPos === 'function') window.__writeBattleDockPos(s.battleDockPos);
+			else localStorage.setItem(window.__battleDockPosKey || 'battleDockPosV1', JSON.stringify({ x: s.battleDockPos.x, y: s.battleDockPos.y }));
+		}
+	}catch(_e){}
+	try{ if (s.battleDockSide != null) localStorage.setItem(window.__battleDockSideKey || 'battleDockSide', String(s.battleDockSide)); }catch(_e){}
+	try{ if (s.battleDockMinimized != null) localStorage.setItem(window.__battleDockMinKey || 'battleDockMinimized', String(s.battleDockMinimized)); }catch(_e){}
+	try{ if (s.battleDockMiniFollow != null) localStorage.setItem(window.__battleDockMiniFollowKey || 'battleDockMiniFollow', String(s.battleDockMiniFollow)); }catch(_e){}
+};
+
+window.__applyExtendedUiStateFromSave = window.__applyExtendedUiStateFromSave || function(state){
+	const s = state && typeof state === 'object' ? state : {};
+	try{ window.__persistExtendedUiStateToLocalStorage(s); }catch(_e){}
+	try{ if (typeof window.__syncWinnerGuessToggleButton === 'function') window.__syncWinnerGuessToggleButton(); }catch(_e){}
+	try{ if (typeof window.__applyGlobalUIOpacity === 'function') window.__applyGlobalUIOpacity(); }catch(_e){}
+	try{
+		const dock = document.getElementById('battleOverlayDock');
+		if (dock && typeof window.__applyBattleDockSavedPos === 'function') window.__applyBattleDockSavedPos(dock);
+	}catch(_e){}
+	try{ if (typeof window.__refreshBattleControlDock === 'function') window.__refreshBattleControlDock(); }catch(_e){}
+};
+
+window.__restoreFaceItemsFromSave = window.__restoreFaceItemsFromSave || function(parsed){
+	const savedOwned = Array.isArray(parsed && parsed.faceItemsOwned) ? parsed.faceItemsOwned.slice() : [];
+	const savedEquipped = (parsed && Object.prototype.hasOwnProperty.call(parsed, 'faceItemEquipped')) ? (parsed.faceItemEquipped ?? null) : null;
+	window.faceCoins = (parsed && parsed.faceCoins != null) ? parsed.faceCoins : 0;
+	window.faceItemsOwned = savedOwned.slice();
+	try{ faceItemsOwned = window.faceItemsOwned; }catch(_e){}
+	window.faceItemEquipped = savedEquipped;
+	try{ faceItemEquipped = savedEquipped; }catch(_e){}
+	const __MM_ALGO_V = (typeof window.faceBonusAlgoVersion === 'number') ? window.faceBonusAlgoVersion : 0;
+	const __MM_LOADED_V = Number((parsed && (parsed.faceItemBonusAlgoVersion ?? parsed.faceBonusAlgoVersion)) ?? 0) || 0;
+	window.faceItemBonusAlgoVersion = __MM_LOADED_V;
+	window.faceItemBonusMap = (parsed && parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
+	if (__MM_ALGO_V && window.faceItemBonusAlgoVersion !== __MM_ALGO_V) {
+		window.faceItemBonusMap = {};
+		window.faceItemBonusAlgoVersion = __MM_ALGO_V;
+	}
+	try { (window.faceItemsOwned || []).forEach(function(p){ __ensureFaceBonus(p); }); } catch(_e) {}
+	try {
+		const coinElem = document.getElementById('faceCoinCount');
+		if (coinElem) coinElem.innerText = window.faceCoins;
+	} catch(_e){}
+	try { if (typeof updateFaceUI === 'function') updateFaceUI(); } catch(_e){}
+	try { if (typeof updatePlayerImage === 'function') updatePlayerImage(); } catch(_e){}
+};
+
+
 window.saveToLocalStorage = async function() {
 	if (!player) return;
 
@@ -1405,12 +1503,13 @@ window.saveToLocalStorage = async function() {
 		maxScores: window.maxScores || {},
 		mixedSkills: player.mixedSkills || [],
 		faceCoins: window.faceCoins || 0,
-		faceItemsOwned: window.faceItemsOwned || [],
-		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemsOwned: (typeof window.__getFaceItemsOwnedForSave === 'function') ? window.__getFaceItemsOwnedForSave() : (window.faceItemsOwned || []),
+		faceItemEquipped: (typeof window.__getFaceItemEquippedForSave === 'function') ? window.__getFaceItemEquippedForSave() : (window.faceItemEquipped || null),
 		faceItemBonusAlgoVersion: (typeof window.faceItemBonusAlgoVersion === 'number') ? window.faceItemBonusAlgoVersion : ((typeof window.faceBonusAlgoVersion === 'number') ? window.faceBonusAlgoVersion : 0),
 		faceItemBonusMap: window.faceItemBonusMap || {},
 		// 制限時間（タイムアタック）状態
 		timeLimitState: (typeof window.__serializeTimeLimitState === 'function') ? window.__serializeTimeLimitState() : null,
+		extendedUiState: (typeof window.__collectExtendedUiStateForSave === 'function') ? window.__collectExtendedUiStateForSave() : null,
 	};
 
 	const raw = JSON.stringify(payload);
@@ -1541,9 +1640,10 @@ window.exportSaveCode = async function() {
 
 		// ✅ 魔メイク情報を明示的に保存
 		faceCoins: window.faceCoins || 0,
-		faceItemsOwned: window.faceItemsOwned || [],
-		faceItemEquipped: window.faceItemEquipped || null,
+		faceItemsOwned: (typeof window.__getFaceItemsOwnedForSave === 'function') ? window.__getFaceItemsOwnedForSave() : (window.faceItemsOwned || []),
+		faceItemEquipped: (typeof window.__getFaceItemEquippedForSave === 'function') ? window.__getFaceItemEquippedForSave() : (window.faceItemEquipped || null),
 		faceItemBonusMap: window.faceItemBonusMap || {},
+		extendedUiState: (typeof window.__collectExtendedUiStateForSave === 'function') ? window.__collectExtendedUiStateForSave() : null,
 	};
 
 	const raw = JSON.stringify(payload);
@@ -1603,6 +1703,11 @@ window.importSaveCode = async function(code = null) {
 
 		const parsed = JSON.parse(raw);
 		player = parsed.player;
+		currentStreak = Number.isFinite(Number(parsed.currentStreak)) ? Number(parsed.currentStreak) : 0;
+		if (typeof parsed.sslot === 'number') sslot = parsed.sslot;
+		if (parsed.targetBattles !== undefined) window.targetBattles = parsed.targetBattles;
+		if (parsed.remainingBattles !== undefined) window.remainingBattles = parsed.remainingBattles;
+		if (Number.isFinite(Number(parsed.strongBossKillCount))) window.strongBossKillCount = Number(parsed.strongBossKillCount);
 
 		// ✅ 特殊スキル情報の復元（保護状態を正規化）
 		player.mixedSkills = Array.isArray(parsed.mixedSkills) ?
@@ -1633,34 +1738,10 @@ window.importSaveCode = async function(code = null) {
 		localStorage.setItem('rebirthCount', rebirth);
 
 		// ✅ 魔メイク情報の復元とUI更新
-		window.faceCoins = parsed.faceCoins ?? 0;
-		window.faceItemsOwned = Array.isArray(parsed.faceItemsOwned) ? parsed.faceItemsOwned : [];
-		// ✅ faceItemsOwned（グローバル変数側）が別参照の可能性があるため同期
-		try{
-			if (typeof faceItemsOwned !== 'undefined' && Array.isArray(faceItemsOwned)) {
-				faceItemsOwned.length = 0;
-				(faceItemsOwned).push(...(window.faceItemsOwned || []));
-			}
-		}catch(_e){}
+		if (typeof window.__restoreFaceItemsFromSave === 'function') window.__restoreFaceItemsFromSave(parsed);
 
-		window.faceItemEquipped = parsed.faceItemEquipped ?? null;
-		// 魔メイク効果（成長率）のアルゴリズム更新に備えたバージョン管理
-		// 旧セーブの faceItemBonusMap は保持されるため、アルゴリズムが変わった場合は安全に作り直す
-		const __MM_ALGO_V = (typeof window.faceBonusAlgoVersion === 'number') ? window.faceBonusAlgoVersion : 0;
-		const __MM_LOADED_V = Number((parsed && (parsed.faceItemBonusAlgoVersion ?? parsed.faceBonusAlgoVersion)) ?? 0) || 0;
-		window.faceItemBonusAlgoVersion = __MM_LOADED_V;
-		window.faceItemBonusMap = (parsed.faceItemBonusMap && typeof parsed.faceItemBonusMap === 'object') ? parsed.faceItemBonusMap : (window.faceItemBonusMap || {});
-		if (__MM_ALGO_V && window.faceItemBonusAlgoVersion !== __MM_ALGO_V) {
-			window.faceItemBonusMap = {};
-			window.faceItemBonusAlgoVersion = __MM_ALGO_V;
-		}
-		// 念のため：所持分は必ずボーナスを用意
-		try { (window.faceItemsOwned || []).forEach(p => __ensureFaceBonus(p)); } catch(e) {}
-
-		const coinElem = document.getElementById('faceCoinCount');
-		if (coinElem) coinElem.innerText = window.faceCoins;
-		if (typeof updateFaceUI === 'function') updateFaceUI();
-		if (typeof updatePlayerImage === 'function') updatePlayerImage();
+		// ✅ 追加UI状態の復元
+		try{ if (typeof window.__applyExtendedUiStateFromSave === 'function') window.__applyExtendedUiStateFromSave(parsed.extendedUiState || null); }catch(_e){}
 
 		// --- その他設定の復元 ---
 		window.specialMode = parsed.specialMode || 'normal';
@@ -1703,6 +1784,13 @@ window.importSaveCode = async function(code = null) {
 			game.classList.remove('hidden');
 			game.classList.add('fade-in');
 			document.getElementById("battleArea").classList.add("hidden");
+
+			try{ if (typeof window.__restoreFaceItemsFromSave === 'function') window.__restoreFaceItemsFromSave(parsed); }catch(_e){}
+			try{ if (typeof window.__applyExtendedUiStateFromSave === 'function') window.__applyExtendedUiStateFromSave(parsed.extendedUiState || null); }catch(_e){}
+			window.__battleSetTimeout(() => {
+				try{ if (typeof window.__restoreFaceItemsFromSave === 'function') window.__restoreFaceItemsFromSave(parsed); }catch(_e){}
+				try{ if (typeof window.__applyExtendedUiStateFromSave === 'function') window.__applyExtendedUiStateFromSave(parsed.extendedUiState || null); }catch(_e){}
+			}, 30);
 
 			const streakDisplay = document.getElementById('currentStreakDisplay');
 			if (streakDisplay) {
