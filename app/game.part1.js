@@ -5655,7 +5655,7 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 				wrap.classList.remove('hidden');
 			}
 			if (noteEl){
-				noteEl.textContent = noteEl.textContent || ' ';
+				noteEl.textContent = noteEl.textContent || '戦闘開始で表示されます';
 				noteEl.style.display = 'block';
 			}
 		});
