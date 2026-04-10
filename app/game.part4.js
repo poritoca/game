@@ -500,6 +500,25 @@ function updateSkillMemoryOrder() {
 
 let hpShineOffset = 0; // アニメーション用オフセット
 
+
+function formatBattleItemSummaryHtml(holder, options = {}) {
+	const items = (holder && Array.isArray(holder.itemMemory)) ? holder.itemMemory : [];
+	const maxRows = Math.max(1, Number(options.maxRows || 0) || 0);
+	const visibleItems = maxRows > 0 ? items.slice(0, maxRows) : items.slice();
+	if (!visibleItems.length) {
+		return `<div class="battle-item-summary empty">${options.emptyLabel || 'なし'}</div>`;
+	}
+	const rows = visibleItems.map(item => {
+		const name = `${item.color || ''}${item.adjective || ''}${item.noun || ''}`;
+		const protectedTag = item.protected ? '<span class="battle-item-tag is-protected">保護</span>' : '';
+		return `<div class="battle-item-row"><span class="battle-item-name">${name}</span><span class="battle-item-meta">${item.skillName || '-'} Lv${Math.max(1, Number(item.skillLevel || 1) || 1)}</span>${protectedTag}</div>`;
+	}).join('');
+	const remain = (maxRows > 0 && items.length > visibleItems.length)
+		? `<div class="battle-item-summary-more">ほか ${items.length - visibleItems.length} 個</div>`
+		: '';
+	return `<div class="battle-item-summary">${rows}${remain}</div>`;
+}
+
 function drawItemMemoryList() {
 	const list = document.getElementById('itemMemoryList');
 	if (!list) return;
@@ -1067,7 +1086,11 @@ function updatePlayerDisplay(player) {
 	if (hpEl) hpEl.textContent = `HP: ${player.maxHp}`;
 
 	const maxHpEl = document.getElementById('maxHpStat');
-	if (maxHpEl) maxHpEl.textContent = ``;
+	if (maxHpEl) {
+		maxHpEl.innerHTML = `<div class="enemy-item-section-title">所持魔道具</div>${formatBattleItemSummaryHtml(player, {
+			emptyLabel: '所持魔道具: なし'
+		})}`;
+	}
 
 	// キャラクター画像
 	const imgCanvas = document.getElementById('playerImage');
@@ -1107,6 +1130,10 @@ function updateEnemyDisplay(enemy) {
       <p>DEF: ${enemy.defense}</p>
       <p>SPD: ${enemy.speed}</p>
       <p>HP: ${enemy.maxHp}</p>
+      <div class="enemy-item-section">
+        <div class="enemy-item-section-title">敵魔道具</div>
+        ${formatBattleItemSummaryHtml(enemy, { emptyLabel: '戦闘用魔道具なし' })}
+      </div>
     `;
 	}
 

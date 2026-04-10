@@ -291,11 +291,15 @@ window.startBattle = function() {
 	markLocalSaveDirty();
 
 	restoreMissingItemUses();
+	if (typeof window.__restoreMissingItemUsesForCharacter === 'function') {
+		window.__restoreMissingItemUsesForCharacter(player);
+	}
 	if (player.itemMemory) {
 		player.itemMemory.forEach(item => {
 			item.remainingUses = item.usesPerBattle;
 		});
 	}
+	try { window.__lastBattleActorSide = null; } catch (_e) {}
 	if (!window.battleCount) window.battleCount = 0;
 
 	document.getElementById("battleArea").classList.remove("hidden");
@@ -442,6 +446,23 @@ window.startBattle = function() {
 
 	// 名前修正
 	enemy.name = hasSpecialSkill ? `${specialSkillName}${originalKanaName}` : originalKanaName;
+
+	// 敵の戦闘用魔道具を付与
+	try {
+		if (typeof window.__assignRandomEnemyItems === 'function') {
+			window.__assignRandomEnemyItems(enemy);
+		} else {
+			enemy.itemMemory = [];
+		}
+		if (typeof window.__restoreMissingItemUsesForCharacter === 'function') {
+			window.__restoreMissingItemUsesForCharacter(enemy);
+		}
+		if (typeof window.__snapshotBattleItemsForCharacter === 'function') {
+			window.__snapshotBattleItemsForCharacter(enemy);
+		}
+	} catch (_e) {
+		enemy.itemMemory = [];
+	}
 
 	// ===== 敵ステータス生成 → 倍率適用 → ログ出力（完全版） =====
 
@@ -987,48 +1008,12 @@ window.startBattle = function() {
 							}
 						}
 					}
-					// プレイヤーの魔道具メモリー発動（1ターンに1度のみ）
-					let triggeredItemsThisTurn = new Set();
-
-					for (let i = player.itemMemory.length - 1; i >= 0; i--) {
-						const item = player.itemMemory[i];
-						const itemKey = `${item.color}-${item.adjective}-${item.noun}`;
-
-						// このターンで既に発動済みならスキップ
-						if (triggeredItemsThisTurn.has(itemKey)) continue;
-
-						if (item.remainingUses <= 0) continue;
-						if (Math.random() >= item.activationRate) continue;
-
-						const skill = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
-						if (skill) {
-							log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
-
-							getSkillEffect({ ...skill, level: item.skillLevel || 1 }, player, enemy, log);
-
-							if (item.skillLevel < 3000 && Math.random() < 0.4) {
-								item.skillLevel++;
-								log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
-								drawItemMemoryList();
-							}
-
-							item.remainingUses--;
-							triggeredItemsThisTurn.add(itemKey);
-
-							const isWithinProtectedPeriod =
-								window.protectItemUntil && window.battleCount <= window.protectItemUntil;
-
-							if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-								log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-								player.itemMemory.splice(i, 1);
-								drawItemMemoryList();
-							}
+					// 行動者の魔道具発動（1ターンに同名魔道具は1回まで）
+					try {
+						if (typeof window.__triggerBattleItemsForCharacter === 'function') {
+							window.__triggerBattleItemsForCharacter(actor, target, log, { trigger: 'turn-end' });
 						}
-					}
-
-
-
-
+					} catch (_e) {}
 
 				} else {
 					// 通常攻撃
@@ -1481,6 +1466,12 @@ window.startBattle = function() {
 					currentStreak += 1;
 				}
 			}
+
+			try {
+				if (typeof window.__tryDropEnemyBattleItemsOnVictory === 'function') {
+					window.__tryDropEnemyBattleItemsOnVictory(enemy, log);
+				}
+			} catch(_e){}
 
 			__applyWinnerGuessRewardIfAny();
 			let victoryMessage = `勝利：${displayName(enemy.name)}に勝利<br>現在連勝数：${currentStreak}`;
@@ -2385,7 +2376,8 @@ window.makeCharacter = function(name) {
 		skills,
 		battleStats: {},
 		effects: [],
-		skillMemory: memory
+		skillMemory: memory,
+		itemMemory: []
 	};
 };
 

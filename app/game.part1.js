@@ -5655,7 +5655,7 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 				wrap.classList.remove('hidden');
 			}
 			if (noteEl){
-				noteEl.textContent = noteEl.textContent || '戦闘開始で表示されます';
+				noteEl.textContent = noteEl.textContent || ' ';
 				noteEl.style.display = 'block';
 			}
 		});
@@ -6508,7 +6508,8 @@ function cleanUpMixedSkillsExceptOne() {
       const st = prev || window.__battleDigestState;
       if (!st) return;
       try{
-        ['player','enemy'].forEach(function(side){
+        st.replayLoopActive = true;
+      ['player','enemy'].forEach(function(side){
           const q = st.queues && st.queues[side];
           if (q && q.timer){ try{ clearTimeout(q.timer); }catch(_){ } q.timer = 0; }
         });
@@ -6679,15 +6680,60 @@ function cleanUpMixedSkillsExceptOne() {
       const make = (side)=>{
         const id = side === 'enemy' ? 'battleTickerEnemy' : 'battleTickerPlayer';
         let el = document.getElementById(id);
-        if (el) return el;
+        if (el){
+          try{
+            el.removeAttribute('title');
+            el.style.cursor = 'default';
+            el.style.pointerEvents = 'none';
+          }catch(_e){}
+          return el;
+        }
         el = document.createElement('div');
         el.id = id;
         el.className = 'battle-led-ticker ' + side;
+        el.setAttribute('data-battle-ticker-side', side);
+        el.style.cursor = 'default';
+        el.style.pointerEvents = 'none';
         el.innerHTML = '<div class="battle-led-grid"></div><div class="battle-led-inner"><span class="battle-ticker-kind">'+(side==='enemy'?'ENEMY':'YOU')+'</span><span class="battle-ticker-text" data-tier="none">READY</span><span class="battle-ticker-count"></span></div>';
         layer.appendChild(el);
         return el;
       };
+      _ensureReplayLoopButton(layer);
       return { player: make('player'), enemy: make('enemy') };
+    }catch(_){ return null; }
+  }
+
+  function _ensureReplayLoopButton(layer){
+    try{
+      const host = layer || _ensureLayer();
+      if (!host) return null;
+      let btn = document.getElementById('battleTickerReplayLoopBtn');
+      if (!btn){
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'battleTickerReplayLoopBtn';
+        btn.className = 'battle-ticker-replay-btn';
+        btn.setAttribute('aria-label', '掲示板ループ再生');
+        btn.innerHTML = '<span class="battle-ticker-replay-btn-screen"><span class="battle-ticker-replay-btn-label">LOOP</span><span class="battle-ticker-replay-btn-sub">SKILL</span></span><span class="battle-ticker-replay-btn-knob" aria-hidden="true"></span>';
+        const handler = function(ev){
+          try{
+            if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+            if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+            const ok = (typeof window.__battleDigestReplayFromClick === 'function') ? window.__battleDigestReplayFromClick() : false;
+            btn.classList.remove('is-error');
+            btn.classList.add('is-active');
+            try{ if (btn.__flashTimer) clearTimeout(btn.__flashTimer); }catch(_t){}
+            btn.__flashTimer = setTimeout(function(){ try{ btn.classList.remove('is-active'); }catch(_e){} }, ok ? 520 : 760);
+            if (!ok) btn.classList.add('is-error');
+          }catch(_e){}
+          return false;
+        };
+        btn.onclick = handler;
+        btn.addEventListener('pointerup', handler, true);
+        btn.addEventListener('touchend', handler, { capture:true, passive:false });
+      }
+      try{ host.appendChild(btn); }catch(_e){}
+      return btn;
     }catch(_){ return null; }
   }
 
@@ -6779,7 +6825,7 @@ function cleanUpMixedSkillsExceptOne() {
     try{
       const st = _ensureState();
       const qs = st.queues[side];
-      if (!qs || st.finalLocked) return;
+      if (!qs || (st.finalLocked && !st.replayLoopActive)) return;
       if (_isTickerSuppressed() && !window.__winnerGuessMiniGameActive){
         _clearQueueTimer(side);
         qs.current = null;
@@ -6788,7 +6834,7 @@ function cleanUpMixedSkillsExceptOne() {
       }
       _clearQueueTimer(side);
       if (!qs.current) qs.current = qs.queue.shift() || null;
-      if (!qs.current && window.__winnerGuessMiniGameActive){
+      if (!qs.current && (window.__winnerGuessMiniGameActive || st.replayLoopActive)){
         const list = (st.loopLists && st.loopLists[side]) || [];
         if (list.length){
           const idx = Math.max(0, Number(qs.loopIndex || 0) || 0) % list.length;
@@ -6803,7 +6849,7 @@ function cleanUpMixedSkillsExceptOne() {
       qs.timer = (window.__uiSetTimeout || window.setTimeout)(function(){
         try{
           const st2 = _ensureState();
-          if (st2.finalLocked) return;
+          if (st2.finalLocked && !st2.replayLoopActive) return;
           const q2 = st2.queues[side];
           if (!q2 || q2.current !== item) return;
           q2.current = null;
@@ -6831,6 +6877,7 @@ function cleanUpMixedSkillsExceptOne() {
         if (loopIdx >= 0) loopList[loopIdx] = Object.assign({}, loopList[loopIdx], entry);
         else loopList.push(Object.assign({}, entry));
         if (loopList.length > 12) st.loopLists[side] = loopList.slice(-12);
+        _snapshotReplayLists();
       }
       if (qs.current && qs.current.key === entry.key){
         qs.current.count = entry.count;
@@ -6845,10 +6892,60 @@ function cleanUpMixedSkillsExceptOne() {
       if (!qs.current) _drain(side);
     }catch(_){ }
   }
+
+  function _cloneReplayLists(src){
+    try{
+      const out = { player:[], enemy:[] };
+      ['player','enemy'].forEach(function(side){
+        const list = src && src[side];
+        if (Array.isArray(list)) out[side] = list.map(function(it){ return Object.assign({}, it); });
+      });
+      return out;
+    }catch(_){ return { player:[], enemy:[] }; }
+  }
+  function _snapshotReplayLists(){
+    try{
+      const st = _ensureState();
+      if (!st) return;
+      st.replaySnapshot = _cloneReplayLists(st.loopLists || { player:[], enemy:[] });
+    }catch(_){ }
+  }
+  function _hasReplayLists(lists){
+    try{
+      return ['player','enemy'].some(function(side){
+        const list = lists && lists[side];
+        return Array.isArray(list) && list.length > 0;
+      });
+    }catch(_){ return false; }
+  }
+  function _startReplayLoopFromLoopLists(){
+    try{
+      const st = _ensureState();
+      if (!st) return false;
+      let started = false;
+      ['player','enemy'].forEach(function(side){
+        const list = st.loopLists && st.loopLists[side];
+        const qs = st.queues && st.queues[side];
+        if (!qs) return;
+        _clearQueueTimer(side);
+        qs.current = null;
+        qs.queue = Array.isArray(list) ? list.map(function(it){ return Object.assign({}, it); }) : [];
+        qs.loopIndex = 0;
+        if (qs.queue.length){
+          started = true;
+          _drain(side);
+        }else{
+          _setBoard(side, side === 'enemy' ? 'ENEMY' : 'YOU', 'READY', 0, { isReady:true, tier:'none', flashMs:10 });
+        }
+      });
+      _applyTickerVisibility();
+      return started;
+    }catch(_){ return false; }
+  }
   function _replayUsageBoards(){
     try{
       const st = _ensureState();
-      if (!st || st.finalLocked) return;
+      if (!st) return;
       ['player','enemy'].forEach(function(side){
         const bucket = st.usage && st.usage[side] ? st.usage[side] : null;
         if (!bucket) return;
@@ -6871,6 +6968,7 @@ function cleanUpMixedSkillsExceptOne() {
         else _setBoard(side, side === 'enemy' ? 'ENEMY' : 'YOU', 'READY', 0, { isReady:true, tier:'none', flashMs:10 });
       });
       _applyTickerVisibility();
+      _snapshotReplayLists();
     }catch(_){ }
   }
   window.__battleDigestForceShowTickers = function(){
@@ -6878,6 +6976,118 @@ function cleanUpMixedSkillsExceptOne() {
       window.__battleTickerForceShow = true;
       _replayUsageBoards();
     }catch(_){ }
+  };
+
+  function _buildReplayEntriesFromBattleLog(){
+    try{
+      const st = _ensureState();
+      if (!st) return false;
+      const lines = Array.isArray(window.log) ? window.log.slice() : [];
+      if (!lines.length) return false;
+      st.usage = { player:{}, enemy:{} };
+      const addUsage = function(side, kind, name, meta){
+        try{
+          if (!side || !name) return;
+          const level = Math.max(1, Number(meta && meta.level || 1) || 1);
+          const itemLevel = Math.max(0, Number(meta && meta.itemLevel || 0) || 0);
+          const label = (typeof window.__formatSkillDisplay === 'function')
+            ? window.__formatSkillDisplay({ name:name, level:level, itemLevel:itemLevel })
+            : String(name);
+          const key = String(kind || 'SKILL') + '::' + String(name);
+          if (!st.usage[side][key]) st.usage[side][key] = { kind:String(kind || 'SKILL'), label:label, count:0 };
+          st.usage[side][key].count += 1;
+          st.usage[side][key].label = label;
+        }catch(_e){}
+      };
+      lines.forEach(function(rawLine){
+        try{
+          const line = _safeName(rawLine);
+          if (!line) return;
+          let m = line.match(/^(.+?)の(.+?)：(.*)$/);
+          if (m){
+            const actorName = _safeName(m[1]);
+            const skillName = _safeName(m[2]);
+            const detail = _safeName(m[3]);
+            const side = _sideFromName(actorName);
+            if (!side || !skillName) return;
+            const meta = (typeof window.__lookupBattleSkillMeta === 'function')
+              ? window.__lookupBattleSkillMeta(actorName, skillName, detail)
+              : { level:1, itemLevel:0, kind:(/魔道具|アイテム/.test(skillName) || /魔道具|アイテム/.test(detail)) ? 'ITEM' : 'SKILL' };
+            addUsage(side, meta.kind || 'SKILL', skillName, meta || {});
+            return;
+          }
+          m = line.match(/^>>>\s*魔道具[「"]?(.+?)[」"]?が(.+?)を発動/);
+          if (m){
+            const item = _safeName(m[1]);
+            const skill = _safeName(m[2]);
+            if (!item) return;
+            const owner = (typeof window.__battleDigestResolveItemOwnerSide === 'function')
+              ? window.__battleDigestResolveItemOwnerSide(item, skill)
+              : null;
+            const side = owner || (window.__battleDigestLastActorSide || 'enemy');
+            addUsage(side, 'ITEM', item, { level:1, itemLevel:0 });
+            return;
+          }
+          m = line.match(/^(.*?)(?:魔道具|アイテム)(.+?)(?:発動|使用|獲得|入手)/);
+          if (m){
+            const side = _sideFromName(m[1]) || window.__battleDigestLastActorSide || 'player';
+            const item = _safeName(m[2]);
+            if (!item) return;
+            addUsage(side, 'ITEM', item, { level:1, itemLevel:0 });
+          }
+        }catch(_lineErr){}
+      });
+      return ['player','enemy'].some(function(side){
+        try{ return !!(st.usage && st.usage[side] && Object.keys(st.usage[side]).length); }catch(_e){ return false; }
+      });
+    }catch(_){ return false; }
+  }
+
+  window.__battleDigestReplayFromClick = function(){
+    try{
+      const st = _ensureState();
+      if (!st) return false;
+      let hasUsage = ['player','enemy'].some(function(side){
+        try{
+          const bucket = st.usage && st.usage[side] ? st.usage[side] : null;
+          return !!(bucket && Object.keys(bucket).length);
+        }catch(_e){ return false; }
+      }) || ['player','enemy'].some(function(side){
+        try{
+          const list = st.loopLists && st.loopLists[side];
+          return Array.isArray(list) && list.length > 0;
+        }catch(_e){ return false; }
+      }) || _hasReplayLists(st.replaySnapshot);
+      if (!hasUsage) hasUsage = _buildReplayEntriesFromBattleLog();
+      if (!hasUsage && _hasReplayLists(st.replaySnapshot)){
+        st.loopLists = _cloneReplayLists(st.replaySnapshot);
+        hasUsage = true;
+      }
+      if (!hasUsage) return false;
+      if (!_hasReplayLists(st.loopLists) && _hasReplayLists(st.replaySnapshot)){
+        st.loopLists = _cloneReplayLists(st.replaySnapshot);
+      }
+      window.__battleTickerForceShow = true;
+      st.finalLocked = false;
+      st.replayLoopActive = true;
+      try{ if (st.finalTimer){ clearTimeout(st.finalTimer); st.finalTimer = 0; } }catch(_e){}
+      ['player','enemy'].forEach(function(side){
+        try{
+          _clearQueueTimer(side);
+          const el = document.getElementById(side === 'enemy' ? 'battleTickerEnemy' : 'battleTickerPlayer');
+          if (el) el.classList.remove('is-final-win','is-final-lose','is-ready','is-flash');
+          const qs = st.queues && st.queues[side];
+          if (qs){ qs.current = null; qs.queue = []; qs.loopIndex = 0; }
+        }catch(_e){}
+      });
+      if (!_hasReplayLists(st.loopLists)) _replayUsageBoards();
+      const started = _startReplayLoopFromLoopLists();
+      if (!started && _buildReplayEntriesFromBattleLog()){
+        _replayUsageBoards();
+        return _startReplayLoopFromLoopLists();
+      }
+      return started;
+    }catch(_){ return false; }
   };
 
   function _rewardSummary(){
@@ -6896,7 +7106,7 @@ function cleanUpMixedSkillsExceptOne() {
     try{
       window.__battleTickerForceShow = false;
       _clearDigestTimers(window.__battleDigestState);
-      const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, loopLists:{player:[],enemy:[]}, queues:{player:{queue:[],current:null,timer:0,loopIndex:0},enemy:{queue:[],current:null,timer:0,loopIndex:0}}, finalLocked:false, finalTimer:0 };
+      const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, loopLists:{player:[],enemy:[]}, replaySnapshot:{player:[],enemy:[]}, queues:{player:{queue:[],current:null,timer:0,loopIndex:0},enemy:{queue:[],current:null,timer:0,loopIndex:0}}, finalLocked:false, replayLoopActive:false, finalTimer:0 };
       window.__battleRadarResultReadyAt = 0;
       window.__battleRadarLoserFadeStartsAt = 0;
       const layer = _ensureLayer();
@@ -7056,7 +7266,13 @@ function cleanUpMixedSkillsExceptOne() {
     try{
       const st = _ensureState();
       if (st.finalLocked) return;
+      try{
+        const hasLoopBeforeFinal = _hasReplayLists(st.loopLists);
+        if (!hasLoopBeforeFinal) _buildReplayEntriesFromBattleLog();
+        _snapshotReplayLists();
+      }catch(_snapErr){}
       st.finalLocked = true;
+      st.replayLoopActive = false;
       _stopWinnerGuessLoops();
       ['player','enemy'].forEach(_clearQueueTimer);
       if (st.finalTimer){ try{ clearTimeout(st.finalTimer); }catch(_){} st.finalTimer = 0; }
@@ -7096,6 +7312,8 @@ function cleanUpMixedSkillsExceptOne() {
     }catch(_){ }
   };
 })();
+
+/* battle ticker direct tap replay removed: use dedicated loop button instead */
 
 window.addEventListener('click', function(ev){
   try{

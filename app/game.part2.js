@@ -1997,6 +1997,25 @@ window.recordHP = function() {
 // ステータス表示用文字列生成
 window.formatStats = function(c) {
 	const isPlayer = (c === player);
+	let itemSectionHtml = '';
+	try {
+		const sectionTitle = isPlayer ? '所持魔道具' : '敵魔道具';
+		const summaryHtml = (typeof formatBattleItemSummaryHtml === 'function')
+			? formatBattleItemSummaryHtml(c, { emptyLabel: isPlayer ? '所持魔道具: なし' : '戦闘用魔道具なし' })
+			: (() => {
+				const items = (c && Array.isArray(c.itemMemory)) ? c.itemMemory : [];
+				if (!items.length) return `<div class="battle-item-summary empty">${isPlayer ? '所持魔道具: なし' : '戦闘用魔道具なし'}</div>`;
+				return `<div class="battle-item-summary">${items.map(item => {
+					const itemName = `${item.color || ''}${item.adjective || ''}${item.noun || ''}`;
+					return `<div class="battle-item-row"><span class="battle-item-name">${itemName}</span><span class="battle-item-meta">${item.skillName || '-'} Lv${Math.max(1, Number(item.skillLevel || 1) || 1)}</span></div>`;
+				}).join('')}</div>`;
+			})();
+		itemSectionHtml = `
+      <div class="battle-character-item-section ${isPlayer ? 'player' : 'enemy'}">
+        <div class="enemy-item-section-title">${sectionTitle}</div>
+        ${summaryHtml}
+      </div>`;
+	} catch (_e) {}
 
 	return `
     <div class="name-and-streak">
@@ -2011,6 +2030,7 @@ window.formatStats = function(c) {
       <li>SPD: ${c.speed}</li>
       <li>HP: ${c.maxHp}</li>
     </ul>
+    ${itemSectionHtml}
   `;
 };
 
@@ -2797,33 +2817,19 @@ window.getSkillEffect = function(skill, user, target, log) {
 		case 'itemReuse': {
 			const chance = skillData.activationRate ?? 1.0;
 			if (Math.random() < chance) {
-				const usableItems = player.itemMemory.filter(item => item.remainingUses > 0);
+				const holder = (user && Array.isArray(user.itemMemory)) ? user : player;
+				if (typeof window.__restoreMissingItemUsesForCharacter === 'function') {
+					window.__restoreMissingItemUsesForCharacter(holder);
+				}
+				const usableItems = (holder && Array.isArray(holder.itemMemory)) ? holder.itemMemory.filter(item => item && item.remainingUses > 0) : [];
 				if (usableItems.length === 0) {
 					log.push(`${displayName(user.name)}の${skill.name}：しかし再利用できる魔道具がない！`);
 					console.log("[ItemReuse] No usable item to activate");
 				} else {
 					const item = usableItems[Math.floor(Math.random() * usableItems.length)];
-					log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
-					console.log(`[ItemReuse] Activating item: ${item.color}${item.adjective}${item.noun} -> ${item.skillName}`);
-					const prevDamage = user.battleStats[item.skillName] || 0;
-					const itemSkillDef = skillPool.find(sk => sk.name === item.skillName && sk.category !== 'passive');
-					if (itemSkillDef) {
-						getSkillEffect({ ...itemSkillDef, level: item.skillLevel || 1 }, player, target, log);
-					}
-					if (item.skillLevel < 3000 && Math.random() < 0.4) {
-						item.skillLevel++;
-						log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
-						drawItemMemoryList();
-					}
-					item.remainingUses--;
-					const isWithinProtectedPeriod = window.protectItemUntil && window.battleCount <= window.protectItemUntil;
-					if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-						log.push(`>>> 魔道具「${item.color}${item.adjective}${item.noun}」は壊れた！`);
-						player.itemMemory.splice(player.itemMemory.indexOf(item), 1);
-						drawItemMemoryList();
-					}
-					const newDamage = user.battleStats[item.skillName] || 0;
-					const itemDamage = newDamage - prevDamage;
+					const itemDamage = (typeof window.__activateBattleItem === 'function')
+						? Number(window.__activateBattleItem(item, holder, target, log, { sourceSkillName: skill.name, byReuse: true }) || 0)
+						: 0;
 					totalDamage += itemDamage;
 				}
 			} else {
@@ -3213,26 +3219,433 @@ function addCounterAccum(character, damage, log, sourceLabel) {
 	}
 }
 
-function restoreMissingItemUses() {
-	if (!player || !player.itemMemory) return;
+window.__battleGetCharacterSide = window.__battleGetCharacterSide || function(holder) {
+	try {
+		if (!holder || typeof holder !== 'object') return null;
+		if ((typeof player !== 'undefined' && holder === player) || holder === window.player) return 'player';
+		if ((typeof enemy !== 'undefined' && holder === enemy) || holder === window.enemy) return 'enemy';
+	} catch (_e) {}
+	return null;
+};
 
-	for (const item of player.itemMemory) {
-		// 色から usesPerBattle を補完
+window.__battleItemDisplayName = window.__battleItemDisplayName || function(item) {
+	if (!item || typeof item !== 'object') return '';
+	return `${item.color || ''}${item.adjective || ''}${item.noun || ''}`;
+};
+
+window.__restoreMissingItemUsesForCharacter = window.__restoreMissingItemUsesForCharacter || function(holder) {
+	if (!holder || !Array.isArray(holder.itemMemory)) return;
+
+	for (const item of holder.itemMemory) {
+		if (!item || typeof item !== 'object') continue;
 		if (item.usesPerBattle == null) {
 			const colorDef = itemColors.find(c => c.word === item.color);
 			if (colorDef) {
 				item.usesPerBattle = colorDef.usesPerBattle;
 			} else {
 				console.warn("[警告] 未知の色: " + item.color);
-				item.usesPerBattle = 1; // デフォルト値（あくまで安全措置）
+				item.usesPerBattle = 1;
+			}
+		}
+		if (item.remainingUses == null || (!Number.isFinite(item.remainingUses) && item.remainingUses !== Infinity) || item.remainingUses <= 0) {
+			item.remainingUses = item.usesPerBattle;
+		}
+		if (item.skillLevel == null || item.skillLevel <= 0) {
+			item.skillLevel = 1;
+		}
+	}
+};
+
+
+window.__cloneBattleItemExact = window.__cloneBattleItemExact || function(item, opts = {}) {
+	try {
+		if (!item || typeof item !== 'object') return null;
+		const clone = {
+			color: item.color || '',
+			adjective: item.adjective || '',
+			noun: item.noun || '',
+			skillName: item.skillName || '',
+			activationRate: Number(item.activationRate || 0),
+			usesPerBattle: Math.max(1, Math.floor(Number(item.usesPerBattle || item.remainingUses || 1) || 1)),
+			breakChance: Math.max(0, Number(item.breakChance || 0) || 0),
+			remainingUses: Math.max(1, Math.floor(Number(item.usesPerBattle || item.remainingUses || 1) || 1)),
+			skillLevel: Math.max(1, Math.floor(Number(item.skillLevel || 1) || 1)),
+			protected: !!opts.protected,
+			glow: item.glow != null ? item.glow : '1.00'
+		};
+		return clone;
+	} catch (e) {
+		console.warn('clone battle item exact failed', e);
+		return null;
+	}
+};
+
+window.__snapshotBattleItemsForCharacter = window.__snapshotBattleItemsForCharacter || function(holder) {
+	try {
+		if (!holder || typeof holder !== 'object') return [];
+		const src = Array.isArray(holder.itemMemory) ? holder.itemMemory : [];
+		holder.__battleInitialItemMemorySnapshot = src.map(function(item){
+			return window.__cloneBattleItemExact ? window.__cloneBattleItemExact(item) : null;
+		}).filter(Boolean);
+		return holder.__battleInitialItemMemorySnapshot;
+	} catch (e) {
+		console.warn('snapshot battle items failed', e);
+		holder.__battleInitialItemMemorySnapshot = [];
+		return holder.__battleInitialItemMemorySnapshot;
+	}
+};
+
+window.__pickBattleItemPartByBias = window.__pickBattleItemPartByBias || function(parts, metricKey, bias) {
+	try {
+		const list = Array.isArray(parts) ? parts.filter(Boolean) : [];
+		if (!list.length) return null;
+		const mode = String(bias || '').toLowerCase();
+		const weighted = list.map(function(part){
+			const metricRaw = Number(part && part[metricKey]);
+			const metric = Math.max(0.000001, Number.isFinite(metricRaw) && metricRaw > 0 ? metricRaw : 1);
+			let w = 1;
+			if (mode === 'high' || mode === 'boss' || mode === 'rare') {
+				w = Math.pow(1 / metric, 2.1);
+			} else if (mode === 'very_high' || mode === 'strong_boss' || mode === 'mythic') {
+				w = Math.pow(1 / metric, 3.0);
+			} else if (mode === 'low' || mode === 'common') {
+				w = Math.pow(metric, 2.0);
+			} else {
+				w = 1;
+			}
+			if (!Number.isFinite(w) || w <= 0) w = 0.000001;
+			return { part: part, weight: w };
+		});
+		const total = weighted.reduce(function(sum, row){ return sum + row.weight; }, 0);
+		let r = Math.random() * total;
+		for (const row of weighted) {
+			r -= row.weight;
+			if (r <= 0) return row.part;
+		}
+		return weighted[weighted.length - 1].part;
+	} catch (e) {
+		console.warn('pick battle item part by bias failed', e);
+		return Array.isArray(parts) && parts.length ? parts[0] : null;
+	}
+};
+
+window.__tryDropEnemyBattleItemsOnVictory = window.__tryDropEnemyBattleItemsOnVictory || function(enemyHolder, log) {
+	try {
+		if (!player || !enemyHolder) return [];
+		if (!Array.isArray(player.itemMemory)) player.itemMemory = [];
+		if (player.itemMemory.length >= 10) return [];
+		const sourceItems = Array.isArray(enemyHolder.__battleInitialItemMemorySnapshot) && enemyHolder.__battleInitialItemMemorySnapshot.length
+			? enemyHolder.__battleInitialItemMemorySnapshot
+			: (Array.isArray(enemyHolder.itemMemory) ? enemyHolder.itemMemory : []);
+		if (!sourceItems.length) return [];
+
+		let perItemRate = Number(window.ENEMY_ITEM_STEAL_DROP_RATE || 0.0025);
+		if (window.isStrongBossBattle) perItemRate = Number(window.ENEMY_ITEM_STEAL_DROP_RATE_STRONG_BOSS || 0.02);
+		else if (window.isBossBattle || window.isGrowthBoss) perItemRate = Number(window.ENEMY_ITEM_STEAL_DROP_RATE_BOSS || 0.008);
+		if (!Number.isFinite(perItemRate) || perItemRate <= 0) return [];
+
+		const granted = [];
+		for (const sourceItem of sourceItems) {
+			if (!sourceItem || typeof sourceItem !== 'object') continue;
+			if (player.itemMemory.length >= 10) break;
+			if (Math.random() >= perItemRate) continue;
+
+			const copy = window.__cloneBattleItemExact ? window.__cloneBattleItemExact(sourceItem, { protected:false }) : null;
+			if (!copy) continue;
+			player.itemMemory.push(copy);
+			granted.push(copy);
+
+			const itemName = `${copy.color || ''}${copy.adjective || ''}${copy.noun || ''}`;
+			try{
+				if (typeof window.__notifyBattleItemReward === 'function') {
+					window.__notifyBattleItemReward({
+						itemName: `鹵獲 ${itemName}`,
+						skillName: copy.skillName,
+						skillLevel: copy.skillLevel,
+						source: 'enemy-loot'
+					});
+				}
+			}catch(_e){}
+			if (Array.isArray(log)) {
+				log.push(`【敵魔道具ドロップ】${displayName(enemyHolder.name || '敵')}の ${itemName}（${copy.skillName} Lv${copy.skillLevel}）を獲得！`);
 			}
 		}
 
-		// remainingUses も補完
-		if (item.remainingUses == null || item.remainingUses <= 0) {
-			item.remainingUses = item.usesPerBattle;
+		if (granted.length) {
+			try { if (typeof drawItemMemoryList === 'function') drawItemMemoryList(); } catch(_e){}
+			try { if (typeof updateItemOverlay === 'function') updateItemOverlay(); } catch(_e){}
+			try {
+				if (typeof showCustomAlert === 'function') {
+					const preview = granted.slice(0, 2).map(function(it){
+						return `${it.color || ''}${it.adjective || ''}${it.noun || ''}`;
+					}).join('<br>');
+					const tail = granted.length > 2 ? `<br>ほか ${granted.length - 2} 個` : '';
+					showCustomAlert(`敵魔道具ドロップ！<br>${preview}${tail}`, 3200);
+				}
+			} catch(_e){}
 		}
+		return granted;
+	} catch (e) {
+		console.warn('enemy battle item drop failed', e);
+		return [];
 	}
+};
+
+window.__pickEnemyBattleItemNoun = window.__pickEnemyBattleItemNoun || function(rarityBias) {
+	try {
+		const list = Array.isArray(itemNouns) ? itemNouns.filter(Boolean) : [];
+		if (!list.length) return null;
+		const mode = String(rarityBias || '').toLowerCase();
+		const weighted = list.map(function(noun){
+			const metricRaw = Number(noun && noun.dropRateMultiplier);
+			const metric = Math.max(0.000001, Number.isFinite(metricRaw) && metricRaw > 0 ? metricRaw : 1);
+			const breakChance = Math.max(0, Number(noun && noun.breakChance) || 0);
+			let rarityWeight = 1;
+			if (mode === 'high' || mode === 'boss' || mode === 'rare') rarityWeight = Math.pow(1 / metric, 2.1);
+			else if (mode === 'very_high' || mode === 'strong_boss' || mode === 'mythic') rarityWeight = Math.pow(1 / metric, 3.0);
+			else if (mode === 'low' || mode === 'common') rarityWeight = Math.pow(metric, 2.0);
+			const breakWeight = 1 + Math.min(3.2, breakChance * 10);
+			return { noun, weight: Math.max(0.000001, rarityWeight * breakWeight) };
+		});
+		const total = weighted.reduce(function(sum, row){ return sum + row.weight; }, 0);
+		let r = Math.random() * total;
+		for (const row of weighted) {
+			r -= row.weight;
+			if (r <= 0) return row.noun;
+		}
+		return weighted[weighted.length - 1].noun;
+	} catch (e) {
+		console.warn('pick enemy battle item noun failed', e);
+		return (Array.isArray(itemNouns) && itemNouns.length) ? itemNouns[Math.floor(Math.random() * itemNouns.length)] : null;
+	}
+};
+
+window.__createRandomBattleItemForCharacter = window.__createRandomBattleItemForCharacter || function(holder, opts = {}) {
+	try {
+		if (!holder || typeof holder !== 'object') return null;
+		if (!Array.isArray(skillPool) || !skillPool.length) return null;
+		if (!Array.isArray(itemColors) || !itemColors.length) return null;
+		if (!Array.isArray(itemNouns) || !itemNouns.length) return null;
+		if (!Array.isArray(itemAdjectives) || !itemAdjectives.length) return null;
+
+		holder.itemMemory = Array.isArray(holder.itemMemory) ? holder.itemMemory : [];
+
+		let chosenSkillDef = opts.skillDef || null;
+		let chosenOwnedSkill = null;
+		if (!chosenSkillDef) {
+			let candidates = [];
+			if (Array.isArray(holder.skills) && holder.skills.length) {
+				candidates = holder.skills
+					.map(ownedSkill => {
+						const def = skillPool.find(sk => sk && sk.name === ownedSkill.name && sk.category !== 'passive' && sk.category !== 'mixed');
+						return def ? { def, ownedSkill } : null;
+					})
+					.filter(Boolean);
+			}
+			if (!candidates.length) {
+				candidates = skillPool
+					.filter(sk => sk && sk.category !== 'passive' && sk.category !== 'mixed')
+					.map(def => ({ def, ownedSkill: null }));
+			}
+			if (!candidates.length) {
+				candidates = skillPool
+					.filter(sk => sk && sk.category !== 'passive')
+					.map(def => ({ def, ownedSkill: null }));
+			}
+			if (!candidates.length) return null;
+			const picked = candidates[Math.floor(Math.random() * candidates.length)];
+			chosenSkillDef = picked.def;
+			chosenOwnedSkill = picked.ownedSkill || null;
+		}
+
+		if (!chosenOwnedSkill && Array.isArray(holder.skills)) {
+			chosenOwnedSkill = holder.skills.find(sk => sk && sk.name === chosenSkillDef.name) || null;
+		}
+
+		const rarityBias = String((opts && opts.rarityBias) || '').toLowerCase();
+		const colorData = (typeof window.__pickBattleItemPartByBias === 'function')
+			? window.__pickBattleItemPartByBias(itemColors, 'dropRateMultiplier', rarityBias)
+			: itemColors[Math.floor(Math.random() * itemColors.length)];
+		const isEnemyHolder = (typeof window.__battleGetCharacterSide === 'function' ? window.__battleGetCharacterSide(holder) : null) === 'enemy';
+		const nounData = isEnemyHolder && typeof window.__pickEnemyBattleItemNoun === 'function'
+			? window.__pickEnemyBattleItemNoun(rarityBias)
+			: ((typeof window.__pickBattleItemPartByBias === 'function')
+				? window.__pickBattleItemPartByBias(itemNouns, 'dropRateMultiplier', rarityBias)
+				: itemNouns[Math.floor(Math.random() * itemNouns.length)]);
+		let adjective = null;
+		for (let i = 0; i < 24 && !adjective; i++) {
+			const cand = pickItemAdjectiveWithNoun(nounData);
+			if (!cand) continue;
+			if (!rarityBias) {
+				adjective = cand;
+				break;
+			}
+			const metric = Math.max(0.000001, Number(cand.dropRate || 1) || 1);
+			const roll = Math.random();
+			if ((rarityBias === 'low' || rarityBias === 'common') && roll < Math.min(0.97, Math.pow(metric, 0.7))) {
+				adjective = cand;
+				break;
+			}
+			if ((rarityBias === 'high' || rarityBias === 'boss' || rarityBias === 'rare') && roll < Math.min(0.97, Math.pow(1 / metric, 0.45) / 6)) {
+				adjective = cand;
+				break;
+			}
+			if ((rarityBias === 'very_high' || rarityBias === 'strong_boss' || rarityBias === 'mythic') && roll < Math.min(0.99, Math.pow(1 / metric, 0.6) / 4.5)) {
+				adjective = cand;
+				break;
+			}
+		}
+		if (!adjective) {
+			adjective = (typeof window.__pickBattleItemPartByBias === 'function')
+				? window.__pickBattleItemPartByBias(itemAdjectives, 'dropRate', rarityBias)
+				: itemAdjectives[Math.floor(Math.random() * itemAdjectives.length)];
+		}
+		if (!adjective) return null;
+
+		const dropRate = (colorData.dropRateMultiplier || 1) * (adjective.dropRate || 1) * (nounData.dropRateMultiplier || 1);
+		const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
+		const baseLevel = (opts.skillLevel != null)
+			? Number(opts.skillLevel)
+			: Number((chosenOwnedSkill && chosenOwnedSkill.level) || 1);
+
+		const item = {
+			color: colorData.word,
+			adjective: adjective.word,
+			noun: nounData.word,
+			skillName: chosenSkillDef.name,
+			activationRate: adjective.activationRate,
+			usesPerBattle: colorData.usesPerBattle,
+			breakChance: nounData.breakChance,
+			remainingUses: colorData.usesPerBattle,
+			skillLevel: Math.max(1, Math.floor(Number.isFinite(baseLevel) ? baseLevel : 1)),
+			protected: false,
+			glow: glow.toFixed(2)
+		};
+
+		if (opts.append !== false) {
+			holder.itemMemory.push(item);
+		}
+		return item;
+	} catch (e) {
+		console.warn('create random battle item failed', e);
+		return null;
+	}
+};
+
+window.__assignRandomEnemyItems = window.__assignRandomEnemyItems || function(holder, opts = {}) {
+	try {
+		if (!holder || typeof holder !== 'object') return [];
+		if (window.ENEMY_ITEM_ENABLED === false) {
+			holder.itemMemory = [];
+			return holder.itemMemory;
+		}
+		holder.itemMemory = [];
+		const minCount = Math.max(1, Math.floor(Number(window.ENEMY_ITEM_MIN_COUNT || 1)));
+		const maxCount = Math.max(minCount, Math.floor(Number(window.ENEMY_ITEM_MAX_COUNT || 2)));
+		const bossBonus = Math.max(0, Math.floor(Number(window.ENEMY_BOSS_ITEM_BONUS || 1)));
+		const strongBossCount = Math.max(1, Math.floor(Number(window.ENEMY_STRONG_BOSS_ITEM_COUNT || 3)));
+		let count = (opts.count != null)
+			? Math.max(1, Math.floor(Number(opts.count) || 1))
+			: (minCount + Math.floor(Math.random() * (maxCount - minCount + 1)));
+		if (window.isStrongBossBattle) {
+			count = strongBossCount;
+		} else if (window.isBossBattle || window.isGrowthBoss) {
+			count += bossBonus;
+		}
+		if (Number(holder.rarity || 0) >= 2 && Math.random() < 0.35) {
+			count += 1;
+		}
+		count = Math.max(1, Math.min(5, count));
+
+		const rarityBias = window.isStrongBossBattle ? 'very_high' : ((window.isBossBattle || window.isGrowthBoss) ? 'high' : 'low');
+		for (let i = 0; i < count; i++) {
+			const item = window.__createRandomBattleItemForCharacter(holder, { append: true, rarityBias });
+			if (!item) break;
+		}
+		window.__restoreMissingItemUsesForCharacter(holder);
+		if (typeof window.__snapshotBattleItemsForCharacter === 'function') {
+			window.__snapshotBattleItemsForCharacter(holder);
+		}
+		return holder.itemMemory;
+	} catch (e) {
+		console.warn('assign random enemy items failed', e);
+		holder.itemMemory = Array.isArray(holder.itemMemory) ? holder.itemMemory : [];
+		return holder.itemMemory;
+	}
+};
+
+window.__activateBattleItem = window.__activateBattleItem || function(item, owner, target, log, opts = {}) {
+	if (!item || !owner || !target) return 0;
+	if (!Array.isArray(owner.itemMemory)) owner.itemMemory = [];
+	window.__battleItemActivationStack = Array.isArray(window.__battleItemActivationStack) ? window.__battleItemActivationStack : [];
+	if (window.__battleItemActivationStack.includes(item)) {
+		return 0;
+	}
+	window.__battleItemActivationStack.push(item);
+	try {
+		const itemSkillDef = skillPool.find(sk => sk && sk.name === item.skillName && sk.category !== 'passive');
+		if (!itemSkillDef) return 0;
+
+		const itemName = (typeof window.__battleItemDisplayName === 'function') ? window.__battleItemDisplayName(item) : `${item.color || ''}${item.adjective || ''}${item.noun || ''}`;
+		const prevDamage = Number((owner.battleStats && owner.battleStats[item.skillName]) || 0);
+		log.push(`>>> 魔道具「${itemName}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
+
+		if (itemSkillDef.category === 'mixed' && typeof useMixedSkill === 'function') {
+			useMixedSkill({ ...itemSkillDef, level: item.skillLevel || 1, isMixed: true }, owner, target, log);
+		} else {
+			getSkillEffect({ ...itemSkillDef, level: item.skillLevel || 1 }, owner, target, log);
+		}
+
+		const ownerSide = (typeof window.__battleGetCharacterSide === 'function') ? window.__battleGetCharacterSide(owner) : null;
+		const isPlayerHolder = ownerSide === 'player';
+		if (item.skillLevel < 3000 && Math.random() < 0.4) {
+			item.skillLevel++;
+			log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
+			if (isPlayerHolder && typeof drawItemMemoryList === 'function') drawItemMemoryList();
+			if (isPlayerHolder && typeof updateItemOverlay === 'function') updateItemOverlay();
+		}
+
+		item.remainingUses--;
+		const isWithinProtectedPeriod = isPlayerHolder && window.protectItemUntil && window.battleCount <= window.protectItemUntil;
+		if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
+			log.push(`>>> 魔道具「${itemName}」は壊れた！`);
+			const idx = owner.itemMemory.indexOf(item);
+			if (idx >= 0) owner.itemMemory.splice(idx, 1);
+			if (isPlayerHolder && typeof drawItemMemoryList === 'function') drawItemMemoryList();
+			if (isPlayerHolder && typeof updateItemOverlay === 'function') updateItemOverlay();
+		}
+
+		const newDamage = Number((owner.battleStats && owner.battleStats[item.skillName]) || 0);
+		return Math.max(0, newDamage - prevDamage);
+	} finally {
+		const idx = window.__battleItemActivationStack.lastIndexOf(item);
+		if (idx >= 0) window.__battleItemActivationStack.splice(idx, 1);
+	}
+};
+
+window.__triggerBattleItemsForCharacter = window.__triggerBattleItemsForCharacter || function(owner, target, log, opts = {}) {
+	if (!owner || !Array.isArray(owner.itemMemory) || !owner.itemMemory.length) return 0;
+	if (!target) return 0;
+	if (typeof window.__restoreMissingItemUsesForCharacter === 'function') {
+		window.__restoreMissingItemUsesForCharacter(owner);
+	}
+	const triggeredItemsThisTurn = new Set();
+	let totalDamage = 0;
+	for (let i = owner.itemMemory.length - 1; i >= 0; i--) {
+		const item = owner.itemMemory[i];
+		if (!item || typeof item !== 'object') continue;
+		const itemKey = `${item.color || ''}-${item.adjective || ''}-${item.noun || ''}`;
+		if (triggeredItemsThisTurn.has(itemKey)) continue;
+		if (item.remainingUses <= 0) continue;
+		if (Math.random() >= Number(item.activationRate || 0)) continue;
+		triggeredItemsThisTurn.add(itemKey);
+		totalDamage += Number(window.__activateBattleItem(item, owner, target, log, opts) || 0);
+	}
+	return totalDamage;
+};
+
+function restoreMissingItemUses() {
+	window.__restoreMissingItemUsesForCharacter(player);
 }
 
 window.applyPassiveStatBuffsFromSkills = function(player, log = window.log) {
