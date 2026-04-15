@@ -1899,6 +1899,220 @@ window.__renderWinnerGuessHpPreview = window.__renderWinnerGuessHpPreview || fun
 	ctx.fillText('後半ターンは伏せています', 10, 34);
 };
 
+
+window.__winnerGuessSlotState = window.__winnerGuessSlotState || null;
+window.__winnerGuessSlotTimers = window.__winnerGuessSlotTimers || [];
+
+window.__closeWinnerGuessSlotReward = window.__closeWinnerGuessSlotReward || function(){
+	try{
+		if (Array.isArray(window.__winnerGuessSlotTimers)) {
+			window.__winnerGuessSlotTimers.forEach(function(id){ try{ clearInterval(id); }catch(_e){} });
+			window.__winnerGuessSlotTimers.length = 0;
+		}
+		window.__winnerGuessSlotState = null;
+		const overlay = document.getElementById('winnerSlotOverlay');
+		const reels = document.getElementById('winnerSlotReels');
+		const result = document.getElementById('winnerSlotResult');
+		const closeBtn = document.getElementById('winnerSlotCloseBtn');
+		if (overlay) overlay.classList.add('hidden');
+		if (reels) reels.innerHTML = '';
+		if (result) {
+			result.classList.add('hidden');
+			result.innerHTML = '';
+		}
+		if (closeBtn) {
+			closeBtn.disabled = true;
+			closeBtn.onclick = null;
+		}
+		document.body.classList.remove('winner-slot-open');
+	}catch(_e){}
+};
+
+window.__grantWinnerGuessSlotReward = window.__grantWinnerGuessSlotReward || function(payload){
+	try{
+		if (!player) return null;
+		if (!Array.isArray(player.itemMemory)) player.itemMemory = [];
+		if (player.itemMemory.length >= 10) {
+			try{ if (typeof showCustomAlert === 'function') showCustomAlert('魔道具枠がいっぱいです（最大10個）', 2600, '#3f251a', '#fff'); }catch(_e){}
+			return null;
+		}
+		const colorData = payload && payload.colorData;
+		const adjectiveData = payload && payload.adjectiveData;
+		const nounData = payload && payload.nounData;
+		const skillData = payload && payload.skillData;
+		if (!colorData || !adjectiveData || !nounData || !skillData) return null;
+		const dropRate = Number(colorData.dropRateMultiplier || 1) * Number(adjectiveData.dropRate || 1) * Number(nounData.dropRateMultiplier || 1);
+		const glow = Math.min(1 / Math.max(dropRate, 0.01), 5);
+		const newItem = {
+			color: colorData.word,
+			adjective: adjectiveData.word,
+			noun: nounData.word,
+			skillName: skillData.name,
+			activationRate: adjectiveData.activationRate,
+			usesPerBattle: colorData.usesPerBattle,
+			breakChance: nounData.breakChance,
+			remainingUses: colorData.usesPerBattle,
+			skillLevel: Math.max(1, Number(payload.skillLevel || 1) || 1),
+			protected: false,
+			glow: glow.toFixed(2)
+		};
+		player.itemMemory.push(newItem);
+		try{ if (typeof drawItemMemoryList === 'function') drawItemMemoryList(); }catch(_e){}
+		try{ if (typeof updateItemOverlay === 'function') updateItemOverlay(); }catch(_e){}
+		const itemName = `${newItem.color}${newItem.adjective}${newItem.noun}`;
+		try{ if (typeof window.__notifyBattleItemReward === 'function') window.__notifyBattleItemReward({ itemName, skillName:newItem.skillName, skillLevel:newItem.skillLevel, source:'winner_guess_slot' }); }catch(_e){}
+		try{ if (Array.isArray(window.log)) window.log.push(`【勝者当てスロット】${itemName}（${newItem.skillName} Lv${newItem.skillLevel}）を獲得`); }catch(_e){}
+		return newItem;
+	}catch(_e){
+		console.warn('winner guess slot reward failed', _e);
+		return null;
+	}
+};
+
+window.__openWinnerGuessSlotReward = window.__openWinnerGuessSlotReward || function(reward){
+	try{
+		if (!reward || !reward.correct) return false;
+		if (!Array.isArray(window.itemColors) && typeof itemColors === 'undefined') return false;
+		const colorsSrc = Array.isArray(window.itemColors) ? window.itemColors : itemColors;
+		const adjsSrc = Array.isArray(window.itemAdjectives) ? window.itemAdjectives : itemAdjectives;
+		const nounsSrc = Array.isArray(window.itemNouns) ? window.itemNouns : itemNouns;
+		const skillsSrc = (Array.isArray(window.skillPool) ? window.skillPool : skillPool).filter(function(sk){
+			return sk && sk.name && sk.category !== 'passive' && sk.category !== 'mixed';
+		});
+		if (!colorsSrc.length || !adjsSrc.length || !nounsSrc.length || !skillsSrc.length) return false;
+
+		const pickDistinct = function(arr, count){
+			const pool = Array.isArray(arr) ? arr.slice() : [];
+			for (let i = pool.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+			}
+			return pool.slice(0, Math.max(1, Math.min(count, pool.length)));
+		};
+		const state = {
+			reward: reward,
+			columns: [
+				{ key:'color', label:'色', options: pickDistinct(colorsSrc, 4), displayKey:'word', selectedIndex:0, stopped:false, timer:null, speed: 78 },
+				{ key:'adjective', label:'修飾語', options: pickDistinct(adjsSrc, 4), displayKey:'word', selectedIndex:0, stopped:false, timer:null, speed: 92 },
+				{ key:'noun', label:'名詞', options: pickDistinct(nounsSrc, 4), displayKey:'word', selectedIndex:0, stopped:false, timer:null, speed: 108 },
+				{ key:'skill', label:'発動スキル', options: pickDistinct(skillsSrc, 4), displayKey:'name', selectedIndex:0, stopped:false, timer:null, speed: 70 }
+			],
+			awarded:false
+		};
+		window.__closeWinnerGuessSlotReward();
+		window.__winnerGuessSlotState = state;
+		const overlay = document.getElementById('winnerSlotOverlay');
+		const reels = document.getElementById('winnerSlotReels');
+		const result = document.getElementById('winnerSlotResult');
+		const closeBtn = document.getElementById('winnerSlotCloseBtn');
+		const sub = document.getElementById('winnerSlotSubMessage');
+		if (!overlay || !reels || !result || !closeBtn) return false;
+		document.body.classList.add('winner-slot-open');
+		overlay.classList.remove('hidden');
+		reels.innerHTML = '';
+		result.classList.add('hidden');
+		result.innerHTML = '';
+		closeBtn.disabled = true;
+		if (sub) sub.textContent = '4列を見極めて止めると、その組み合わせが魔道具になります。';
+		try{
+			if (typeof showCenteredPopup === 'function') {
+				showCenteredPopup('勝利報酬スロット<br>4本のレバーを順番に止めよう', 1300);
+			} else if (typeof showCustomAlert === 'function') {
+				showCustomAlert('勝利報酬スロット！<br>4本のレバーを順番に止めよう', 1300, '#22180f', '#fff4d9');
+			}
+		}catch(_e){}
+
+		const renderResult = function(){
+			const st = window.__winnerGuessSlotState;
+			if (!st) return;
+			const colorData = st.columns[0].options[st.columns[0].selectedIndex];
+			const adjectiveData = st.columns[1].options[st.columns[1].selectedIndex];
+			const nounData = st.columns[2].options[st.columns[2].selectedIndex];
+			const skillData = st.columns[3].options[st.columns[3].selectedIndex];
+			const skillLevel = Math.max(1, Math.min(9999, Math.round(1 + Number(st.reward && st.reward.gain || 1) * (1.8 + Number(st.reward.multiplier || 1)))));
+			result.innerHTML = `
+				<div class="winner-slot-result-kicker">JACKPOT FOR YOU</div>
+				<div class="winner-slot-result-name">${colorData.word}${adjectiveData.word}${nounData.word}</div>
+				<div class="winner-slot-result-skill">発動スキル：${skillData.name} Lv${skillLevel}</div>
+				<div class="winner-slot-result-meta">発動率 ${Math.round(Number(adjectiveData.activationRate || 0) * 100)}% ／ 使用回数 ${Number.isFinite(colorData.usesPerBattle) ? colorData.usesPerBattle : '∞'} ／ 破損率 ${Math.round(Number(nounData.breakChance || 0) * 1000) / 10}%</div>`;
+			result.classList.remove('hidden');
+			if (!st.awarded) {
+				const item = window.__grantWinnerGuessSlotReward({ colorData, adjectiveData, nounData, skillData, skillLevel });
+				st.awarded = !!item;
+				if (item) {
+					try{ if (typeof showCustomAlert === 'function') showCustomAlert(`勝者当てスロット報酬！<br>${item.color}${item.adjective}${item.noun}（${item.skillName} Lv${item.skillLevel}）`, 3600, '#3a2b17', '#fff6de'); }catch(_e){}
+				}
+			}
+			closeBtn.disabled = false;
+			closeBtn.onclick = function(){ window.__closeWinnerGuessSlotReward(); };
+		};
+
+		state.columns.forEach(function(col, index){
+			const column = document.createElement('div');
+			column.className = 'winner-slot-column';
+			column.dataset.key = col.key;
+			const label = document.createElement('div');
+			label.className = 'winner-slot-label';
+			label.textContent = col.label;
+			const win = document.createElement('div');
+			win.className = 'winner-slot-window';
+			const center = document.createElement('div');
+			center.className = 'winner-slot-center-line';
+			const strip = document.createElement('div');
+			strip.className = 'winner-slot-strip';
+			const itemHeight = 36;
+			col.options.forEach(function(opt, optIndex){
+				const item = document.createElement('div');
+				item.className = 'winner-slot-item';
+				item.dataset.index = String(optIndex);
+				item.textContent = String(opt[col.displayKey] || '---');
+				strip.appendChild(item);
+			});
+			const applyIndex = function(idx){
+				col.selectedIndex = ((idx % col.options.length) + col.options.length) % col.options.length;
+				const centerOffset = (win.clientHeight / 2) - (itemHeight / 2);
+				strip.style.transform = `translateY(${centerOffset - (col.selectedIndex * itemHeight)}px)`;
+				Array.from(strip.children).forEach(function(el, elIndex){
+					el.classList.toggle('is-selected', elIndex === col.selectedIndex);
+				});
+			};
+			applyIndex(col.selectedIndex);
+			win.appendChild(strip);
+			win.appendChild(center);
+			const lever = document.createElement('button');
+			lever.type = 'button';
+			lever.className = 'winner-slot-lever';
+			lever.textContent = `${col.label}を止める`;
+			const timer = setInterval(function(){
+				if (!window.__winnerGuessSlotState || col.stopped) return;
+				applyIndex(col.selectedIndex + 1);
+			}, col.speed);
+			col.timer = timer;
+			window.__winnerGuessSlotTimers.push(timer);
+			lever.onclick = function(){
+				if (!window.__winnerGuessSlotState || col.stopped) return;
+				col.stopped = true;
+				try{ clearInterval(col.timer); }catch(_e){}
+				column.classList.add('is-stopped');
+				lever.disabled = true;
+				lever.textContent = `${col.label} 確定`;
+				if (window.__winnerGuessSlotState.columns.every(function(x){ return !!x.stopped; })) {
+					renderResult();
+				}
+			};
+			column.appendChild(label);
+			column.appendChild(win);
+			column.appendChild(lever);
+			reels.appendChild(column);
+			requestAnimationFrame(function(){ applyIndex(col.selectedIndex); });
+		});
+		return true;
+	}catch(_e){
+		console.warn('winner guess slot open failed', _e);
+		return false;
+	}
+};
+
 window.__consumeWinnerGuessReward = window.__consumeWinnerGuessReward || function(){
 	const reward = window.__winnerGuessRewardState || null;
 	window.__winnerGuessRewardState = null;

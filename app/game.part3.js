@@ -1262,6 +1262,11 @@ window.startBattle = function() {
 					showCustomAlert(`勝者当て ${__winnerGuessReward.correct ? '的中' : '外れ'}！<br>魔通貨 +${__winnerGuessReward.gain}（x${Number(__winnerGuessReward.multiplier || 1).toFixed(2)}）`, 2400, __winnerGuessReward.correct ? '#173d2a' : '#3a2a19', '#fff');
 				}
 			} catch(_e){}
+			if (__winnerGuessReward.correct) {
+				try {
+					if (typeof window.__openWinnerGuessSlotReward === 'function') window.__openWinnerGuessSlotReward(__winnerGuessReward);
+				} catch(_e){}
+			}
 		};
 
 		// バトル結果に応じて、負けた側を右上/左上へ飛ばす（レーダーチャート枠内）

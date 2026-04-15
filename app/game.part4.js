@@ -1788,10 +1788,17 @@ window.importSaveCode = async function(code = null) {
 		//  - つづきから選択直後（import直後）から途中再開
 		// ==========================
 		try{
-			if (typeof window.__restoreTimeLimitStateFromSave === 'function') {
-				window.__restoreTimeLimitStateFromSave(parsed.timeLimitState || null);
+			const shouldRestoreTimeLimit = !!window.__loadingFromProgress;
+			if (shouldRestoreTimeLimit) {
+				if (typeof window.__restoreTimeLimitStateFromSave === 'function') {
+					window.__restoreTimeLimitStateFromSave(parsed.timeLimitState || null);
+				}
+			} else {
+				if (typeof window.__resetTimeLimitForBaseLoad === 'function') {
+					window.__resetTimeLimitForBaseLoad();
+				}
 			}
-		}catch(_){}
+		}catch(_){ }
 
 
 		do {
@@ -1832,6 +1839,11 @@ window.importSaveCode = async function(code = null) {
 			}
 
 			if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
+			try{
+				if (!window.__loadingFromProgress && typeof window.__resetTimeLimitForBaseLoad === 'function') {
+					window.__resetTimeLimitForBaseLoad();
+				}
+			}catch(_e){}
 			startBattle();
 
 			// ✅ 特殊スキルリストを再描画
@@ -1853,6 +1865,42 @@ window.importSaveCode = async function(code = null) {
 
 
 
+
+window.__resetTimeLimitForBaseLoad = window.__resetTimeLimitForBaseLoad || function(){
+	try{
+		window.__timeLimitSelectedSec = 0;
+	}catch(_e){}
+	try{
+		if (typeof window.__clearTimeLimitRuntime === 'function') {
+			window.__clearTimeLimitRuntime(true);
+		}
+	}catch(_e){}
+	try{
+		if (typeof window.__hideTimeUpSummary === 'function') {
+			window.__hideTimeUpSummary(true);
+		}
+	}catch(_e){}
+	try{
+		const battleBtn = document.getElementById('startBattleBtn');
+		if (battleBtn) {
+			battleBtn.style.display = '';
+			try{ battleBtn.classList.remove('hidden'); }catch(_e){}
+		}
+	}catch(_e){}
+	try{
+		const row = document.getElementById('battleTimeLimitRow');
+		if (row) {
+			row.classList.remove('is-active');
+			row.innerHTML = '';
+		}
+	}catch(_e){}
+	try{
+		if (typeof window.__applyTimeLimitUI === 'function') {
+			window.__applyTimeLimitUI();
+		}
+	}catch(_e){}
+};
+
 window.loadFromLocalStorage = async function() {
 	const code = localStorage.getItem('rpgLocalSave');
 	if (!code) {
@@ -1861,12 +1909,21 @@ window.loadFromLocalStorage = async function() {
 	}
 
 	try {
+		window.__loadingFromProgress = false;
 		await importSaveCode(code);
+		try{ if (typeof window.__resetTimeLimitForBaseLoad === 'function') window.__resetTimeLimitForBaseLoad(); }catch(_e){}
+		try{
+			window.__battleSetTimeout(() => {
+				try{ if (typeof window.__resetTimeLimitForBaseLoad === 'function') window.__resetTimeLimitForBaseLoad(); }catch(_e){}
+			}, 700);
+		}catch(_e){}
 		alert("ローカル保存データを読み込みました。");
 		updateRemainingBattleDisplay();
 	} catch (e) {
 		alert("ローカル保存データの読み込みに失敗しました。");
 		console.error(e);
+	} finally {
+		try { delete window.__loadingFromProgress; } catch (_) {}
 	}
 
 	try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}

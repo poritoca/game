@@ -725,6 +725,7 @@ button:active {
 }
 
 #battleRadarChart{
+	margin-top: 10px;
   position: relative;
   z-index: 1;
   width: 100%;
@@ -6916,4 +6917,236 @@ body.winner-guess-mode #winnerGuessToggleDock{
   margin-bottom:6px;
   font-weight:700;
   color:#cfeeff;
+}
+
+/* ===== winner guess premium slot ===== */
+.winner-slot-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+.winner-slot-overlay.hidden{ display:none !important; }
+.winner-slot-backdrop{
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(170,132,76,0.20), rgba(18,16,20,0.20) 24%, rgba(4,6,10,0.92) 68%),
+    linear-gradient(180deg, rgba(7,8,12,0.68), rgba(4,6,10,0.94));
+  backdrop-filter: blur(12px) saturate(128%);
+  -webkit-backdrop-filter: blur(12px) saturate(128%);
+}
+.winner-slot-modal{
+  position:relative;
+  z-index:1;
+  width:min(760px, 96vw);
+  max-height:min(90vh, 820px);
+  overflow:auto;
+  padding:16px 14px 14px;
+  border-radius:26px;
+  border:1px solid rgba(221,189,123,0.24);
+  background:
+    linear-gradient(180deg, rgba(28,22,18,0.98), rgba(11,12,16,0.99)),
+    linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
+  box-shadow:
+    0 30px 84px rgba(0,0,0,0.62),
+    inset 0 0 0 1px rgba(255,255,255,0.04),
+    0 0 42px rgba(207,166,91,0.08);
+}
+.winner-slot-header{
+  text-align:center;
+  margin-bottom:12px;
+}
+.winner-slot-kicker{
+  font-size:10px;
+  letter-spacing:0.24em;
+  color:rgba(228,199,137,0.82);
+  margin-bottom:6px;
+}
+.winner-slot-title{
+  font-size:18px;
+  color:#f8ebc7;
+  text-shadow:0 0 18px rgba(241,215,154,0.15);
+}
+.winner-slot-sub{
+  margin-top:7px;
+  font-size:10px;
+  line-height:1.45;
+  color:rgba(238,235,228,0.80);
+}
+.winner-slot-machine{
+  border-radius:22px;
+  padding:12px 10px 10px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(180deg, rgba(56,42,30,0.62), rgba(9,11,16,0.90)),
+    radial-gradient(circle at top, rgba(240,209,138,0.06), rgba(255,255,255,0) 36%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 -18px 28px rgba(0,0,0,0.28);
+}
+.winner-slot-reels{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:10px;
+}
+.winner-slot-column{
+  border-radius:20px;
+  padding:10px 9px 9px;
+  border:1px solid rgba(223,195,132,0.14);
+  background:
+    linear-gradient(180deg, rgba(24,24,28,0.98), rgba(12,12,16,0.97)),
+    linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.03),
+    0 10px 24px rgba(0,0,0,0.26);
+}
+.winner-slot-column.is-stopped{
+  box-shadow:
+    inset 0 0 0 1px rgba(255,240,200,0.04),
+    0 10px 24px rgba(0,0,0,0.26),
+    0 0 24px rgba(109,255,193,0.08);
+}
+.winner-slot-label{
+  text-align:center;
+  font-size:10px;
+  letter-spacing:0.12em;
+  color:#dbc18e;
+  margin-bottom:6px;
+}
+.winner-slot-window{
+  position:relative;
+  height:116px;
+  overflow:hidden;
+  border-radius:16px;
+  border:1px solid rgba(235,223,195,0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02) 14%, rgba(0,0,0,0.10) 14%, rgba(0,0,0,0.20) 86%, rgba(255,255,255,0.04) 100%),
+    linear-gradient(180deg, rgba(14,16,22,0.96), rgba(23,24,28,0.97));
+}
+.winner-slot-window::before,
+.winner-slot-window::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:30px;
+  z-index:2;
+  pointer-events:none;
+}
+.winner-slot-window::before{
+  top:0;
+  background: linear-gradient(180deg, rgba(10,10,12,0.96), rgba(10,10,12,0));
+}
+.winner-slot-window::after{
+  bottom:0;
+  background: linear-gradient(180deg, rgba(10,10,12,0), rgba(10,10,12,0.96));
+}
+.winner-slot-center-line{
+  position:absolute;
+  left:6px; right:6px;
+  top:50%;
+  height:36px;
+  transform:translateY(-50%);
+  border-radius:11px;
+  border:1px solid rgba(245,220,165,0.34);
+  box-shadow: 0 0 20px rgba(234,201,135,0.08), inset 0 0 14px rgba(255,225,176,0.06);
+  background: linear-gradient(180deg, rgba(191,151,83,0.10), rgba(255,255,255,0.02), rgba(191,151,83,0.10));
+  z-index:2;
+  pointer-events:none;
+}
+.winner-slot-strip{
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  will-change: transform;
+}
+.winner-slot-item{
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 10px;
+  text-align:center;
+  color:#f7f2e8;
+  font-size:10px;
+  line-height:1.25;
+  text-shadow:0 1px 0 rgba(0,0,0,0.8);
+  white-space:normal;
+  word-break:break-word;
+}
+.winner-slot-column.is-stopped .winner-slot-item.is-selected{
+  color:#fff6de;
+  text-shadow: 0 0 10px rgba(255,224,161,0.4), 0 1px 0 #000;
+}
+.winner-slot-lever{
+  margin-top:8px;
+  min-height:34px;
+  border-radius:12px;
+  border:1px solid rgba(225,196,140,0.28);
+  background:
+    linear-gradient(180deg, rgba(87,64,38,0.96), rgba(35,25,17,0.98)),
+    linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
+  color:#f8ebcd;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 16px rgba(0,0,0,0.24);
+  font-size:10px;
+  letter-spacing:0.03em;
+}
+.winner-slot-column.is-stopped .winner-slot-lever{
+  background: linear-gradient(180deg, rgba(34,74,58,0.96), rgba(18,40,31,0.98));
+  border-color: rgba(133,255,191,0.28);
+  color:#ddffef;
+}
+.winner-slot-result{
+  margin-top:12px;
+  padding:12px 12px 14px;
+  border-radius:18px;
+  border:1px solid rgba(225,196,140,0.22);
+  background: linear-gradient(180deg, rgba(33,25,18,0.94), rgba(16,14,18,0.98));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 10px 24px rgba(0,0,0,0.26);
+}
+.winner-slot-result.hidden{ display:none !important; }
+.winner-slot-result-kicker{
+  text-align:center;
+  font-size:10px;
+  letter-spacing:0.16em;
+  color:#d9c08c;
+  margin-bottom:8px;
+}
+.winner-slot-result-name{
+  text-align:center;
+  font-size:18px;
+  line-height:1.4;
+  color:#fff4d9;
+  text-shadow:0 0 16px rgba(255,215,138,0.18);
+}
+.winner-slot-result-skill,
+.winner-slot-result-meta{
+  margin-top:8px;
+  text-align:center;
+  font-size:10px;
+  line-height:1.45;
+  color:rgba(236,240,248,0.82);
+}
+.winner-slot-footer{
+  margin-top:12px;
+}
+#winnerSlotCloseBtn[disabled]{
+  opacity:0.45;
+}
+@media (max-width: 780px){
+  .winner-slot-modal{ width:min(700px, 96vw); }
+}
+@media (max-width: 520px){
+  .winner-slot-modal{ padding:13px 9px 11px; border-radius:20px; }
+  .winner-slot-title{ font-size:16px; }
+  .winner-slot-machine{ padding:10px 8px 8px; }
+  .winner-slot-reels{ gap:8px; }
+  .winner-slot-column{ padding:8px 7px 7px; border-radius:16px; }
+  .winner-slot-window{ height:108px; }
+  .winner-slot-item{ font-size:9px; }
+  .winner-slot-lever{ min-height:32px; font-size:9px; }
 }

@@ -49,7 +49,7 @@
 }
 
 </style>
-<link href="style.css?v=3" rel="stylesheet"/>
+<link href="style.css?v=4" rel="stylesheet"/>
 <script>
 let IMAGE_LIST_BY_RANK = {};
 
@@ -217,91 +217,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <button class="top-fold-btn" data-kind="event" onclick="toggleTopFold('event')" type="button">【イベント&amp;入手設定】</button>
 <button class="top-fold-btn" data-kind="settings" onclick="toggleTopFold('settings')" type="button">【設定】</button>
 </div>
-<div class="subnote" id="firstFaceHideSubnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
-<canvas height="100" id="hpChart" width="600"></canvas>
-<!-- 自分 vs 敵：ステータス差（対数）レーダーチャート -->
-<div aria-label="ステータス差レーダーチャート" class="battle-radar-wrap" id="battleRadarWrap">
-<div class="battle-radar-head">
-<div class="battle-radar-title">ステータス差（対数）</div>
-<div class="battle-radar-legend"><span class="battle-radar-dot player"></span>自分 <span class="battle-radar-dot enemy"></span>敵</div>
-</div>
-<div class="winner-guess-toggle-dock" id="winnerGuessToggleDock">
-<button id="winnerGuessToggleBtn" type="button" aria-pressed="false" data-state="off">ミニゲーム OFF</button>
-<div class="winner-guess-setting-note">残HP割合差3%以内かつ完全同率ではない時だけ発生</div>
-</div>
-<script>
-(function(){
-  function applyVisual(on){
-    try{
-      var btn = document.getElementById('winnerGuessToggleBtn');
-      if (!btn) return;
-      btn.textContent = on ? 'ミニゲーム ON' : 'ミニゲーム OFF';
-      btn.classList.toggle('is-on', !!on);
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      btn.dataset.state = on ? 'on' : 'off';
-    }catch(_e){}
-  }
-  function fallbackSet(enabled){
-    var on = !!enabled;
-    window.__winnerGuessMiniGameEnabled = on;
-    try{ localStorage.setItem('winnerGuessMiniGameEnabled', on ? '1' : '0'); }catch(_e){}
-    applyVisual(on);
-    return on;
-  }
-  window.__syncWinnerGuessToggleButton = function(){
-    try{
-      var saved = null;
-      try{ saved = localStorage.getItem('winnerGuessMiniGameEnabled'); }catch(_e){}
-      if (saved === '1' || saved === '0') {
-        window.__winnerGuessMiniGameEnabled = (saved === '1');
-      } else if (typeof window.__winnerGuessMiniGameEnabled !== 'boolean') {
-        window.__winnerGuessMiniGameEnabled = false;
-      }
-      applyVisual(!!window.__winnerGuessMiniGameEnabled);
-    }catch(_e){}
-  };
-  window.__toggleWinnerGuessMiniGame = function(ev){
-    try{ if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); }catch(_e){}
-    var next = !window.__winnerGuessMiniGameEnabled;
-    try{
-      if (typeof window.__setWinnerGuessMiniGameEnabled === 'function') {
-        window.__setWinnerGuessMiniGameEnabled(next);
-      } else {
-        fallbackSet(next);
-      }
-    }catch(_e){
-      fallbackSet(next);
-    }
-    window.__syncWinnerGuessToggleButton();
-    return false;
-  };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', window.__syncWinnerGuessToggleButton, { once:true });
-  } else {
-    window.__syncWinnerGuessToggleButton();
-  }
-  window.addEventListener('pageshow', function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){}; });
-  setTimeout(function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){} }, 0);
-  setTimeout(function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){} }, 250);
-})();
-</script>
-<div class="battle-radar-note" id="battleRadarNote">戦闘開始で表示されます</div>
-<!-- レーダーチャート表示ステージ（左右にキャラ表示） -->
-<div class="battle-radar-stage" id="battleRadarStage">
-<canvas aria-label="自分キャラ（素体）" class="battle-radar-sprite-canvas player hidden" height="96" id="battleRadarPlayerCanvasSprite" width="96"></canvas><img alt="自分キャラ" class="battle-radar-sprite player hidden" id="battleRadarPlayerSprite"/>
-<canvas height="200" id="battleRadarChart" width="600"></canvas>
-<canvas aria-label="敵キャラ（素体）" class="battle-radar-sprite-canvas enemy hidden" height="96" id="battleRadarEnemyCanvasSprite" width="96"></canvas><img alt="敵キャラ" class="battle-radar-sprite enemy hidden" id="battleRadarEnemySprite"/>
-<div aria-hidden="true" class="battle-digest-layer" id="battleDigestLayer"></div>
-<div aria-hidden="true" class="battle-effect-layer" id="battleStageEffectLayer"></div>
-</div>
-<div class="winner-guess-radar-slot" id="winnerGuessRadarSlot" aria-live="polite"></div>
-<div class="battle-compare-panel hidden" id="battleComparePanel"></div>
-</div>
-<!-- 強ボス撃破数（星UI） -->
-<div class="boss-stars-container hidden" id="bossKillStars">
-<div class="boss-stars-label">強ボス撃破</div>
-<div aria-label="強ボス撃破数" class="boss-stars" id="bossKillStarsInner"></div>
-</div>
+
 <!-- クイックガイド -->
 <div class="quick-guide-wrapper">
 <div class="quick-guide-content hidden" id="quickGuideContent">
@@ -336,6 +252,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 <div class="mini-flow-note">
         ※鬼畜モードの敵ステータスは、<b>あなたの基礎＋成長ステータス</b>を基準に強化されます（「鍛えてから鬼畜」より、<b>鬼畜で集めつつ通常で伸ばす</b>イメージが有効）。
+      </div>
+<div class="mini-flow-note">
+        ※<b>勝者当てミニゲーム</b>をONにしていると、<b>僅差決着</b>のときに「自分が勝った / 敵が勝った」を予想できます。<b>的中すると魔通貨</b>が増え、さらに<b>勝利報酬スロット</b>が発動します。
+      </div>
+<div class="mini-flow-note">
+        ※スロットでは <b>色 / 修飾語 / 名詞 / 発動スキル</b> の4列を、<b>好きなタイミングでレバーを倒して確定</b>します。<b>止まった組み合わせがそのまま魔道具</b>になって手に入ります。
       </div>
 </div>
 <h3>このゲームの目的</h3>
@@ -685,6 +607,23 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <button id="winnerGuessPickEnemyBtn" type="button" onclick="try{window.__resolveWinnerGuessMiniGame&&window.__resolveWinnerGuessMiniGame('enemy');}catch(_e){}">敵が勝った</button>
 </div>
 </div>
+<div class="winner-slot-overlay hidden" id="winnerSlotOverlay" aria-live="polite" aria-modal="true" role="dialog">
+  <div class="winner-slot-backdrop"></div>
+  <div class="winner-slot-modal">
+    <div class="winner-slot-header">
+      <div class="winner-slot-kicker">PREMIUM REWARD SLOT</div>
+      <div class="winner-slot-title">勝利報酬スロット</div>
+      <div class="winner-slot-sub" id="winnerSlotSubMessage">4列を見極めて止めた組み合わせが、そのまま魔道具になります。</div>
+    </div>
+    <div class="winner-slot-machine">
+      <div class="winner-slot-reels" id="winnerSlotReels"></div>
+      <div class="winner-slot-result hidden" id="winnerSlotResult"></div>
+    </div>
+    <div class="winner-slot-footer">
+      <button id="winnerSlotCloseBtn" type="button" disabled>すべて確定で受け取る</button>
+    </div>
+  </div>
+</div>
 <div id="uniqueSkillSection">
 <button id="toggleUniqueSkills" style="
 		  height: 36px;
@@ -855,6 +794,91 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </button>
 </div>
 </div>
+<div class="subnote" id="firstFaceHideSubnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
+<canvas height="100" id="hpChart" width="600"></canvas>
+<!-- 自分 vs 敵：ステータス差（対数）レーダーチャート -->
+<div aria-label="ステータス差レーダーチャート" class="battle-radar-wrap" id="battleRadarWrap">
+<div class="battle-radar-head">
+<div class="battle-radar-title">ステータス差（対数）</div>
+<div class="battle-radar-legend"><span class="battle-radar-dot player"></span>自分 <span class="battle-radar-dot enemy"></span>敵</div>
+</div>
+<div class="winner-guess-toggle-dock" id="winnerGuessToggleDock">
+<button id="winnerGuessToggleBtn" type="button" aria-pressed="false" data-state="off">ミニゲーム OFF</button>
+<div class="winner-guess-setting-note">残HP割合差3%以内かつ完全同率ではない時だけ発生</div>
+</div>
+<script>
+(function(){
+  function applyVisual(on){
+    try{
+      var btn = document.getElementById('winnerGuessToggleBtn');
+      if (!btn) return;
+      btn.textContent = on ? 'ミニゲーム ON' : 'ミニゲーム OFF';
+      btn.classList.toggle('is-on', !!on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.dataset.state = on ? 'on' : 'off';
+    }catch(_e){}
+  }
+  function fallbackSet(enabled){
+    var on = !!enabled;
+    window.__winnerGuessMiniGameEnabled = on;
+    try{ localStorage.setItem('winnerGuessMiniGameEnabled', on ? '1' : '0'); }catch(_e){}
+    applyVisual(on);
+    return on;
+  }
+  window.__syncWinnerGuessToggleButton = function(){
+    try{
+      var saved = null;
+      try{ saved = localStorage.getItem('winnerGuessMiniGameEnabled'); }catch(_e){}
+      if (saved === '1' || saved === '0') {
+        window.__winnerGuessMiniGameEnabled = (saved === '1');
+      } else if (typeof window.__winnerGuessMiniGameEnabled !== 'boolean') {
+        window.__winnerGuessMiniGameEnabled = false;
+      }
+      applyVisual(!!window.__winnerGuessMiniGameEnabled);
+    }catch(_e){}
+  };
+  window.__toggleWinnerGuessMiniGame = function(ev){
+    try{ if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); }catch(_e){}
+    var next = !window.__winnerGuessMiniGameEnabled;
+    try{
+      if (typeof window.__setWinnerGuessMiniGameEnabled === 'function') {
+        window.__setWinnerGuessMiniGameEnabled(next);
+      } else {
+        fallbackSet(next);
+      }
+    }catch(_e){
+      fallbackSet(next);
+    }
+    window.__syncWinnerGuessToggleButton();
+    return false;
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.__syncWinnerGuessToggleButton, { once:true });
+  } else {
+    window.__syncWinnerGuessToggleButton();
+  }
+  window.addEventListener('pageshow', function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){}; });
+  setTimeout(function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){} }, 0);
+  setTimeout(function(){ try{ window.__syncWinnerGuessToggleButton(); }catch(_e){} }, 250);
+})();
+</script>
+<div class="battle-radar-note" id="battleRadarNote"> </div>
+<!-- レーダーチャート表示ステージ（左右にキャラ表示） -->
+<div class="battle-radar-stage" id="battleRadarStage">
+<canvas aria-label="自分キャラ（素体）" class="battle-radar-sprite-canvas player hidden" height="96" id="battleRadarPlayerCanvasSprite" width="96"></canvas><img alt="自分キャラ" class="battle-radar-sprite player hidden" id="battleRadarPlayerSprite"/>
+<canvas height="200" id="battleRadarChart" width="600"></canvas>
+<canvas aria-label="敵キャラ（素体）" class="battle-radar-sprite-canvas enemy hidden" height="96" id="battleRadarEnemyCanvasSprite" width="96"></canvas><img alt="敵キャラ" class="battle-radar-sprite enemy hidden" id="battleRadarEnemySprite"/>
+<div aria-hidden="true" class="battle-digest-layer" id="battleDigestLayer"></div>
+<div aria-hidden="true" class="battle-effect-layer" id="battleStageEffectLayer"></div>
+</div>
+<div class="winner-guess-radar-slot" id="winnerGuessRadarSlot" aria-live="polite"></div>
+<div class="battle-compare-panel hidden" id="battleComparePanel"></div>
+</div>
+<!-- 強ボス撃破数（星UI） -->
+<div class="boss-stars-container hidden" id="bossKillStars">
+<div class="boss-stars-label">強ボス撃破</div>
+<div aria-label="強ボス撃破数" class="boss-stars" id="bossKillStarsInner"></div>
+</div>
 </div>
 
 
@@ -921,6 +945,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <button id="eventPopupSelectBtn">決定</button>
 </div>
 </div>
+
 <script>
 	
 // updateNotice は構成によって存在しない場合があるため、ある時だけバインドする
