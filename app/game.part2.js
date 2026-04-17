@@ -3802,7 +3802,11 @@ window.__activateBattleItem = window.__activateBattleItem || function(item, owne
 
 		const itemName = (typeof window.__battleItemDisplayName === 'function') ? window.__battleItemDisplayName(item) : `${item.color || ''}${item.adjective || ''}${item.noun || ''}`;
 		const prevDamage = Number((owner.battleStats && owner.battleStats[item.skillName]) || 0);
-		log.push(`>>> 魔道具「${itemName}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
+		const ownerSide = (typeof window.__battleGetCharacterSide === 'function') ? window.__battleGetCharacterSide(owner) : null;
+		const ownerLabel = (typeof displayName === 'function') ? displayName(owner && owner.name) : (owner && owner.name ? owner.name : '');
+		try { if (typeof window.__battleDigestRememberItemOwner === 'function') window.__battleDigestRememberItemOwner(itemName, owner, item.skillName); } catch (_e) {}
+		try { if (typeof window.__battleDigestRememberActorSide === 'function' && ownerSide) window.__battleDigestRememberActorSide(ownerSide, ownerLabel || itemName); } catch (_e) {}
+		log.push(`>>> ${ownerLabel}の魔道具「${itemName}」が ${item.skillName} Lv${item.skillLevel || 1} を発動！`);
 
 		if (itemSkillDef.category === 'mixed' && typeof useMixedSkill === 'function') {
 			useMixedSkill({ ...itemSkillDef, level: item.skillLevel || 1, isMixed: true }, owner, target, log);
@@ -3810,11 +3814,10 @@ window.__activateBattleItem = window.__activateBattleItem || function(item, owne
 			getSkillEffect({ ...itemSkillDef, level: item.skillLevel || 1 }, owner, target, log);
 		}
 
-		const ownerSide = (typeof window.__battleGetCharacterSide === 'function') ? window.__battleGetCharacterSide(owner) : null;
 		const isPlayerHolder = ownerSide === 'player';
 		if (item.skillLevel < 3000 && Math.random() < 0.4) {
 			item.skillLevel++;
-			log.push(`>>> 魔道具の ${item.skillName} が Lv${item.skillLevel} に成長！`);
+			log.push(`>>> ${ownerLabel}の魔道具「${itemName}」の ${item.skillName} が Lv${item.skillLevel} に成長！`);
 			if (isPlayerHolder && typeof drawItemMemoryList === 'function') drawItemMemoryList();
 			if (isPlayerHolder && typeof updateItemOverlay === 'function') updateItemOverlay();
 		}
@@ -3822,7 +3825,7 @@ window.__activateBattleItem = window.__activateBattleItem || function(item, owne
 		item.remainingUses--;
 		const isWithinProtectedPeriod = isPlayerHolder && window.protectItemUntil && window.battleCount <= window.protectItemUntil;
 		if (!item.protected && !isWithinProtectedPeriod && Math.random() < item.breakChance) {
-			log.push(`>>> 魔道具「${itemName}」は壊れた！`);
+			log.push(`>>> ${ownerLabel}の魔道具「${itemName}」は壊れた！`);
 			const idx = owner.itemMemory.indexOf(item);
 			if (idx >= 0) owner.itemMemory.splice(idx, 1);
 			if (isPlayerHolder && typeof drawItemMemoryList === 'function') drawItemMemoryList();

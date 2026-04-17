@@ -37,25 +37,253 @@ window.__formatSkillDisplay = window.__formatSkillDisplay || function(skill){
     try{ return window.__escapeHtml ? window.__escapeHtml(skill && skill.name ? skill.name : skill) : String(skill && skill.name ? skill.name : skill || ''); }catch(_){ return ''; }
   }
 };
+window.__battleDigestSafeName = window.__battleDigestSafeName || function(v){
+  try{ return String(v == null ? '' : v).trim(); }catch(_e){ return ''; }
+};
+window.__battleDigestDisplayName = window.__battleDigestDisplayName || function(v){
+  try{
+    const safe = window.__battleDigestSafeName || function(x){ return String(x == null ? '' : x).trim(); };
+    return (typeof displayName === 'function') ? safe(displayName(v || '')) : safe(v);
+  }catch(_e){
+    try{ return String(v == null ? '' : v).trim(); }catch(_){ return ''; }
+  }
+};
+window.__battleDigestCollectSideNames = window.__battleDigestCollectSideNames || function(side){
+  try{
+    const safe = window.__battleDigestSafeName || function(x){ return String(x == null ? '' : x).trim(); };
+    const dn = window.__battleDigestDisplayName || safe;
+    const isPlayer = side === 'player';
+    const aliases = isPlayer ? ['プレイヤー','自分','YOU','Player','主人公'] : ['敵','エネミー','ENEMY','相手'];
+    const names = aliases.slice();
+    const chars = [];
+    try{ if (typeof player !== 'undefined' && player) chars.push({ side:'player', ref:player }); }catch(_e){}
+    try{ if (window.player) chars.push({ side:'player', ref:window.player }); }catch(_e){}
+    try{ if (typeof enemy !== 'undefined' && enemy) chars.push({ side:'enemy', ref:enemy }); }catch(_e){}
+    try{ if (window.enemy) chars.push({ side:'enemy', ref:window.enemy }); }catch(_e){}
+    chars.forEach(function(entry){
+      try{
+        if (!entry || entry.side !== side || !entry.ref) return;
+        const nm = safe(entry.ref.name);
+        const disp = dn(entry.ref.name);
+        if (nm) names.push(nm);
+        if (disp) names.push(disp);
+      }catch(_e){}
+    });
+    return Array.from(new Set(names.map(safe).filter(Boolean))).sort(function(a,b){ return b.length - a.length; });
+  }catch(_e){ return []; }
+};
+window.__battleDigestResolveActorSide = window.__battleDigestResolveActorSide || function(actorName){
+  try{
+    const safe = window.__battleDigestSafeName || function(x){ return String(x == null ? '' : x).trim(); };
+    const actor = safe(actorName);
+    if (!actor) return null;
+    const playerNames = (typeof window.__battleDigestCollectSideNames === 'function') ? window.__battleDigestCollectSideNames('player') : [];
+    const enemyNames = (typeof window.__battleDigestCollectSideNames === 'function') ? window.__battleDigestCollectSideNames('enemy') : [];
+    if (playerNames.some(function(n){ return n && actor === n; })) return 'player';
+    if (enemyNames.some(function(n){ return n && actor === n; })) return 'enemy';
+    const pLong = playerNames.find(function(n){ return n && (actor.indexOf(n) >= 0 || n.indexOf(actor) >= 0); });
+    const eLong = enemyNames.find(function(n){ return n && (actor.indexOf(n) >= 0 || n.indexOf(actor) >= 0); });
+    if (pLong && !eLong) return 'player';
+    if (eLong && !pLong) return 'enemy';
+    if (/^(プレイヤー|自分|YOU|Player|主人公)/i.test(actor)) return 'player';
+    if (/^(敵|エネミー|ENEMY|相手)/i.test(actor)) return 'enemy';
+    return null;
+  }catch(_e){ return null; }
+};
+window.__battleDigestRememberActorSide = window.__battleDigestRememberActorSide || function(side, actorName){
+  try{
+    if (side !== 'player' && side !== 'enemy') return side || null;
+    window.__battleDigestLastActorSide = side;
+    window.__battleDigestLastActorName = String(actorName == null ? '' : actorName);
+    window.__battleDigestLastActorAt = Date.now();
+    return side;
+  }catch(_e){ return side || null; }
+};
+window.__battleDigestRememberItemOwner = window.__battleDigestRememberItemOwner || function(itemName, owner, skillName){
+  try{
+    const safe = window.__battleDigestSafeName || function(x){ return String(x == null ? '' : x).trim(); };
+    const item = safe(itemName);
+    if (!item) return null;
+    const side = (typeof window.__battleGetCharacterSide === 'function') ? window.__battleGetCharacterSide(owner) : null;
+    if (side !== 'player' && side !== 'enemy') return null;
+    const skill = safe(skillName);
+    const store = window.__battleDigestItemOwnerMap || (window.__battleDigestItemOwnerMap = {});
+    const payload = { side:side, actorName:safe(owner && owner.name), displayName:(typeof window.__battleDigestDisplayName === 'function') ? window.__battleDigestDisplayName(owner && owner.name) : safe(owner && owner.name), skillName:skill, ts:Date.now() };
+    store[item] = payload;
+    if (skill) store[item + '::' + skill] = payload;
+    window.__battleDigestRememberActorSide(side, payload.displayName || payload.actorName || item);
+    return side;
+  }catch(_e){ return null; }
+};
+window.__battleDigestResolveItemOwnerSide = window.__battleDigestResolveItemOwnerSide || function(itemName, skillName){
+  try{
+    const safe = window.__battleDigestSafeName || function(x){ return String(x == null ? '' : x).trim(); };
+    const item = safe(itemName);
+    const skill = safe(skillName);
+    if (!item) return null;
+    const store = window.__battleDigestItemOwnerMap || null;
+    if (store){
+      const hit = (skill && store[item + '::' + skill]) || store[item];
+      if (hit && (hit.side === 'player' || hit.side === 'enemy')) return hit.side;
+    }
+    const buckets = [
+      { side:'player', holder:(typeof player !== 'undefined' && player) ? player : window.player },
+      { side:'enemy', holder:(typeof enemy !== 'undefined' && enemy) ? enemy : window.enemy }
+    ];
+    for (const bucket of buckets){
+      const holder = bucket && bucket.holder;
+      if (!holder || !Array.isArray(holder.itemMemory)) continue;
+      const found = holder.itemMemory.find(function(it){
+        if (!it || typeof it !== 'object') return false;
+        const nm = safe((it.color||'') + (it.adjective||'') + (it.noun||''));
+        if (nm !== item) return false;
+        if (!skill) return true;
+        return safe(it.skillName) === skill;
+      });
+      if (found) return bucket.side;
+    }
+    return window.__battleDigestLastActorSide || null;
+  }catch(_e){ return null; }
+};
+
+window.__battleDigestKnownNames = window.__battleDigestKnownNames || function(kind){
+  try{
+    const safe = window.__battleDigestSafeName || function(v){ return String(v == null ? '' : v).trim(); };
+    const out = [];
+    const push = function(v){
+      const n = safe(v);
+      if (n) out.push(n);
+    };
+    if (kind === 'actor') {
+      try{ (typeof window.__battleDigestCollectSideNames === 'function' ? window.__battleDigestCollectSideNames('player') : []).forEach(push); }catch(_e){}
+      try{ (typeof window.__battleDigestCollectSideNames === 'function' ? window.__battleDigestCollectSideNames('enemy') : []).forEach(push); }catch(_e){}
+    } else {
+      try{
+        if (typeof skillPool !== 'undefined' && Array.isArray(skillPool)) {
+          skillPool.forEach(function(sk){ if (sk && sk.name) push(sk.name); });
+        }
+      }catch(_e){}
+      const buckets = [];
+      try{ if (typeof player !== 'undefined' && player) buckets.push(player); }catch(_e){}
+      try{ if (window.player) buckets.push(window.player); }catch(_e){}
+      try{ if (typeof enemy !== 'undefined' && enemy) buckets.push(enemy); }catch(_e){}
+      try{ if (window.enemy) buckets.push(window.enemy); }catch(_e){}
+      buckets.forEach(function(ch){
+        try{
+          if (ch && Array.isArray(ch.skills)) ch.skills.forEach(function(sk){ if (sk && sk.name) push(sk.name); });
+          if (ch && Array.isArray(ch.itemMemory)) ch.itemMemory.forEach(function(it){
+            if (!it || typeof it !== 'object') return;
+            push(it.skillName);
+            push(it.name);
+            push((it.color||'') + (it.adjective||'') + (it.noun||''));
+          });
+        }catch(_e){}
+      });
+    }
+    return Array.from(new Set(out.filter(Boolean))).sort(function(a,b){ return b.length - a.length; });
+  }catch(_e){ return []; }
+};
+window.__battleDigestSanitizeSkillName = window.__battleDigestSanitizeSkillName || function(rawSkillName){
+  try{
+    const safe = window.__battleDigestSafeName || function(v){ return String(v == null ? '' : v).trim(); };
+    let skillName = safe(rawSkillName);
+    if (!skillName) return '';
+    const known = (typeof window.__battleDigestKnownNames === 'function') ? window.__battleDigestKnownNames('skill') : [];
+    if (known.includes(skillName)) return skillName;
+    if (skillName.indexOf('の') >= 0) {
+      for (const name of known) {
+        if (!name) continue;
+        if (skillName === name) return name;
+        if (skillName.endsWith('の' + name)) return name;
+        if (skillName.endsWith(name)) return name;
+      }
+      const segs = skillName.split('の').map(safe).filter(Boolean);
+      for (let i = segs.length - 1; i >= 0; i--) {
+        if (known.includes(segs[i])) return segs[i];
+      }
+      skillName = segs[segs.length - 1] || skillName;
+    }
+    return skillName;
+  }catch(_e){
+    try{ return String(rawSkillName == null ? '' : rawSkillName).trim(); }catch(_){ return ''; }
+  }
+};
+window.__battleDigestParseSkillUsageLine = window.__battleDigestParseSkillUsageLine || function(rawLine){
+  try{
+    const safe = window.__battleDigestSafeName || function(v){ return String(v == null ? '' : v).trim(); };
+    const line = safe(rawLine);
+    const colonAt = line.indexOf('：');
+    if (!line || colonAt < 0 || line.indexOf('の') < 0) return null;
+    const head = safe(line.slice(0, colonAt));
+    const detail = safe(line.slice(colonAt + 1));
+    let actorName = '';
+    let skillName = '';
+    const actorNames = (typeof window.__battleDigestKnownNames === 'function') ? window.__battleDigestKnownNames('actor') : [];
+    for (const name of actorNames) {
+      if (!name) continue;
+      const prefix = name + 'の';
+      if (head.indexOf(prefix) === 0) {
+        actorName = name;
+        skillName = safe(head.slice(prefix.length));
+        break;
+      }
+    }
+    if (!actorName) {
+      const splitAt = head.lastIndexOf('の');
+      if (splitAt <= 0) return null;
+      actorName = safe(head.slice(0, splitAt));
+      skillName = safe(head.slice(splitAt + 1));
+    }
+    skillName = (typeof window.__battleDigestSanitizeSkillName === 'function') ? window.__battleDigestSanitizeSkillName(skillName) : skillName;
+    if (!actorName || !skillName) return null;
+    return { actorName:actorName, skillName:skillName, detail:detail };
+  }catch(_e){ return null; }
+};
+window.__battleDigestParseItemUsageLine = window.__battleDigestParseItemUsageLine || function(rawLine){
+  try{
+    const safe = window.__battleDigestSafeName || function(v){ return String(v == null ? '' : v).trim(); };
+    const line = safe(rawLine);
+    if (!/^>>>\s*/.test(line) || line.indexOf('を発動') < 0) return null;
+    const body = safe(line.replace(/^>>>\s*/, ''));
+    const actorNames = (typeof window.__battleDigestKnownNames === 'function') ? window.__battleDigestKnownNames('actor') : [];
+    for (const name of actorNames) {
+      if (!name) continue;
+      let rest = null;
+      if (body.indexOf(name + 'の魔道具') === 0) rest = safe(body.slice((name + 'の魔道具').length));
+      else if (body.indexOf(name + 'のアイテム') === 0) rest = safe(body.slice((name + 'のアイテム').length));
+      if (rest == null) continue;
+      let itemName = '';
+      let skillName = '';
+      let m = rest.match(/^[「"]?(.+?)[」"]?が\s*(.+?)\s*を発動/);
+      if (m) {
+        itemName = safe(m[1]);
+        skillName = safe(m[2]).replace(/\s+Lv\s*\d+$/i, '');
+      }
+      if (itemName) {
+        skillName = (typeof window.__battleDigestSanitizeSkillName === 'function') ? window.__battleDigestSanitizeSkillName(skillName) : skillName;
+        return { actorName:name, itemName:itemName, skillName:skillName };
+      }
+    }
+    let m = body.match(/^(?:魔道具|アイテム)[「"]?(.+?)[」"]?が\s*(.+?)\s*を発動/);
+    if (m) {
+      return { actorName:'', itemName:safe(m[1]), skillName:(typeof window.__battleDigestSanitizeSkillName === 'function') ? window.__battleDigestSanitizeSkillName(safe(m[2]).replace(/\s+Lv\s*\d+$/i, '')) : safe(m[2]) };
+    }
+    return null;
+  }catch(_e){ return null; }
+};
 window.__lookupBattleSkillMeta = window.__lookupBattleSkillMeta || function(actorName, skillName, detail){
   try{
-    const safe = function(v){ return String(v == null ? '' : v).trim(); };
-    const dn = function(v){
-      try{ return (typeof displayName === 'function') ? safe(displayName(v || '')) : safe(v); }catch(_e){ return safe(v); }
-    };
+    const safe = window.__battleDigestSafeName || function(v){ return String(v == null ? '' : v).trim(); };
     const actor = safe(actorName);
     const skill = safe(skillName);
     const detailText = safe(detail);
-    const actorMatches = function(ch){
-      if(!ch || typeof ch !== 'object') return false;
-      const names = [safe(ch.name), dn(ch.name), 'プレイヤー','自分','YOU','Player','主人公','敵','エネミー','ENEMY','相手'].filter(Boolean);
-      return names.some(function(n){ return n && (actor === n || actor.indexOf(n) >= 0 || n.indexOf(actor) >= 0); });
-    };
-    let side = null;
-    try{ if (typeof player !== 'undefined' && actorMatches(player)) side = 'player'; }catch(_e){}
-    try{ if (!side && window.player && actorMatches(window.player)) side = 'player'; }catch(_e){}
-    try{ if (!side && typeof enemy !== 'undefined' && actorMatches(enemy)) side = 'enemy'; }catch(_e){}
-    try{ if (!side && window.enemy && actorMatches(window.enemy)) side = 'enemy'; }catch(_e){}
+    let side = (typeof window.__battleDigestResolveActorSide === 'function') ? window.__battleDigestResolveActorSide(actor) : null;
+    if (!side && /^>>>\s*魔道具/.test(actor)) {
+      side = (typeof window.__battleDigestResolveItemOwnerSide === 'function') ? window.__battleDigestResolveItemOwnerSide(skill, detailText) : null;
+    }
+    if (side) {
+      try{ window.__battleDigestRememberActorSide(side, actor); }catch(_e){}
+    }
     const ch = side === 'player'
       ? ((typeof player !== 'undefined' && player) ? player : window.player)
       : side === 'enemy'
@@ -6346,6 +6574,12 @@ function cleanUpMixedSkillsExceptOne() {
     return Array.from(new Set(list.map(_safeName).filter(Boolean)));
   }
   function _sideFromName(name){
+    try{
+      if (typeof window.__battleDigestResolveActorSide === 'function') {
+        const resolved = window.__battleDigestResolveActorSide(name);
+        if (resolved) return resolved;
+      }
+    }catch(_e){}
     const n = _safeName(name);
     if (!n) return null;
     if (_playerNames().some(v => v && (n === v || n.includes(v) || v.includes(n)))) return 'player';
@@ -7003,11 +7237,11 @@ function cleanUpMixedSkillsExceptOne() {
         try{
           const line = _safeName(rawLine);
           if (!line) return;
-          let m = line.match(/^(.+?)の(.+?)：(.*)$/);
-          if (m){
-            const actorName = _safeName(m[1]);
-            const skillName = _safeName(m[2]);
-            const detail = _safeName(m[3]);
+          let parsedSkill = (typeof window.__battleDigestParseSkillUsageLine === 'function') ? window.__battleDigestParseSkillUsageLine(line) : null;
+          if (parsedSkill){
+            const actorName = _safeName(parsedSkill.actorName);
+            const skillName = _safeName(parsedSkill.skillName);
+            const detail = _safeName(parsedSkill.detail);
             const side = _sideFromName(actorName);
             if (!side || !skillName) return;
             const meta = (typeof window.__lookupBattleSkillMeta === 'function')
@@ -7016,15 +7250,15 @@ function cleanUpMixedSkillsExceptOne() {
             addUsage(side, meta.kind || 'SKILL', skillName, meta || {});
             return;
           }
-          m = line.match(/^>>>\s*魔道具[「"]?(.+?)[」"]?が(.+?)を発動/);
-          if (m){
-            const item = _safeName(m[1]);
-            const skill = _safeName(m[2]);
-            if (!item) return;
-            const owner = (typeof window.__battleDigestResolveItemOwnerSide === 'function')
-              ? window.__battleDigestResolveItemOwnerSide(item, skill)
-              : null;
-            const side = owner || (window.__battleDigestLastActorSide || 'enemy');
+          let parsedItem = (typeof window.__battleDigestParseItemUsageLine === 'function') ? window.__battleDigestParseItemUsageLine(line) : null;
+          if (parsedItem && parsedItem.itemName){
+            const actorName = _safeName(parsedItem.actorName);
+            const item = _safeName(parsedItem.itemName);
+            const skill = _safeName(parsedItem.skillName);
+            const side = (actorName && _sideFromName(actorName))
+              || ((typeof window.__battleDigestResolveItemOwnerSide === 'function') ? window.__battleDigestResolveItemOwnerSide(item, skill) : null)
+              || (window.__battleDigestLastActorSide || 'enemy');
+            try{ if (actorName && typeof window.__battleDigestRememberActorSide === 'function') window.__battleDigestRememberActorSide(side, actorName); }catch(_e){}
             addUsage(side, 'ITEM', item, { level:1, itemLevel:0 });
             return;
           }
@@ -7107,6 +7341,10 @@ function cleanUpMixedSkillsExceptOne() {
       window.__battleTickerForceShow = false;
       _clearDigestTimers(window.__battleDigestState);
       const st = window.__battleDigestState = { battleId:Number(battleId || window.battleId || 0) || 0, itemRewards:[], usage:{player:{},enemy:{}}, loopLists:{player:[],enemy:[]}, replaySnapshot:{player:[],enemy:[]}, queues:{player:{queue:[],current:null,timer:0,loopIndex:0},enemy:{queue:[],current:null,timer:0,loopIndex:0}}, finalLocked:false, replayLoopActive:false, finalTimer:0 };
+      window.__battleDigestItemOwnerMap = {};
+      window.__battleDigestLastActorSide = null;
+      window.__battleDigestLastActorName = '';
+      window.__battleDigestLastActorAt = 0;
       window.__battleRadarResultReadyAt = 0;
       window.__battleRadarLoserFadeStartsAt = 0;
       const layer = _ensureLayer();
@@ -7167,11 +7405,11 @@ function cleanUpMixedSkillsExceptOne() {
       if (st.finalLocked) return;
       const suppressed = _isTickerSuppressed() && !window.__winnerGuessMiniGameActive;
 
-      let m = line.match(/^(.+?)の(.+?)：(.*)$/);
-      if (m){
-        const actorName = _safeName(m[1]);
-        const skillName = _safeName(m[2]);
-        const detail = _safeName(m[3]);
+      let parsedSkill = (typeof window.__battleDigestParseSkillUsageLine === 'function') ? window.__battleDigestParseSkillUsageLine(line) : null;
+      if (parsedSkill){
+        const actorName = _safeName(parsedSkill.actorName);
+        const skillName = _safeName(parsedSkill.skillName);
+        const detail = _safeName(parsedSkill.detail);
         const side = _sideFromName(actorName);
         if (side && skillName){
           const meta = (typeof window.__lookupBattleSkillMeta === 'function')
@@ -7192,14 +7430,19 @@ function cleanUpMixedSkillsExceptOne() {
         return;
       }
 
-      m = line.match(/^>>>\s*魔道具[「"]?(.+?)[」"]?が(.+?)を発動/);
-      if (m){
-        const item = _safeName(m[1]);
-        const skill = _safeName(m[2]);
-        const side = 'enemy';
+      let parsedItem = (typeof window.__battleDigestParseItemUsageLine === 'function') ? window.__battleDigestParseItemUsageLine(line) : null;
+      if (parsedItem && parsedItem.itemName){
+        const actorName = _safeName(parsedItem.actorName);
+        const item = _safeName(parsedItem.itemName);
+        const skill = _safeName(parsedItem.skillName);
+        const side = (actorName && _sideFromName(actorName))
+          || ((typeof window.__battleDigestResolveItemOwnerSide === 'function') ? window.__battleDigestResolveItemOwnerSide(item, skill) : null)
+          || window.__battleDigestLastActorSide
+          || 'enemy';
         const key = 'ITEM::' + item + '::' + skill;
         if (!st.usage[side][key]) st.usage[side][key] = { kind:'ITEM', label:item + '/' + skill, count:0 };
         st.usage[side][key].count += 1;
+        try{ if (actorName && typeof window.__battleDigestRememberActorSide === 'function') window.__battleDigestRememberActorSide(side, actorName); }catch(_e){}
         if (!suppressed || window.__battleTickerForceShow) {
           _enqueue(side, 'ITEM', st.usage[side][key].label, st.usage[side][key].count, 'high', key);
         }
