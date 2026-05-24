@@ -7188,7 +7188,26 @@ body.battle-edge-follow-mode #faceOverlay{
   pointer-events: none !important;
 }
 
-#battleOverlayDock .battle-dock-edge-follow-btn{
+#uiOpacityControl,
+#battleOverlayDock #uiOpacityControl,
+#battleOverlayDock.edge-follow #uiOpacityControl{
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.battle-edge-follow-mode.battle-overlay-peek-active #scoreOverlay,
+body.battle-edge-follow-mode.battle-overlay-peek-active #skillOverlay,
+body.battle-edge-follow-mode.battle-overlay-peek-active #itemOverlay{
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 10080 !important;
+}
+
+#battleOverlayDock .battle-dock-edge-follow-btn,
+#battleOverlayDock .battle-dock-overlay-peek-btn{
   border-color: rgba(255,255,255,0.18);
   background:
     linear-gradient(135deg, rgba(255,255,255,0.08), rgba(0,210,255,0.10)),

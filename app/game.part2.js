@@ -1755,6 +1755,18 @@ window.skipGrowth = function() {
 
 window.__winnerGuessMiniGameEnabled = (typeof window.__winnerGuessMiniGameEnabled === 'boolean') ? window.__winnerGuessMiniGameEnabled : false;
 window.__winnerGuessMiniGameActive = false;
+window.__ensureWinnerGuessCharacterInfoLockedOpen = window.__ensureWinnerGuessCharacterInfoLockedOpen || function(){
+	try{
+		if (!window.__winnerGuessMiniGameActive) return;
+		const charEl = document.getElementById('charInfoFold');
+		if (charEl) charEl.classList.remove('hidden');
+		try{
+			const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
+			btns.forEach(btn => btn.classList.toggle('is-open', btn.getAttribute('data-kind') === 'char'));
+		}catch(_e){}
+	}catch(_e){}
+};
+
 window.__winnerGuessPendingState = null;
 window.__winnerGuessRewardState = null;
 window.__winnerGuessPendingResolver = null;
@@ -2171,13 +2183,13 @@ window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame 
 	try{ if (typeof window.__suppressNextBattleClickOnce === 'function') window.__suppressNextBattleClickOnce(900); }catch(_e){}
 	try{ if (typeof window.__cancelBattleVisuals === 'function') window.__cancelBattleVisuals(); }catch(_e){}
 	try{ document.body.classList.add('winner-guess-mode'); }catch(_e){}
+	try{ window.__ensureWinnerGuessCharacterInfoLockedOpen && window.__ensureWinnerGuessCharacterInfoLockedOpen(); }catch(_e){}
 	try{ window.__mountWinnerGuessPanelNearRadar && window.__mountWinnerGuessPanelNearRadar(); }catch(_e){}
 	try{ if (typeof window.__updateBattleRadarSideSprites === 'function') window.__updateBattleRadarSideSprites({ hide:true }); }catch(_e){}
 	try{
-		if (typeof window.toggleTopFold === 'function') {
-			const fold = document.getElementById('charInfoFold');
-			if (fold && fold.classList.contains('hidden')) window.toggleTopFold('char');
-		}
+		const fold = document.getElementById('charInfoFold');
+		if (fold) fold.classList.remove('hidden');
+		try{ window.__ensureWinnerGuessCharacterInfoLockedOpen && window.__ensureWinnerGuessCharacterInfoLockedOpen(); }catch(__e){}
 	}catch(_e){}
 	const panel = document.getElementById('winnerGuessPanel');
 	const msg = document.getElementById('winnerGuessMessage');

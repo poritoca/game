@@ -656,6 +656,52 @@ window.showAllGlobalVariables = function() {
 };
 
 
+
+window.__battleOverlayPeekUntil = window.__battleOverlayPeekUntil || 0;
+window.__isBattleOverlayPeekActive = window.__isBattleOverlayPeekActive || function(){
+	try { return Date.now() < Number(window.__battleOverlayPeekUntil || 0); }
+	catch (_) { return false; }
+};
+window.__showBattleDockInstantMessage = window.__showBattleDockInstantMessage || function(message, duration){
+	try {
+		const msg = String(message || '');
+		if (!msg) return;
+		if (typeof showCustomAlert === 'function') {
+			showCustomAlert(msg, Number(duration || 1200), '#101820', '#eaffff', true);
+		} else if (typeof showCenteredPopup === 'function') {
+			showCenteredPopup(msg, Number(duration || 1200));
+		}
+	} catch (_) {}
+};
+window.__showBattleOverlayPeekForMs = window.__showBattleOverlayPeekForMs || function(ms){
+	try {
+		const dur = Math.max(800, Number(ms || 5000));
+		window.__battleOverlayPeekUntil = Date.now() + dur;
+		try { document.body.classList.add('battle-overlay-peek-active'); } catch (_) {}
+		const ids = ['scoreOverlay','skillOverlay','itemOverlay'];
+		for (const id of ids) {
+			const el = document.getElementById(id);
+			if (!el) continue;
+			try { el.style.removeProperty('display'); } catch (_) {}
+			try { el.style.visibility = 'visible'; } catch (_) {}
+			try { el.style.opacity = '1'; } catch (_) {}
+			try { el.style.pointerEvents = 'auto'; } catch (_) {}
+		}
+		try { if (typeof window.updateScoreOverlay === 'function') window.updateScoreOverlay(); } catch (_) {}
+		try { if (typeof window.updateSkillOverlay === 'function') window.updateSkillOverlay(); } catch (_) {}
+		try { if (typeof window.updateItemOverlay === 'function') window.updateItemOverlay(); } catch (_) {}
+		try { window.__showBattleDockInstantMessage && window.__showBattleDockInstantMessage('一覧を5秒だけ表示', 1100); } catch (_) {}
+		try {
+			if (window.__battleOverlayPeekTimer) (window.__uiClearTimeout || clearTimeout)(window.__battleOverlayPeekTimer);
+			window.__battleOverlayPeekTimer = (window.__uiSetTimeout || setTimeout)(() => {
+				try { window.__battleOverlayPeekTimer = null; } catch (_) {}
+				try { document.body.classList.remove('battle-overlay-peek-active'); } catch (_) {}
+				try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+			}, dur);
+		} catch (_) {}
+	} catch (_) {}
+};
+
 window.updateScoreOverlay = function() {
 	const overlay = document.getElementById('scoreOverlay');
 	// Guard: never show overlays during long-press auto battle
@@ -665,15 +711,25 @@ window.updateScoreOverlay = function() {
 	}
 
 	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
+	// except for the deliberate 5-second peek button.
 	try {
-		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
-			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
+		const peek = !!(window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive());
+		if (!peek && ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()))) {
 			try { overlay.style.display = 'none'; } catch(e){}
 			return;
 		}
 	} catch(_e) {}
 
-	if (!overlay || !window.maxScores) return;
+	if (!overlay) return;
+	const __peekScore = !!(window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive());
+	if (!window.maxScores) {
+		if (__peekScore) {
+			overlay.textContent = '最高スコア一覧\nなし';
+			overlay.style.setProperty('display', 'block', 'important');
+		}
+		return;
+	}
 
 	let html = '';
 	let found = false;
@@ -694,6 +750,9 @@ window.updateScoreOverlay = function() {
 
 	// 確実に表示/非表示を切り替え（!important的に強制）
 	if (found) {
+		overlay.style.setProperty('display', 'block', 'important');
+	} else if (__peekScore) {
+		overlay.textContent = '最高スコア一覧\nなし';
 		overlay.style.setProperty('display', 'block', 'important');
 	} else {
 		overlay.style.setProperty('display', 'none', 'important');
@@ -752,9 +811,11 @@ window.updateSkillOverlay = function() {
 	}
 
 	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
+	// except for the deliberate 5-second peek button.
 	try {
-		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
-			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
+		const peek = !!(window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive());
+		if (!peek && ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()))) {
 			try { el.style.display = 'none'; } catch(e){}
 			return;
 		}
@@ -764,7 +825,12 @@ window.updateSkillOverlay = function() {
 
 	const lines = player.skills.map(s => `${s.name} Lv${s.level}`);
 	if (lines.length === 0) {
-		el.style.display = 'none';
+		if (window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive()) {
+			el.textContent = '所持スキル一覧\nなし';
+			el.style.display = 'block';
+		} else {
+			el.style.display = 'none';
+		}
 	} else {
 		el.textContent = `所持スキル一覧\n` + lines.join('\n');
 		el.style.display = 'block';
@@ -779,9 +845,11 @@ window.updateItemOverlay = function() {
 	}
 
 	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
+	// except for the deliberate 5-second peek button.
 	try {
-		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
-			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
+		const peek = !!(window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive());
+		if (!peek && ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()))) {
 			try { el.style.display = 'none'; } catch(e){}
 			return;
 		}
@@ -795,7 +863,12 @@ window.updateItemOverlay = function() {
 	});
 
 	if (lines.length === 0) {
-		el.style.display = 'none';
+		if (window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive()) {
+			el.textContent = '所持魔道具一覧\nなし';
+			el.style.display = 'block';
+		} else {
+			el.style.display = 'none';
+		}
 	} else {
 		el.textContent = `所持魔道具一覧\n` + lines.join('\n');
 		el.style.display = 'block';
@@ -805,6 +878,9 @@ window.updateItemOverlay = function() {
 // Hide overlays (skill/score/item) forcefully (used when battle dock is minimized)
 window.__hideBattleOverlays = window.__hideBattleOverlays || function() {
 	try {
+		if (!(window.__isBattleOverlayPeekActive && window.__isBattleOverlayPeekActive())) {
+			try { document.body.classList.remove('battle-overlay-peek-active'); } catch (_) {}
+		}
 		const ids = ['skillOverlay','scoreOverlay','itemOverlay'];
 		for (const id of ids) {
 			const el = document.getElementById(id);
@@ -1087,6 +1163,16 @@ window.toggleQuickGuideLog = function() {
 	content.classList.toggle("hidden");
 };
 
+	window.__syncTopFoldButtons = window.__syncTopFoldButtons || function(kind, isOpen){
+		try{
+			const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
+			btns.forEach(btn => {
+				const k = btn.getAttribute('data-kind');
+				btn.classList.toggle('is-open', !!isOpen && k === kind);
+			});
+		}catch(_){}
+	};
+
 	// 上部4パネル：排他開閉（同時に1つだけ開く）
 	window.toggleTopFold = function(kind){
 		try{
@@ -1105,6 +1191,15 @@ window.toggleQuickGuideLog = function() {
 			if (!targetEl) return;
 
 			const willOpen = targetEl.classList.contains('hidden');
+			if (window.__winnerGuessMiniGameActive) {
+				const charEl = document.getElementById('charInfoFold');
+				if (kind !== 'char' || !willOpen) {
+					try { if (charEl) charEl.classList.remove('hidden'); } catch (_) {}
+					try { window.__syncTopFoldButtons && window.__syncTopFoldButtons('char', true); } catch (_) {}
+					try { window.__showBattleDockInstantMessage && window.__showBattleDockInstantMessage('勝者当て中はキャラクター情報を固定表示', 1400); } catch (_) {}
+					return;
+				}
+			}
 			// まず全て閉じる
 			for (const id of ids) {
 				const el = document.getElementById(id);
@@ -1509,6 +1604,10 @@ try{
 		window.toggleSpecialMode = function(){
 			const r = __origToggleSpecialMode.apply(this, arguments);
 			try{ window.__refreshBattleControlDock && window.__refreshBattleControlDock(); }catch(_){}
+			try{
+				const mode = (window.__getBattleDockMode && window.__getBattleDockMode()) || window.specialMode || 'normal';
+				window.__showBattleDockInstantMessage && window.__showBattleDockInstantMessage(mode === 'brutal' ? '鬼畜モード' : '通常モード', 1200);
+			}catch(_){}
 			return r;
 		};
 	}
@@ -2066,6 +2165,7 @@ window.__setBattleDockEdgeFollowMode = window.__setBattleDockEdgeFollowMode || f
 		try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
 		try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
 		try { window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); } catch (_) {}
+		try { window.__showBattleDockInstantMessage && window.__showBattleDockInstantMessage(on ? '画面端追従モード' : 'ドック表示モード', 1200); } catch (_) {}
 	} catch (e) {
 		console.warn('[BattleDock] edge follow mode failed', e);
 	}
@@ -2106,6 +2206,39 @@ window.__ensureEdgeFollowToggleInBattleDock = window.__ensureEdgeFollowToggleInB
 		btn.title = on ? '画面端追従モードを解除してドック表示に戻す' : '画面端追従モードに切替（一覧オーバーレイ抑止）';
 		btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 		btn.setAttribute('aria-label', btn.title || '画面端追従切替');
+		return btn;
+	} catch (_) { return null; }
+};
+
+
+window.__ensureOverlayPeekButtonInBattleDock = window.__ensureOverlayPeekButtonInBattleDock || function(dock, content){
+	try {
+		dock = dock || document.getElementById('battleOverlayDock');
+		if (!dock) return null;
+		content = content || dock.querySelector('.dockContent') || dock;
+		let btn = document.getElementById('battleDockOverlayPeekBtn');
+		if (!btn) {
+			btn = document.createElement('button');
+			btn.type = 'button';
+			btn.id = 'battleDockOverlayPeekBtn';
+			btn.className = 'battle-dock-overlay-peek-btn';
+			btn.addEventListener('click', function(ev){
+				try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+				try { window.__showBattleOverlayPeekForMs && window.__showBattleOverlayPeekForMs(5000); } catch (_) {}
+			}, { passive:false });
+		}
+		btn.dataset.edgeIcon = '覧';
+		btn.dataset.edgeLabel = '一覧';
+		btn.textContent = '一覧を5秒表示';
+		btn.title = 'スキル・魔道具・スコア一覧を5秒だけ表示';
+		btn.setAttribute('aria-label', btn.title);
+		const edgeBtn = document.getElementById('battleDockEdgeFollowBtn');
+		if (!content.contains(btn)) {
+			try { btn.remove(); } catch (_) {}
+			if (edgeBtn && edgeBtn.parentNode === content && edgeBtn.nextSibling) content.insertBefore(btn, edgeBtn.nextSibling);
+			else if (edgeBtn && edgeBtn.parentNode === content) content.appendChild(btn);
+			else content.insertBefore(btn, content.firstChild);
+		}
 		return btn;
 	} catch (_) { return null; }
 };
@@ -2387,23 +2520,13 @@ window.__getBattleDockMode = window.__getBattleDockMode || function(){
 // =====================================================
 window.__uiOpacityKey = window.__uiOpacityKey || 'rpg_ui_opacity_percent';
 window.__getUIOpacityPercent = window.__getUIOpacityPercent || function(){
-	try{
-		const v = Number(localStorage.getItem(window.__uiOpacityKey));
-		if (Number.isFinite(v) && v >= 0 && v <= 100) return v;
-	}catch(_){}
+	try{ localStorage.setItem(window.__uiOpacityKey, '100'); }catch(_){}
 	return 100;
 };
 window.__setUIOpacityPercent = window.__setUIOpacityPercent || function(p){
-	try{
-		let v = Number(p);
-		if (!Number.isFinite(v)) v = 100;
-		v = Math.max(0, Math.min(100, Math.round(v)));
-		try{ localStorage.setItem(window.__uiOpacityKey, String(v)); }catch(_){}
-		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_){}
-		return v;
-	}catch(_){
-		return 100;
-	}
+	try{ localStorage.setItem(window.__uiOpacityKey, '100'); }catch(_){}
+	try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_){}
+	return 100;
 };
 window.__getUIOpacityAlpha = window.__getUIOpacityAlpha || function(){
 	const p = window.__getUIOpacityPercent ? window.__getUIOpacityPercent() : 100;
@@ -2412,6 +2535,13 @@ window.__getUIOpacityAlpha = window.__getUIOpacityAlpha || function(){
 
 // Create/move the slider into battle dock (above mode button)
 window.__ensureOpacityControlInBattleDock = window.__ensureOpacityControlInBattleDock || function(dock, content, modeBtn){
+	try{
+		try{ localStorage.setItem(window.__uiOpacityKey, '100'); }catch(_){}
+		const oldCtrl = document.getElementById('uiOpacityControl');
+		if (oldCtrl) { try{ oldCtrl.remove(); }catch(_){} }
+		return null;
+	}catch(_){ return null; }
+	/* 透過ボタンは廃止。以下は旧実装の退避（到達しない） */
 	try{
 		if (!dock) dock = document.getElementById('battleOverlayDock');
 		if (!dock) return null;
@@ -2688,6 +2818,7 @@ window.__commitBattleDockMinimized = window.__commitBattleDockMinimized || funct
 		if (!minimized) { try{ window.__battleDockScrollStartY = null; }catch(_){} }
 		window.__refreshBattleControlDock && window.__refreshBattleControlDock();		// When minimized, immediately hide overlays (they must not auto-show while minimized)
 		try { if (minimized) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+		try { window.__showBattleDockInstantMessage && window.__showBattleDockInstantMessage(minimized ? 'ドックを最小化' : 'ドックを表示', 1100); } catch (_) {}
 
 		try {
 			if (minimized) {
@@ -3022,6 +3153,7 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 
 		// Place edge-follow toggle and opacity control into dock now
 		try{ window.__ensureEdgeFollowToggleInBattleDock && window.__ensureEdgeFollowToggleInBattleDock(dock, content); }catch(_e){}
+		try{ window.__ensureOverlayPeekButtonInBattleDock && window.__ensureOverlayPeekButtonInBattleDock(dock, content); }catch(_e){}
 		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, null); }catch(_e){}
 		try{ window.__decorateBattleDockEdgeButtons && window.__decorateBattleDockEdgeButtons(dock); }catch(_e){}
 		try{ window.__syncBattleDockEdgeBodyClass && window.__syncBattleDockEdgeBodyClass(); }catch(_e){}
@@ -3313,6 +3445,7 @@ if (minimized) {
 
 		// Ensure edge-follow toggle and opacity slider are inside the battle dock
 		try{ window.__ensureEdgeFollowToggleInBattleDock && window.__ensureEdgeFollowToggleInBattleDock(dock, content); }catch(_e){}
+		try{ window.__ensureOverlayPeekButtonInBattleDock && window.__ensureOverlayPeekButtonInBattleDock(dock, content); }catch(_e){}
 		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, modeBtn); }catch(_e){}
 
 		if (modeBtn && !dock.contains(modeBtn)) content.appendChild(modeBtn);
