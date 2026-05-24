@@ -2671,8 +2671,11 @@ window.__ensureGrowthDockUI = window.__ensureGrowthDockUI || function(){
 			labelBtn.id = 'growthDockLabelBtn';
 			labelBtn.className = 'toggle-btn';
 			
-labelBtn.textContent = (window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()) ? '成長(自動)' : '成長(手動)';
+labelBtn.textContent = (window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode()) ? '成長選択: 自動' : '成長選択: 手動';
 labelBtn.title = '成長選択の動作を切替（自動/手動）';
+labelBtn.dataset.edgeIcon = '成';
+labelBtn.dataset.edgeLabel = '成長';
+labelBtn.setAttribute('aria-label', '成長選択の自動と手動を切替');
 
 labelBtn.addEventListener('click', () => {
 	// toggle auto/manual
@@ -2830,6 +2833,10 @@ window.__updateGrowthDockUI = window.__updateGrowthDockUI || function(){
 		while(btnWrap.firstChild) btnWrap.removeChild(btnWrap.firstChild);
 		const __gdAuto = !!(window.__isGrowthDockAutoMode && window.__isGrowthDockAutoMode());
 		labelBtn.textContent = __gdAuto ? '成長選択: 自動' : '成長選択: 手動';
+		labelBtn.dataset.edgeIcon = __gdAuto ? '成' : '成';
+		labelBtn.dataset.edgeLabel = __gdAuto ? '自動' : '手動';
+		labelBtn.title = __gdAuto ? '成長選択は自動です（タップで手動へ切替）' : '成長選択は手動です（タップで自動へ切替）';
+		labelBtn.setAttribute('aria-label', __gdAuto ? '成長選択は自動です。タップで手動へ切替' : '成長選択は手動です。タップで自動へ切替');
 		try{ labelBtn.classList.toggle('on', __gdAuto); labelBtn.classList.toggle('off', !__gdAuto); }catch(_e){}
 }catch(_e){}
 };

@@ -4430,7 +4430,7 @@ canvas {
 #battleOverlayDock.dock-opacity-zero > *:not(.dockContent):not(.dock-drag-handle){
   display: none !important;
 }
-#battleOverlayDock.dock-opacity-zero .dockContent > *:not(#uiOpacityControl):not(#startBattleBtn):not(.dock-drag-handle){
+#battleOverlayDock.dock-opacity-zero .dockContent > *:not(#uiOpacityControl):not(#startBattleBtn):not(#battleDockEdgeFollowBtn):not(.dock-drag-handle){
   display: none !important;
 }
 
@@ -4442,11 +4442,13 @@ canvas {
 
 /* Make the remaining UI fill the compact width */
 #battleOverlayDock.dock-opacity-zero #startBattleBtn,
+#battleOverlayDock.dock-opacity-zero #battleDockEdgeFollowBtn,
 #battleOverlayDock.dock-opacity-zero #uiOpacityControl{
   width: 100%;
 }
 
-#battleOverlayDock.dock-opacity-zero #startBattleBtn{
+#battleOverlayDock.dock-opacity-zero #startBattleBtn,
+#battleOverlayDock.dock-opacity-zero #battleDockEdgeFollowBtn{
   padding: 10px 8px;
 }
 
@@ -4654,7 +4656,10 @@ body.battle-dock-dragging{
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   box-shadow: 0 10px 24px rgba(0,0,0,0.24);
   touch-action: manipulation;
+  contain: layout paint style;
+  will-change: top, transform;
 }
+
 
 
 /* Mini bar follow modes */
@@ -7163,4 +7168,238 @@ body.winner-guess-mode #winnerGuessToggleDock{
   .winner-slot-window{ height:108px; }
   .winner-slot-item{ font-size:9px; }
   .winner-slot-lever{ min-height:32px; font-size:9px; }
+}
+
+/* =========================================================
+   Battle Dock: 画面端追従モード
+   - 右端に固定レールを作り、一覧系オーバーレイを抑止
+   ========================================================= */
+body.battle-edge-follow-mode{
+  padding-right: max(68px, env(safe-area-inset-right, 0px) + 62px) !important;
+  box-sizing: border-box;
+}
+
+body.battle-edge-follow-mode #scoreOverlay,
+body.battle-edge-follow-mode #skillOverlay,
+body.battle-edge-follow-mode #itemOverlay,
+body.battle-edge-follow-mode #faceOverlay{
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#battleOverlayDock .battle-dock-edge-follow-btn{
+  border-color: rgba(255,255,255,0.18);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(0,210,255,0.10)),
+    rgba(12,12,18,0.42);
+}
+
+#battleOverlayDock .battle-dock-edge-follow-btn.is-active{
+  border-color: rgba(60, 255, 210, 0.50);
+  box-shadow: 0 0 0 1px rgba(60,255,210,0.18), 0 0 14px rgba(60,255,210,0.18);
+  color: #eaffff;
+}
+
+#battleOverlayDock.edge-follow{
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: 56px !important;
+  padding: 5px 4px !important;
+  gap: 4px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px !important;
+  border-color: rgba(120, 245, 255, 0.30) !important;
+  background:
+    linear-gradient(180deg, rgba(22,26,34,0.86), rgba(8,10,14,0.72)),
+    rgba(10,10,14,0.78) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.40), 0 0 22px rgba(0,210,255,0.12) !important;
+  touch-action: manipulation;
+  contain: layout paint style;
+  will-change: top, transform;
+}
+
+#battleOverlayDock.edge-follow .dockContent{
+  width: 100%;
+  gap: 5px;
+  align-items: stretch;
+}
+
+#battleOverlayDock.edge-follow .dock-drag-handle{
+  display: none !important;
+}
+
+#battleOverlayDock.edge-follow #battleDockResultWindow{
+  display: none !important;
+}
+
+#battleOverlayDock.edge-follow .dockContent > button,
+#battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn{
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  min-height: 42px !important;
+  height: auto !important;
+  padding: 7px 3px !important;
+  margin: 0 !important;
+  border-radius: 13px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#battleOverlayDock.edge-follow .dockContent > button::before,
+#battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn::before,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn::before{
+  content: attr(data-edge-icon);
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0;
+  font-weight: 900;
+  color: rgba(255,255,255,0.96);
+  text-shadow: 0 0 6px rgba(0,220,255,0.55), 0 1px 2px rgba(0,0,0,0.75);
+}
+
+#battleOverlayDock.edge-follow #battleDockEdgeFollowBtn::before{ content: attr(data-edge-icon); }
+#battleOverlayDock.edge-follow #specialModeButton::before{ content: attr(data-edge-icon); }
+#battleOverlayDock.edge-follow #startBattleBtn::before{ content: attr(data-edge-icon); }
+#battleOverlayDock.edge-follow #uiOpacityToggleBtn::before{ content: attr(data-edge-icon); }
+
+#battleOverlayDock.edge-follow .ui-opacity-control{
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+}
+
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityLabel,
+#battleOverlayDock.edge-follow .ui-opacity-control .uiOpacityValueWrap,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn::after{
+  display: none !important;
+}
+
+#battleOverlayDock.edge-follow #battleTimeLimitRow{
+  width: 44px !important;
+  flex-direction: column;
+}
+
+#battleOverlayDock.edge-follow #battleTimeLimitRow:not(.is-expired){
+  display: none !important;
+}
+
+
+body.battle-edge-follow-mode #battleDockMinimizeBtn,
+body.battle-edge-follow-mode #battleDockMiniBar{
+  display: none !important;
+}
+
+#battleOverlayDock.edge-follow .dockContent{
+  justify-content: center;
+}
+
+#battleOverlayDock.edge-follow #growthDockArea{
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  margin: 0 !important;
+  gap: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#battleOverlayDock.edge-follow #growthDockButtonsWrap{
+  display: none !important;
+}
+
+#battleOverlayDock.edge-follow .dockContent > button,
+#battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn,
+#battleOverlayDock.edge-follow #growthDockLabelBtn{
+  position: relative !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  padding-top: 7px !important;
+  padding-bottom: 6px !important;
+}
+
+#battleOverlayDock.edge-follow .dockContent > button::before,
+#battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn::before,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn::before,
+#battleOverlayDock.edge-follow #growthDockLabelBtn::before{
+  font-size: 15px;
+  margin: 0;
+}
+
+#battleOverlayDock.edge-follow .dockContent > button::after,
+#battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn::after,
+#battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn::after,
+#battleOverlayDock.edge-follow #growthDockLabelBtn::after{
+  content: attr(data-edge-label);
+  display: block;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(230,245,255,0.88);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+#battleOverlayDock.edge-follow #growthDockLabelBtn{
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  min-height: 42px !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+  border-radius: 13px !important;
+  font-size: 0 !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22));
+}
+
+#battleOverlayDock.edge-follow #growthDockLabelBtn.on{
+  border-color: rgba(110,255,190,0.40);
+  box-shadow: 0 0 0 1px rgba(110,255,190,0.14), 0 0 12px rgba(110,255,190,0.12);
+}
+
+#battleOverlayDock.edge-follow #growthDockLabelBtn.off{
+  border-color: rgba(255,255,255,0.22);
+  opacity: 0.95;
+}
+
+@media (max-width: 520px){
+  body.battle-edge-follow-mode{
+    padding-right: max(66px, env(safe-area-inset-right, 0px) + 60px) !important;
+    padding-left: 10px !important;
+  }
+
+  #battleOverlayDock.edge-follow{
+    width: 54px !important;
+    min-width: 54px !important;
+    max-width: 54px !important;
+  }
+
+  #battleOverlayDock.edge-follow .dockContent > button,
+  #battleOverlayDock.edge-follow #battleTimeLimitRow .dockTimerExpiredBtn,
+  #battleOverlayDock.edge-follow .ui-opacity-control,
+  #battleOverlayDock.edge-follow .ui-opacity-control #uiOpacityToggleBtn,
+  #battleOverlayDock.edge-follow #growthDockArea,
+  #battleOverlayDock.edge-follow #growthDockLabelBtn{
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+  }
 }

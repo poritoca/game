@@ -664,9 +664,10 @@ window.updateScoreOverlay = function() {
 		return;
 	}
 
-	// Guard: when the battle dock is minimized, never auto-show overlays
+	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
 	try {
-		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
 			try { overlay.style.display = 'none'; } catch(e){}
 			return;
 		}
@@ -750,9 +751,10 @@ window.updateSkillOverlay = function() {
 		return;
 	}
 
-	// Guard: when the battle dock is minimized, never auto-show overlays
+	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
 	try {
-		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
 			try { el.style.display = 'none'; } catch(e){}
 			return;
 		}
@@ -776,9 +778,10 @@ window.updateItemOverlay = function() {
 		return;
 	}
 
-	// Guard: when the battle dock is minimized, never auto-show overlays
+	// Guard: when the battle dock is minimized or edge-following, never auto-show overlays
 	try {
-		if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
+		if ((window.__isBattleDockMinimized && window.__isBattleDockMinimized()) ||
+			(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) {
 			try { el.style.display = 'none'; } catch(e){}
 			return;
 		}
@@ -1980,6 +1983,169 @@ try { __battleLogToggleBtnRef = __getOrCreateBattleLogToggleBtn(); } catch (_e) 
 window.__battleDockSideKey = window.__battleDockSideKey || 'battleDockSide';
 window.__battleDockMinKey = window.__battleDockMinKey || 'battleDockMinimized';
 window.__battleDockMiniFollowKey = window.__battleDockMiniFollowKey || 'battleDockMiniFollow';
+window.__battleDockEdgeFollowKey = window.__battleDockEdgeFollowKey || 'battleDockEdgeFollowMode';
+
+window.__ensureBattleDockEdgeFollowDefault = window.__ensureBattleDockEdgeFollowDefault || function(){
+	try {
+		if (localStorage.getItem(window.__battleDockEdgeFollowKey) == null) {
+			localStorage.setItem(window.__battleDockEdgeFollowKey, '1');
+		}
+	} catch (_) {}
+};
+
+// 画面端追従モード：iPhone Safariでも見えている画面端に固定し、一覧系オーバーレイを抑止する
+window.__isBattleDockEdgeFollowMode = window.__isBattleDockEdgeFollowMode || function(){
+	try {
+		window.__ensureBattleDockEdgeFollowDefault && window.__ensureBattleDockEdgeFollowDefault();
+		return localStorage.getItem(window.__battleDockEdgeFollowKey) === '1';
+	}
+	catch (_) { return false; }
+};
+
+window.__syncBattleDockEdgeBodyClass = window.__syncBattleDockEdgeBodyClass || function(){
+	try {
+		const on = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		document.body.classList.toggle('battle-edge-follow-mode', on);
+		return on;
+	} catch (_) { return false; }
+};
+
+window.__battleDockEdgeViewportRaf = window.__battleDockEdgeViewportRaf || 0;
+window.__queueBattleDockEdgeViewportMetrics = window.__queueBattleDockEdgeViewportMetrics || function(dock){
+	try {
+		dock = dock || document.getElementById('battleOverlayDock');
+		if (!dock) return;
+		if (window.__battleDockEdgeViewportRaf) return;
+		window.__battleDockEdgeViewportRaf = requestAnimationFrame(() => {
+			window.__battleDockEdgeViewportRaf = 0;
+			try { window.__applyBattleDockEdgeViewportMetrics && window.__applyBattleDockEdgeViewportMetrics(dock); } catch (_) {}
+		});
+	} catch (_) {}
+};
+
+window.__applyBattleDockEdgeViewportMetrics = window.__applyBattleDockEdgeViewportMetrics || function(dock){
+	try {
+		dock = dock || document.getElementById('battleOverlayDock');
+		if (!dock || !(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode())) return;
+		const vv = window.visualViewport || null;
+		const viewportH = vv ? vv.height : (window.innerHeight || document.documentElement.clientHeight || 1);
+		const offsetTop = vv ? vv.offsetTop : 0;
+		const maxH = Math.max(140, Math.round(viewportH - 16));
+		dock.style.setProperty('position', 'fixed', 'important');
+		dock.style.setProperty('right', '6px', 'important');
+		dock.style.setProperty('left', 'auto', 'important');
+		dock.style.setProperty('bottom', 'auto', 'important');
+		dock.style.setProperty('transform', 'translateZ(0)', 'important');
+		dock.style.setProperty('max-height', maxH + 'px', 'important');
+		dock.style.removeProperty('width');
+		const rect = dock.getBoundingClientRect();
+		const dockH = Math.max(1, Math.min(Math.round(rect.height || dock.offsetHeight || 1), maxH));
+		const centeredTop = Math.round(offsetTop + Math.max(8, (viewportH - dockH) / 2));
+		if (dock.__edgeLastTop !== centeredTop) {
+			dock.style.setProperty('top', centeredTop + 'px', 'important');
+			dock.__edgeLastTop = centeredTop;
+		}
+		if (dock.__edgeLastMaxH !== maxH) {
+			dock.style.setProperty('max-height', maxH + 'px', 'important');
+			dock.__edgeLastMaxH = maxH;
+		}
+	} catch (_) {}
+};
+
+window.__setBattleDockEdgeFollowMode = window.__setBattleDockEdgeFollowMode || function(enabled){
+	try {
+		const on = !!enabled;
+		try { localStorage.setItem(window.__battleDockEdgeFollowKey, on ? '1' : '0'); } catch (_) {}
+		// 追従モードではドック自体を画面端に常時出すため、最小化状態は解除する
+		if (on) {
+			try { localStorage.setItem(window.__battleDockMinKey, '0'); } catch (_) {}
+			try { window.__clearBattleDockAutoRestoreTimer && window.__clearBattleDockAutoRestoreTimer(); } catch (_) {}
+			try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+		}
+		try { window.__syncBattleDockEdgeBodyClass && window.__syncBattleDockEdgeBodyClass(); } catch (_) {}
+		try { window.__refreshBattleControlDock && window.__refreshBattleControlDock(); } catch (_) {}
+		try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
+		try { window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); } catch (_) {}
+	} catch (e) {
+		console.warn('[BattleDock] edge follow mode failed', e);
+	}
+};
+
+window.__toggleBattleDockEdgeFollowMode = window.__toggleBattleDockEdgeFollowMode || function(){
+	try {
+		const next = !(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		window.__setBattleDockEdgeFollowMode && window.__setBattleDockEdgeFollowMode(next);
+	} catch (_) {}
+};
+
+window.__ensureEdgeFollowToggleInBattleDock = window.__ensureEdgeFollowToggleInBattleDock || function(dock, content){
+	try {
+		dock = dock || document.getElementById('battleOverlayDock');
+		if (!dock) return null;
+		content = content || dock.querySelector('.dockContent') || dock;
+		let btn = document.getElementById('battleDockEdgeFollowBtn');
+		if (!btn) {
+			btn = document.createElement('button');
+			btn.type = 'button';
+			btn.id = 'battleDockEdgeFollowBtn';
+			btn.className = 'battle-dock-edge-follow-btn';
+			btn.addEventListener('click', function(ev){
+				try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+				window.__toggleBattleDockEdgeFollowMode && window.__toggleBattleDockEdgeFollowMode();
+			}, { passive:false });
+		}
+		if (!content.contains(btn)) {
+			try { btn.remove(); } catch (_) {}
+			content.insertBefore(btn, content.firstChild);
+		}
+		const on = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		btn.classList.toggle('is-active', on);
+		btn.dataset.edgeIcon = on ? '解' : '追';
+		btn.dataset.edgeLabel = on ? '解除' : '追従';
+		btn.textContent = on ? '画面端追従を解除（ドック表示に戻す）' : '画面端追従に切替';
+		btn.title = on ? '画面端追従モードを解除してドック表示に戻す' : '画面端追従モードに切替（一覧オーバーレイ抑止）';
+		btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+		btn.setAttribute('aria-label', btn.title || '画面端追従切替');
+		return btn;
+	} catch (_) { return null; }
+};
+
+window.__decorateBattleDockEdgeButtons = window.__decorateBattleDockEdgeButtons || function(dock){
+	try {
+		dock = dock || document.getElementById('battleOverlayDock');
+		const on = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		if (!dock) return;
+		dock.classList.toggle('edge-follow', on);
+		const modeBtn = document.getElementById('specialModeButton');
+		if (modeBtn) {
+			const brutal = (window.__getBattleDockMode && window.__getBattleDockMode()) === 'brutal';
+			modeBtn.dataset.edgeIcon = brutal ? '鬼' : '通';
+			modeBtn.dataset.edgeLabel = 'モード';
+			modeBtn.title = brutal ? '鬼畜モードに設定中（タップで切替）' : '通常モードに設定中（タップで切替）';
+			modeBtn.setAttribute('aria-label', brutal ? '鬼畜モード切替' : '通常モード切替');
+		}
+		const battleBtn = document.getElementById('startBattleBtn');
+		if (battleBtn) {
+			battleBtn.dataset.edgeIcon = '戦';
+			battleBtn.dataset.edgeLabel = 'バトル';
+			battleBtn.title = 'バトル開始';
+			battleBtn.setAttribute('aria-label', 'バトル開始');
+		}
+		const opacityBtn = document.getElementById('uiOpacityToggleBtn');
+		if (opacityBtn) {
+			opacityBtn.dataset.edgeIcon = '透';
+			opacityBtn.dataset.edgeLabel = '透明';
+			opacityBtn.title = 'UI透明度の切替';
+			opacityBtn.setAttribute('aria-label', 'UI透明度の切替');
+		}
+		const edgeBtn = document.getElementById('battleDockEdgeFollowBtn');
+		if (edgeBtn) {
+			edgeBtn.dataset.edgeIcon = on ? '解' : '追';
+			edgeBtn.dataset.edgeLabel = on ? '解除' : '追従';
+			edgeBtn.setAttribute('aria-label', on ? '画面端追従を解除してドック表示に戻す' : '画面端追従に切替');
+		}
+	} catch (_) {}
+};
 
 
 // Battle dock draggable position (x,y in viewport px)
@@ -2013,6 +2179,10 @@ window.__clampBattleDockToViewport = window.__clampBattleDockToViewport || funct
 window.__applyBattleDockSavedPos = window.__applyBattleDockSavedPos || function(dock){
 	try{
 		if(!dock) return;
+		if (window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()) {
+			window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock);
+			return;
+		}
 		const pos = window.__readBattleDockPos();
 		if(!pos) return;
 
@@ -2132,6 +2302,11 @@ window.__ensureBattleDockDraggable = window.__ensureBattleDockDraggable || funct
 
 		const onStart = (ev) => {
 			try{ ev.preventDefault(); }catch(_e){}
+			if (window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()) {
+				// 追従モード中は固定レールとして扱うため、ドラッグ移動は無効
+				try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock); } catch (_) {}
+				return;
+			}
 			dragging = true;
 			const p = getPoint(ev);
 			startX = p.x;
@@ -2387,6 +2562,7 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 			}catch(_e){}
 
 			const battleBtn = document.getElementById('startBattleBtn');
+			const edgeBtn = document.getElementById('battleDockEdgeFollowBtn');
 			const ctrl = document.getElementById('uiOpacityControl');
 
 			const shouldSkip = (el) => {
@@ -2401,6 +2577,12 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 					if (battleBtn){
 						if (el === battleBtn || el.closest('#startBattleBtn')) return true;
 						if (typeof el.contains === 'function' && el.contains(battleBtn)) return true;
+					}
+
+					// Keep edge-follow toggle available, even at 0%, so the user can always leave the mode
+					if (edgeBtn){
+						if (el === edgeBtn || el.closest('#battleDockEdgeFollowBtn')) return true;
+						if (typeof el.contains === 'function' && el.contains(edgeBtn)) return true;
 					}
 
 					// Opacity control: keep the range input visible (label/value should fade),
@@ -2433,6 +2615,10 @@ window.__applyGlobalUIOpacity = window.__applyGlobalUIOpacity || function(){
 				if (battleBtn && dock.contains(battleBtn)){
 					battleBtn.style.opacity = '1';
 					battleBtn.style.pointerEvents = '';
+				}
+				if (edgeBtn && dock.contains(edgeBtn)){
+					edgeBtn.style.opacity = '1';
+					edgeBtn.style.pointerEvents = '';
 				}
 			}catch(_){}
 
@@ -2823,8 +3009,22 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 		document.body.appendChild(minBtn);
 		document.body.appendChild(miniBar);
 
-		// Place opacity slider into dock now (above mode button)
+		if (window.ResizeObserver && !dock.__edgeFollowResizeObserved) {
+			dock.__edgeFollowResizeObserved = true;
+			try {
+				const ro = new ResizeObserver(() => {
+					try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock); } catch (_) {}
+				});
+				ro.observe(dock);
+				dock.__edgeFollowResizeObserver = ro;
+			} catch (_) {}
+		}
+
+		// Place edge-follow toggle and opacity control into dock now
+		try{ window.__ensureEdgeFollowToggleInBattleDock && window.__ensureEdgeFollowToggleInBattleDock(dock, content); }catch(_e){}
 		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, null); }catch(_e){}
+		try{ window.__decorateBattleDockEdgeButtons && window.__decorateBattleDockEdgeButtons(dock); }catch(_e){}
+		try{ window.__syncBattleDockEdgeBodyClass && window.__syncBattleDockEdgeBodyClass(); }catch(_e){}
 		try{ window.__applyGlobalUIOpacity && window.__applyGlobalUIOpacity(); }catch(_e){}
 
 		// Ensure GrowthDock UI (minimize-to-dock) is present
@@ -2882,6 +3082,12 @@ miniBar.addEventListener('click', () => window.__setBattleDockMinimized(false));
 					// Guard: during long-press auto battle, never auto-minimize
 					const autoRunning = (typeof isAutoBattle !== 'undefined') && !!isAutoBattle;
 					if (autoRunning) return;
+					// 画面端追従モードでは、ドックを最小化せず固定レールとして追従させる
+					if (window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()) {
+						try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
+						try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+						return;
+					}
 
 					// If already minimized, keep following the scroll
 					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
@@ -2919,6 +3125,11 @@ window.__battleDockScrollStartY = null;
 			}, { passive: true });
 			window.addEventListener('scroll', (ev) => {
 				try {
+					if (window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()) {
+						try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
+						try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+						return;
+					}
 					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
 						window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
 						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
@@ -2929,6 +3140,11 @@ window.__battleDockScrollStartY = null;
 			}, { passive: true });
 			window.addEventListener('touchmove', (ev) => {
 				try {
+					if (window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode()) {
+						try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
+						try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+						return;
+					}
 					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
 						window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
 						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
@@ -2939,6 +3155,7 @@ window.__battleDockScrollStartY = null;
 			}, { passive: true });
 			window.addEventListener('resize', () => {
 				window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+				try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
 				if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
 					window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
 				}
@@ -2948,12 +3165,14 @@ window.__battleDockScrollStartY = null;
 			if (window.visualViewport) {
 				window.visualViewport.addEventListener('scroll', () => {
 					window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+					try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
 					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
 						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
 					}
 				}, { passive: true });
 				window.visualViewport.addEventListener('resize', () => {
 					window.__updateBattleDockMiniBarFollow && window.__updateBattleDockMiniBarFollow();
+					try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(); } catch (_) {}
 					if (window.__isBattleDockMinimized && window.__isBattleDockMinimized()) {
 						window.__scheduleBattleDockAutoRestore && window.__scheduleBattleDockAutoRestore();
 					}
@@ -2978,6 +3197,8 @@ window.__refreshBattleControlDock = window.__refreshBattleControlDock || functio
 
 		// Title screen: always hide
 		if (isTitleVisible || !isGameVisible) {
+			try { document.body.classList.remove('battle-edge-follow-mode'); } catch (_) {}
+			try { dock.classList.remove('edge-follow'); } catch (_) {}
 			dock.style.display = 'none';
 			if (minBtn) minBtn.style.display = 'none';
 			if (miniBar) miniBar.style.display = 'none';
@@ -2985,14 +3206,22 @@ window.__refreshBattleControlDock = window.__refreshBattleControlDock || functio
 		}
 
 
+const edgeFollow = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+try { window.__syncBattleDockEdgeBodyClass && window.__syncBattleDockEdgeBodyClass(); } catch (_) {}
+if (edgeFollow) {
+	try { localStorage.setItem(window.__battleDockMinKey, '0'); } catch (_) {}
+	try { window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch (_) {}
+}
+
 // Apply minimized state (persisted)
 let minimized = false;
 try {
 	minimized = (localStorage.getItem(window.__battleDockMinKey) === '1');
 } catch (_) {}
+if (edgeFollow) minimized = false;
 
-// If minimized, force-hide overlays so they never pop up due to other triggers
-try { if (minimized) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch(_e) {}
+// If minimized or edge-following, force-hide overlays so they never pop up due to other triggers
+try { if (minimized || edgeFollow) window.__hideBattleOverlays && window.__hideBattleOverlays(); } catch(_e) {}
 
 
 		// Sync growth-compact event popup with dock minimized state (iPhone-friendly UX)
@@ -3082,20 +3311,31 @@ if (minimized) {
 		const modeBtn = document.getElementById('specialModeButton');
 		const battleBtn = document.getElementById('startBattleBtn');
 
-		// Ensure opacity slider is inside the battle dock (above mode button)
+		// Ensure edge-follow toggle and opacity slider are inside the battle dock
+		try{ window.__ensureEdgeFollowToggleInBattleDock && window.__ensureEdgeFollowToggleInBattleDock(dock, content); }catch(_e){}
 		try{ window.__ensureOpacityControlInBattleDock && window.__ensureOpacityControlInBattleDock(dock, content, modeBtn); }catch(_e){}
 
 		if (modeBtn && !dock.contains(modeBtn)) content.appendChild(modeBtn);
 		if (battleBtn && !dock.contains(battleBtn)) content.appendChild(battleBtn);
 
-		// Apply saved draggable position (if any)
-		try{ window.__applyBattleDockSavedPos && window.__applyBattleDockSavedPos(dock); }catch(_e){}
+		try{ window.__decorateBattleDockEdgeButtons && window.__decorateBattleDockEdgeButtons(dock); }catch(_e){}
+		if (edgeFollow) {
+			try { window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock); } catch (_e) {}
+		} else {
+			try {
+				dock.classList.remove('edge-follow');
+				dock.style.removeProperty('max-height');
+			} catch (_e) {}
+			// Apply saved draggable position (if any)
+			try{ window.__applyBattleDockSavedPos && window.__applyBattleDockSavedPos(dock); }catch(_e){}
+		}
 
 		// Show now (no scroll required)
 		dock.style.display = 'flex';
 		// Force paint on iOS after screen switch
 		requestAnimationFrame(() => {
 			try { dock.style.opacity = '1'; } catch (_) {}
+			try { if (edgeFollow) window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock); } catch (_) {}
 		});
 
 		// Re-apply global opacity (handle/buttons/overlays) after DOM moves
@@ -3112,6 +3352,8 @@ if (minimized) {
 // Safe bootstrap
 window.__ensureBattleDockReady = window.__ensureBattleDockReady || function() {
 	try {
+		try { window.__ensureBattleDockEdgeFollowDefault && window.__ensureBattleDockEdgeFollowDefault(); } catch (_) {}
+		try { window.__syncBattleDockEdgeBodyClass && window.__syncBattleDockEdgeBodyClass(); } catch (_) {}
 		window.__initBattleControlDock && window.__initBattleControlDock();
 		window.__refreshBattleControlDock && window.__refreshBattleControlDock();
 		// extra refresh after a short delay (fade-in timing)
