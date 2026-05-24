@@ -1926,10 +1926,10 @@ summary {
   transform: translateZ(0);
 }
 
-/* 画像本体（最大80%） */
+/* 画像本体（最大40%：従来の縦横半分。比率は object-fit で維持） */
 #faceRevealOverlay .face-reveal-img{
-  width: min(80vw, 80vh);
-  height: min(80vw, 80vh);
+  width: min(40vw, 40vh);
+  height: min(40vw, 40vh);
   object-fit: contain;
   opacity: 0;
   will-change: transform, opacity, filter;
@@ -7421,4 +7421,160 @@ body.battle-edge-follow-mode #battleDockMiniBar{
     min-width: 42px !important;
     max-width: 42px !important;
   }
+}
+
+/* =========================================================
+   Battle Dock: 右端追従時の軽量リザルト表示
+   - 戦ボタンの左側に黒基調・ドット絵調の小窓を表示
+   - アニメーションは opacity/translate のみで軽量
+   ========================================================= */
+#battleDockEdgeResultPanel{
+  display:none;
+  position:fixed;
+  left:auto;
+  top:50%;
+  transform:translateY(-50%) translateX(4px);
+  width:min(58vw, 220px);
+  max-width:calc(100vw - 86px);
+  padding:9px 10px 10px;
+  box-sizing:border-box;
+  border-radius:12px;
+  border:1px solid rgba(120,245,255,0.32);
+  background:
+    linear-gradient(180deg, rgba(13,16,21,0.20), rgba(3,5,9,0.18)),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
+  box-shadow:
+    0 10px 22px rgba(0,0,0,0.22),
+    inset 0 0 0 1px rgba(255,255,255,0.040),
+    0 0 14px rgba(69,255,225,0.08);
+  color:#efffff;
+  font-family:'Press Start 2P', system-ui, monospace;
+  line-height:1.25;
+  text-align:left;
+  pointer-events:none;
+  opacity:0;
+  z-index:2;
+  overflow:hidden;
+  transition:opacity 180ms ease, transform 180ms ease;
+  image-rendering:pixelated;
+}
+#battleDockEdgeResultPanel.show{
+  opacity:1;
+  transform:translateY(-50%) translateX(0);
+}
+#battleDockEdgeResultPanel.fade-out{
+  opacity:0;
+  transform:translateY(-50%) translateX(4px);
+}
+#battleDockEdgeResultPanel .edge-result-scan{
+  position:absolute;
+  inset:0;
+  background:repeating-linear-gradient(180deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 4px);
+  opacity:.16;
+  pointer-events:none;
+}
+#battleDockEdgeResultPanel .edge-result-head,
+#battleDockEdgeResultPanel .edge-result-enemy,
+#battleDockEdgeResultPanel .edge-result-streak,
+#battleDockEdgeResultPanel .edge-result-drops{
+  position:relative;
+  z-index:1;
+}
+#battleDockEdgeResultPanel .edge-result-head{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:5px;
+  letter-spacing:.08em;
+}
+#battleDockEdgeResultPanel .edge-result-led{
+  flex:0 0 7px;
+  width:7px;
+  height:7px;
+  border-radius:2px;
+  background:#74ffe4;
+  box-shadow:0 0 8px rgba(116,255,228,0.70);
+}
+#battleDockEdgeResultPanel.is-lose .edge-result-led{
+  background:#ff7a9b;
+  box-shadow:0 0 8px rgba(255,122,155,0.70);
+}
+#battleDockEdgeResultPanel .edge-result-title{
+  font-size:10px;
+  color:#dffff8;
+  text-shadow:0 0 7px rgba(104,255,220,0.42);
+}
+#battleDockEdgeResultPanel.is-lose .edge-result-title{
+  color:#ffe2ea;
+  text-shadow:0 0 7px rgba(255,108,145,0.42);
+}
+#battleDockEdgeResultPanel .edge-result-enemy{
+  margin:0 0 6px;
+  font-size:7px;
+  color:rgba(222,242,255,0.72);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#battleDockEdgeResultPanel .edge-result-streak{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:end;
+  gap:6px;
+  margin:5px 0 7px;
+  padding:6px 7px;
+  border-radius:9px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.035);
+}
+#battleDockEdgeResultPanel .edge-result-streak span{
+  font-size:7px;
+  color:rgba(220,245,255,0.78);
+}
+#battleDockEdgeResultPanel .edge-result-streak b{
+  font-size:16px;
+  color:#fff6b8;
+  text-shadow:0 0 8px rgba(255,226,109,0.38);
+  line-height:.9;
+}
+#battleDockEdgeResultPanel .edge-result-streak small{
+  font-size:5px;
+  color:rgba(160,235,255,0.70);
+  letter-spacing:.10em;
+}
+#battleDockEdgeResultPanel .edge-result-drops{
+  display:grid;
+  gap:3px;
+}
+#battleDockEdgeResultPanel .edge-result-label{
+  font-size:6px;
+  letter-spacing:.12em;
+  color:#7fdcff;
+  opacity:.88;
+}
+#battleDockEdgeResultPanel .edge-result-drop-row{
+  font-size:7px;
+  line-height:1.35;
+  color:rgba(255,255,255,0.90);
+  padding:3px 5px;
+  border-radius:7px;
+  background:rgba(127,220,255,0.06);
+  border:1px solid rgba(127,220,255,0.10);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#battleDockEdgeResultPanel .edge-result-drop-row.is-none{
+  color:rgba(210,225,235,0.48);
+  border-color:rgba(255,255,255,0.06);
+  background:rgba(255,255,255,0.025);
+}
+@media (max-width:520px){
+  #battleDockEdgeResultPanel{
+    width:min(62vw, 205px);
+    padding:8px 8px 9px;
+    border-radius:11px;
+  }
+  #battleDockEdgeResultPanel .edge-result-title{ font-size:9px; }
+  #battleDockEdgeResultPanel .edge-result-streak b{ font-size:15px; }
 }

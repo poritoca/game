@@ -3505,6 +3505,108 @@ window.__ensureBattleDockReady = window.__ensureBattleDockReady || function() {
 // - Always uses draggable BattleDock UI (no legacy centered popup)
 // - Safe: never throws; will silently no-op if dock not ready
 // ---------------------------------------------------------
+
+// ---------------------------------------------------------
+// BattleDock: edge-follow result panel
+// - In right-edge follow mode, show a compact black pixel-style window
+//   to the left of the battle button/dock with result, streak and drops.
+// - Kept intentionally light: no loops, no heavy animation, short fade only.
+// ---------------------------------------------------------
+window.__getBattleDockRewardSummaryForEdge = window.__getBattleDockRewardSummaryForEdge || function(){
+	try{
+		const st = window.__battleDigestState || null;
+		const rewards = st && Array.isArray(st.itemRewards) ? st.itemRewards.slice(-3) : [];
+		if (rewards.length) {
+			return rewards.map(function(r){
+				try{
+					return String(r.summary || r.label || r.itemName || 'ドロップあり').trim();
+				}catch(_e){ return 'ドロップあり'; }
+			}).filter(Boolean);
+		}
+		const lines = Array.isArray(window.log) ? window.log.join('\n') : '';
+		if (/(敵魔道具ドロップ|魔道具：|獲得！|入手！|ボス報酬|クラッチ報酬)/.test(lines)) return ['ドロップあり'];
+		return [];
+	}catch(_e){ return []; }
+};
+
+window.__showBattleDockEdgeResultPanel = window.__showBattleDockEdgeResultPanel || function(payload, options = {}){
+	try{
+		const dock = document.getElementById('battleOverlayDock');
+		if (!dock) return;
+		const edgeFollow = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		if (!edgeFollow) return;
+		try{ window.__queueBattleDockEdgeViewportMetrics && window.__queueBattleDockEdgeViewportMetrics(dock); }catch(_e){}
+
+		let panel = document.getElementById('battleDockEdgeResultPanel');
+		if (!panel) {
+			panel = document.createElement('div');
+			panel.id = 'battleDockEdgeResultPanel';
+			panel.className = 'battle-dock-edge-result-panel';
+			panel.setAttribute('role', 'status');
+			document.body.appendChild(panel);
+		}
+		try{
+			const rect = dock.getBoundingClientRect();
+			const panelW = Math.min(Math.max(160, Math.round((window.innerWidth || 360) * 0.58)), 220);
+			const gap = 8;
+			const left = Math.max(6, Math.round(rect.left - panelW - gap));
+			const top = Math.round(rect.top + Math.max(26, rect.height / 2));
+			panel.style.width = panelW + 'px';
+			panel.style.left = left + 'px';
+			panel.style.top = top + 'px';
+		}catch(_e){}
+
+		const esc = (window.__escapeHtml || function(v){
+			return String(v == null ? '' : v)
+				.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+				.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+		});
+		const data = payload || {};
+		const won = !!data.playerWon;
+		const resultLabel = data.resultLabel || (won ? '戦闘勝利' : '戦闘敗北');
+		const streak = Number.isFinite(Number(data.streak)) ? Math.max(0, Math.floor(Number(data.streak))) : Math.max(0, Math.floor(Number(window.currentStreak || 0)));
+		const enemyName = String(data.enemyName || '').trim();
+		let drops = Array.isArray(data.drops) ? data.drops.filter(Boolean) : [];
+		if (!drops.length && typeof window.__getBattleDockRewardSummaryForEdge === 'function') drops = window.__getBattleDockRewardSummaryForEdge();
+		drops = drops.slice(-3);
+		const dropHtml = drops.length
+			? drops.map(function(d){ return '<div class="edge-result-drop-row">' + esc(d) + '</div>'; }).join('')
+			: '<div class="edge-result-drop-row is-none">なし</div>';
+
+		panel.classList.remove('is-win','is-lose','show','fade-out');
+		panel.classList.add(won ? 'is-win' : 'is-lose');
+		panel.innerHTML = '' +
+			'<div class="edge-result-scan" aria-hidden="true"></div>' +
+			'<div class="edge-result-head">' +
+				'<span class="edge-result-led"></span>' +
+				'<span class="edge-result-title">' + esc(resultLabel) + '</span>' +
+			'</div>' +
+			(enemyName ? '<div class="edge-result-enemy">vs ' + esc(enemyName) + '</div>' : '') +
+			'<div class="edge-result-streak"><span>連勝</span><b>' + streak + '</b><small>CHAIN</small></div>' +
+			'<div class="edge-result-drops"><div class="edge-result-label">ITEM DROP</div>' + dropHtml + '</div>';
+
+		panel.style.display = 'block';
+		try{ void panel.offsetWidth; }catch(_e){}
+		panel.classList.add('show');
+		try{
+			if (panel.__timer1) { (window.__uiClearTimeout || window.clearTimeout)(panel.__timer1); panel.__timer1 = null; }
+			if (panel.__timer2) { (window.__uiClearTimeout || window.clearTimeout)(panel.__timer2); panel.__timer2 = null; }
+		}catch(_e){}
+		const autoDismissMs = Number(options.autoDismissMs || 2600);
+		const fadeOutMs = Number(options.fadeOutMs || 260);
+		if (autoDismissMs > 0) {
+			panel.__timer1 = (window.__uiSetTimeout || window.setTimeout)(function(){
+				try{
+					panel.classList.add('fade-out');
+					panel.__timer2 = (window.__uiSetTimeout || window.setTimeout)(function(){
+						try{ panel.style.display = 'none'; panel.classList.remove('show','fade-out'); }catch(_e){}
+					}, fadeOutMs);
+				}catch(_e){}
+			}, autoDismissMs);
+		}
+	}catch(e){ try{ console.warn('[BattleDockEdgeResultPanel] failed', e); }catch(_e){} }
+};
+
 window.__showBattleDockResultWindow = window.__showBattleDockResultWindow || function(messageHtml, options = {}) {
 	try {
 		// Ensure dock exists/visible
@@ -6638,8 +6740,8 @@ updateFaceUI();
 						}
 					}catch(_){}
 					try{ if (typeof updateStats === 'function') updateStats(); }catch(_){}
-					// 最初のバトル直前のみ、戦闘ログを自動で開く（startBattle側で実行）
-					try{ window.__openBattleLogOnNextBattle = true; }catch(_){}
+					// 初戦開始時も戦闘ログタブは自動で開かない。
+					try{ window.__openBattleLogOnNextBattle = false; }catch(_){}
 					try{ if (typeof window.startBattle === 'function') window.startBattle(); }catch(_){}
 					try{ if (typeof updateFaceUI === 'function') updateFaceUI(); }catch(_){}
 				};

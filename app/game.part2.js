@@ -1772,6 +1772,11 @@ window.__winnerGuessRewardState = null;
 window.__winnerGuessPendingResolver = null;
 window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT = Number.isFinite(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT) ? Number(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT) : 0.03;
 
+// 勝者当てミニゲームの連続発生を防ぐための最低戦闘間隔。
+// 「前回発生した戦闘」から100戦以上離れていない場合は、条件を満たしても発生させない。
+window.__WINNER_GUESS_MIN_BATTLE_INTERVAL = Number.isFinite(Number(window.__WINNER_GUESS_MIN_BATTLE_INTERVAL)) ? Math.max(0, Number(window.__WINNER_GUESS_MIN_BATTLE_INTERVAL)) : 100;
+window.__winnerGuessLastBattleCount = Number.isFinite(Number(window.__winnerGuessLastBattleCount)) ? Number(window.__winnerGuessLastBattleCount) : -Infinity;
+
 window.__syncWinnerGuessToggleButton = function(){
 	try{
 		const btn = document.getElementById('winnerGuessToggleBtn');
@@ -2175,6 +2180,17 @@ window.__maybeStartWinnerGuessMiniGame = window.__maybeStartWinnerGuessMiniGame 
 	const diff = Math.abs(Number(state.hpDiffRatio || 0));
 	const limit = Math.max(0.0001, Number(window.__WINNER_GUESS_HP_RATIO_DIFF_LIMIT || 0.03));
 	if (!(diff > 0 && diff <= limit)) return false;
+
+	// 前回の勝者当てミニゲームから最低100戦空ける。
+	// 条件を満たした僅差戦でも、間隔が足りない場合は通常の戦闘結果表示へ進める。
+	const currentBattleCount = Number(window.battlesPlayed || window.battleCount || state.battleCount || 0);
+	const minInterval = Math.max(0, Number(window.__WINNER_GUESS_MIN_BATTLE_INTERVAL || 100));
+	const lastBattleCount = Number(window.__winnerGuessLastBattleCount);
+	if (Number.isFinite(currentBattleCount) && currentBattleCount > 0 && Number.isFinite(lastBattleCount)) {
+		if ((currentBattleCount - lastBattleCount) < minInterval) return false;
+	}
+
+	window.__winnerGuessLastBattleCount = (Number.isFinite(currentBattleCount) && currentBattleCount > 0) ? currentBattleCount : Number(window.battleCount || 0);
 	window.__winnerGuessMiniGameActive = true;
 	window.__winnerGuessPendingState = Object.assign({}, state);
 	try{ if (typeof stopAutoBattle === 'function') stopAutoBattle(); }catch(_e){}
@@ -2483,6 +2499,8 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 		window.isStrongBossBattle = false;
 		window.strongBossKillCount = 0;
 		window.__endingShown = false;
+		// 「はじめから」では、勝者当てミニゲームの発生間隔カウントも新しい周回としてリセットする。
+		window.__winnerGuessLastBattleCount = -Infinity;
 		if (typeof window.updateStrongBossStarUI === 'function') window.updateStrongBossStarUI();
 	}catch(e){}
 
@@ -2512,18 +2530,65 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 		document.getElementById('battleArea').classList.remove('hidden');
 		document.getElementById('skillMemoryContainer').style.display = 'block';
 
-		// ★「はじめから → ゲームを開始」後は、キャラクター情報と魔メイクUIを開いた状態にする
+		// ★「はじめから → ゲームを開始」直後は、どの上部タブも自動では開かない。
+		//    初回魔メイク厳選フェーズでも、内部UIだけ準備しておき、
+		//    ユーザーが【キャラクター情報】を押した時点で見える状態にする。
 		try{
-			if (typeof window.toggleTopFold === 'function') {
-				window.toggleTopFold('char');
-			} else {
-				const ch = document.getElementById('charInfoFold');
-				if (ch) ch.classList.remove('hidden');
+			const foldIds = ['quickGuideContent','charInfoFold','quickGuideLog','memoryContent','eventSettingsContent','settingsFold'];
+			foldIds.forEach(id => {
+				const el = document.getElementById(id);
+				if (el && el.classList) el.classList.add('hidden');
+			});
+
+			if (window.__firstRerollSelectionPhase) {
+				const faceContent = document.getElementById('faceMemoryContent');
+				const faceToggle = document.getElementById('faceMemoryToggle');
+				if (faceContent) faceContent.style.display = 'block';
+				if (faceToggle) faceToggle.textContent = '▼ 魔メイクを非表示';
+				try{ if (typeof window.__showFirstRerollPanel === 'function') window.__showFirstRerollPanel(true); }catch(__e){}
 			}
-			const faceContent = document.getElementById('faceMemoryContent');
-			const faceToggle = document.getElementById('faceMemoryToggle');
-			if (faceContent) faceContent.style.display = 'block';
-			if (faceToggle) faceToggle.textContent = '▼ 魔メイクを非表示';
+
+			try{ window.__syncTopFoldButtons && window.__syncTopFoldButtons(null, false); }catch(__e){}
+			const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
+			btns.forEach(btn => btn.classList.remove('is-open'));
+		}catch(_){ }
+		try{
+			const guideMsg = window.__firstRerollSelectionPhase
+				? '初回は表示中のキャラクター情報で、魔メイクをガチャ→確定してください。確定後、右側のバトル操作エリアから進められます。'
+				: '右側のバトル操作エリアから戦闘を進められます。バトルボタンやモード切替を使ってください。';
+
+			// iPhone Safariなどで、ゲーム画面のフェードイン完了前にトーストだけ先に出ると
+			// 背景が真っ暗に見えることがある。
+			// そのため「ゲーム画面が表示済み」「バトルドック/バトルボタンが実寸を持つ」ことを確認してから案内する。
+			const showGuideWhenReady = (attempt = 0) => {
+				try{
+					const gs = document.getElementById('gameScreen');
+					const dock = document.getElementById('battleOverlayDock');
+					const battleBtn = document.getElementById('startBattleBtn');
+					const gsStyle = gs ? window.getComputedStyle(gs) : null;
+					const gsVisible = !!(gs && !gs.classList.contains('hidden') && gsStyle && gsStyle.display !== 'none' && Number(gsStyle.opacity || 1) > 0.75);
+					const target = dock || battleBtn;
+					const rect = target ? target.getBoundingClientRect() : null;
+					const targetVisible = !!(rect && rect.width > 1 && rect.height > 1);
+					if ((!gsVisible || !targetVisible) && attempt < 14) {
+						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 180);
+						return;
+					}
+
+					// 最低でも少しだけ描画を寝かせ、黒背景だけのタイミングを避ける。
+					(window.requestAnimationFrame || function(fn){ return (window.__battleSetTimeout || window.setTimeout)(fn, 16); })(() => {
+						try{
+							if (typeof window.__showBattleDockInstantMessage === 'function') window.__showBattleDockInstantMessage(guideMsg, 1500);
+							else if (typeof showCustomAlert === 'function') showCustomAlert(guideMsg, 1500, '#101820', '#eaffff', true);
+						}catch(__e){}
+					});
+				}catch(__e){
+					if (attempt < 14) {
+						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 180);
+					}
+				}
+			};
+			(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(0), 900);
 		}catch(_){ }
 
 		// ★ 戦闘回数選択の読み取りと初期化処理を追加

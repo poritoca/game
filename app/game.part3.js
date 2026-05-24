@@ -42,14 +42,11 @@ window.startBattle = function() {
 
 	try {
 
-	// 最初のバトルの直前のみ、戦闘ログを自動で開く（確定→初戦開始のときだけ）
+	// 初戦直前の戦闘ログ自動オープンは廃止。
+	// 古いフラグが残っていても、ここでは開かずに消費する。
 	try{
 		if (window.__openBattleLogOnNextBattle) {
 			window.__openBattleLogOnNextBattle = false;
-			const logEl = document.getElementById('quickGuideLog');
-			if (logEl && logEl.classList && logEl.classList.contains('hidden')) {
-				if (typeof window.toggleTopFold === 'function') window.toggleTopFold('log');
-			}
 		}
 	}catch(_){ }
 
@@ -1489,6 +1486,15 @@ window.startBattle = function() {
 			}catch(_e){
 				try{ showCustomAlert(victoryMessage, 1200); }catch(_e2){}
 			}
+			try{
+				window.__showBattleDockEdgeResultPanel && window.__showBattleDockEdgeResultPanel({
+					playerWon: true,
+					resultLabel: '戦闘勝利',
+					streak: currentStreak,
+					enemyName: (typeof displayName === 'function') ? displayName(enemy.name) : (enemy && enemy.name),
+					drops: (typeof window.__getBattleDockRewardSummaryForEdge === 'function') ? window.__getBattleDockRewardSummaryForEdge() : []
+				}, { autoDismissMs: 3200, fadeOutMs: 260 });
+			}catch(_e){}
 
 			log.push(`
 勝者：${displayName(player.name)}
@@ -1628,6 +1634,15 @@ window.startBattle = function() {
 			} catch (e) {
 				try { console.warn('[BattleDockResultWindow] failed', e); } catch (_e) {}
 			}
+			try{
+				window.__showBattleDockEdgeResultPanel && window.__showBattleDockEdgeResultPanel({
+					playerWon: false,
+					resultLabel: '戦闘敗北',
+					streak: currentStreak,
+					enemyName: (typeof displayName === 'function') ? displayName(enemy.name) : (enemy && enemy.name),
+					drops: (typeof window.__getBattleDockRewardSummaryForEdge === 'function') ? window.__getBattleDockRewardSummaryForEdge() : []
+				}, { autoDismissMs: 3600, fadeOutMs: 260 });
+			}catch(_e){}
 			updateSkillOverlay();
 			syncSkillsUI();
 			currentStreak = 0;
