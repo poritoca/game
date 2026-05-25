@@ -5,100 +5,94 @@ function drawCombinedSkillList() {
 
 	list.innerHTML = "";
 
-	function describeMixedEffectScaled(skill, eff) {
-		if (!eff) return null;
-
-		const type = Number(eff.type);
-		const base = Number(eff.baseValue ?? eff.value ?? eff.amount ?? eff.ratio ?? 0);
-		const scaledRaw = (typeof getScaledMixedSpecialEffectValue === "function") ?
-			getScaledMixedSpecialEffectValue(skill, eff) :
-			base;
-
-		const scaled = Number(scaledRaw);
-
-		const fmtPct = (v) => `${(Math.round(v * 10) / 10)}%`;
-		const fmtMul = (v) => `${(Math.round(v * 1000) / 1000)}倍`;
-
-		const isPct = (type >= 1 && type <= 3);
-		const baseTxt = isPct ? fmtPct(base) : fmtMul(base);
-		const scaledTxt = isPct ? fmtPct(scaled) : fmtMul(scaled);
-
-		const showArrow = (isFinite(base) && isFinite(scaled) && Math.abs(base - scaled) > 1e-9);
-		const suffix = showArrow ? `: ${baseTxt} → ${scaledTxt}` : `: ${baseTxt}`;
-
-		switch (type) {
-			case 1:
-				return `敵残HP%ダメージ${suffix}`;
-			case 2:
-				return `復活HP%${suffix}`;
-			case 3:
-				return `毒/火傷吸収(即時回復)%${suffix}`;
-			case 4:
-				return `攻撃倍率(所持時)${suffix}`;
-			case 5:
-				return `防御倍率(所持時)${suffix}`;
-			case 6:
-				return `速度倍率(所持時)${suffix}`;
-			case 7:
-				return `最大HP倍率(所持時)${suffix}`;
-			default:
-				return `不明な効果 type=${type}${suffix}`;
-		}
-	}
-
-
 	player.mixedSkills.forEach(skill => {
 		const li = document.createElement("li");
-		li.className = "skill-entry mixed-skill-entry";
+		li.className = "skill-entry mixed-skill-entry mixed-skill-chip-entry";
+		li.setAttribute('role', 'button');
+		li.setAttribute('tabindex', '0');
+		li.title = 'タップで詳細 / 保護・解除';
 
-		const activation = skill.activationRate ?? skill.activationProb ?? 0;
-		const activationPercent = Math.round(activation * 100);
+		const rarity = document.createElement('span');
+		rarity.className = 'mixed-skill-chip-rarity';
+		rarity.textContent = String(skill.starRating || "").trim() || '★';
+		li.appendChild(rarity);
 
-		// --- タイトル行 ---
-		const titleLine = document.createElement('div');
-		titleLine.className = 'mixed-skill-title';
+		const nameViewport = document.createElement('span');
+		nameViewport.className = 'mixed-skill-chip-name-viewport';
+		const nameTrack = document.createElement('span');
+		nameTrack.className = 'mixed-skill-chip-name-track';
+		nameTrack.textContent = skill.name || '';
+		nameViewport.appendChild(nameTrack);
+		li.appendChild(nameViewport);
+
 		const lv = Math.max(1, Number(skill.level || 1) || 1);
-		const scale = (typeof getMixedSkillLevelScale === "function") ? getMixedSkillLevelScale(lv) : 1;
-		titleLine.textContent = `${skill.starRating || ""} ${skill.name}（Lv: ${lv}｜発動率: ${activationPercent}%｜補正×${Number(scale).toFixed(3)}）`;
+		const lvBadge = document.createElement('span');
+		lvBadge.className = 'mixed-skill-chip-lv';
+		lvBadge.textContent = `Lv.${lv}`;
+		li.appendChild(lvBadge);
 
 		if (skill.isProtected) {
-			titleLine.textContent += "【保護】";
+			const protectedBadge = document.createElement('span');
+			protectedBadge.className = 'mixed-skill-chip-protected';
+			protectedBadge.textContent = '保護';
+			li.appendChild(protectedBadge);
 			li.classList.add("skill-protected");
-		}
-		li.appendChild(titleLine);
-
-		// --- 特殊効果（常時表示）---
-		const effects = Array.isArray(skill.specialEffects) ?
-			skill.specialEffects :
-			(skill.specialEffectType != null ? [{ type: skill.specialEffectType, value: skill.specialEffectValue }] : []);
-
-		if (effects.length > 0) {
-			const box = document.createElement('div');
-			box.className = 'mixed-skill-effects';
-			effects.forEach(eff => {
-				const line = describeMixedEffectScaled(skill, eff);
-				if (!line) return;
-				const div = document.createElement('div');
-				div.className = 'mixed-skill-effect-line';
-				div.textContent = `▶ ${line}`;
-				box.appendChild(div);
-			});
-			li.appendChild(box);
 		}
 
 		if (skill.rarityClass) {
 			li.classList.add(skill.rarityClass);
 		}
 
-		// --- クリックイベント ---
+		// タップで詳細/保護UI（eventPopup）を開く。表示本体は魔道具UIに合わせてコンパクト化。
 		li.onclick = (event) => {
-			// タップで保護UI（eventPopup）を開く
 			onMixedSkillClick(skill, event);
+		};
+		li.onkeydown = (event) => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				onMixedSkillClick(skill, event);
+			}
 		};
 
 		list.appendChild(li);
 	});
+
+	requestAnimationFrame(() => {
+		if (typeof window.__refreshMixedSkillMarquee === 'function') {
+			window.__refreshMixedSkillMarquee(list);
+		}
+	});
 }
+
+window.__refreshMixedSkillMarquee = window.__refreshMixedSkillMarquee || function(root) {
+	try {
+		const scope = root || document;
+		const viewports = scope.querySelectorAll('.mixed-skill-chip-name-viewport');
+		viewports.forEach(viewport => {
+			const track = viewport.querySelector('.mixed-skill-chip-name-track');
+			if (!track) return;
+			viewport.classList.remove('is-overflowing');
+			track.style.removeProperty('--mixed-scroll-distance');
+			track.style.removeProperty('--mixed-scroll-duration');
+			// class解除直後に寸法を測る。端末差で1px程度は余裕を見る。
+			const distance = Math.ceil(track.scrollWidth - viewport.clientWidth + 2);
+			if (distance > 4) {
+				const duration = Math.max(5.5, Math.min(18, (distance / 24) + 4));
+				track.style.setProperty('--mixed-scroll-distance', `${distance}px`);
+				track.style.setProperty('--mixed-scroll-duration', `${duration}s`);
+				viewport.classList.add('is-overflowing');
+			}
+		});
+	} catch (e) {
+		console.warn('mixed skill marquee refresh failed', e);
+	}
+};
+
+window.addEventListener('resize', () => {
+	if (typeof window.__refreshMixedSkillMarquee === 'function') {
+		window.__refreshMixedSkillMarquee(document.getElementById('combinedSkillList') || document);
+	}
+});
 
 function syncSkillsUI() {
 	if (typeof drawSkillMemoryList === "function") drawSkillMemoryList();
@@ -1734,7 +1728,15 @@ window.chooseGrowth = function(stat) {
 	player[stat] = player.baseStats[stat] + player.growthBonus[stat];
 
 	const message = `成長: ${stat} +${finalGrowth}（倍率x${window.growthMultiplier} ×魔メイクx${Number(mmMul).toFixed(2)}）`;
-	showCustomAlert(message, 2000);
+	try {
+		const shownInEdgePanel = window.__showBattleDockEdgeNoticePanel && window.__showBattleDockEdgeNoticePanel(
+			message,
+			{ title: '成長', autoDismissMs: 80, fadeOutMs: 1500 }
+		);
+		if (!shownInEdgePanel) showCustomAlert(message, 2000);
+	} catch (_e) {
+		showCustomAlert(message, 2000);
+	}
 
 	window.growthMultiplier = 1; // リセット
 	window.growthSkipCount = 0;  // 連続スキップ回数もリセット
@@ -1746,7 +1748,16 @@ window.skipGrowth = function() {
 	window.growthSkipCount = (window.growthSkipCount || 0) + 1;
 	window.growthMultiplier = window.calcGrowthMultiplierBySkipCount(window.growthSkipCount);
 
-	showCustomAlert(`今回は成長をスキップ。次回倍率x${window.growthMultiplier}`, 2000);
+	const message = `今回は成長をスキップ。次回倍率x${window.growthMultiplier}`;
+	try {
+		const shownInEdgePanel = window.__showBattleDockEdgeNoticePanel && window.__showBattleDockEdgeNoticePanel(
+			message,
+			{ title: '成長スキップ', autoDismissMs: 80, fadeOutMs: 1500 }
+		);
+		if (!shownInEdgePanel) showCustomAlert(message, 2000);
+	} catch (_e) {
+		showCustomAlert(message, 2000);
+	}
 
 	isWaitingGrowth = false;
 };
@@ -2541,16 +2552,23 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 			});
 
 			if (window.__firstRerollSelectionPhase) {
+				// 初回魔メイク厳選中は、ガチャUIが入っている
+				// 「キャラクター情報」タブを必ず開いた状態にする。
+				// ここを閉じると、案内メッセージだけが表示されて
+				// 肝心の初回ガチャ画面が見えなくなる。
+				const charFold = document.getElementById('charInfoFold');
 				const faceContent = document.getElementById('faceMemoryContent');
 				const faceToggle = document.getElementById('faceMemoryToggle');
+				if (charFold && charFold.classList) charFold.classList.remove('hidden');
 				if (faceContent) faceContent.style.display = 'block';
 				if (faceToggle) faceToggle.textContent = '▼ 魔メイクを非表示';
 				try{ if (typeof window.__showFirstRerollPanel === 'function') window.__showFirstRerollPanel(true); }catch(__e){}
+				try{ window.__syncTopFoldButtons && window.__syncTopFoldButtons('char', true); }catch(__e){}
+			} else {
+				try{ window.__syncTopFoldButtons && window.__syncTopFoldButtons(null, false); }catch(__e){}
+				const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
+				btns.forEach(btn => btn.classList.remove('is-open'));
 			}
-
-			try{ window.__syncTopFoldButtons && window.__syncTopFoldButtons(null, false); }catch(__e){}
-			const btns = document.querySelectorAll('.top-fold-btn[data-kind]');
-			btns.forEach(btn => btn.classList.remove('is-open'));
 		}catch(_){ }
 		try{
 			const guideMsg = window.__firstRerollSelectionPhase
@@ -2571,7 +2589,7 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 					const rect = target ? target.getBoundingClientRect() : null;
 					const targetVisible = !!(rect && rect.width > 1 && rect.height > 1);
 					if ((!gsVisible || !targetVisible) && attempt < 14) {
-						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 180);
+						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 300);
 						return;
 					}
 

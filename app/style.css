@@ -5721,7 +5721,10 @@ body.first-face-selecting #firstFaceSelectingNote{display:block !important;}
 #firstFaceSelectingNote.hidden{display:none;}
 
 /* 初回ガチャ確定まで：余計なUIを隠す（確定後に自動復帰） */
-body.first-face-selecting .top-fold-panel{display:none !important;}
+/* 初回魔メイク厳選中も、ガチャUIへ戻れるよう上部タブは隠さない。
+   キャラクター情報タブ内に初回ガチャ一式があるため、ここを display:none にすると
+   案内だけ出てガチャ画面が見えない状態になる。 */
+body.first-face-selecting .top-fold-panel{display:grid !important;}
 body.first-face-selecting .quick-guide-wrapper{display:none !important;}
 body.first-face-selecting #uniqueSkillSection{display:none !important;}
 body.first-face-selecting #startBattleBtn{display:none !important;}
@@ -7441,7 +7444,7 @@ body.battle-edge-follow-mode #battleDockMiniBar{
   border-radius:12px;
   border:1px solid rgba(120,245,255,0.32);
   background:
-    linear-gradient(180deg, rgba(13,16,21,0.20), rgba(3,5,9,0.18)),
+    linear-gradient(180deg, rgba(13,16,21,0.50), rgba(3,5,9,0.50)),
     repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
   box-shadow:
     0 10px 22px rgba(0,0,0,0.22),
@@ -7465,6 +7468,7 @@ body.battle-edge-follow-mode #battleDockMiniBar{
 #battleDockEdgeResultPanel.fade-out{
   opacity:0;
   transform:translateY(-50%) translateX(4px);
+  transition:opacity 1500ms ease, transform 1500ms ease;
 }
 #battleDockEdgeResultPanel .edge-result-scan{
   position:absolute;
@@ -7499,6 +7503,10 @@ body.battle-edge-follow-mode #battleDockMiniBar{
   background:#ff7a9b;
   box-shadow:0 0 8px rgba(255,122,155,0.70);
 }
+#battleDockEdgeResultPanel.is-notice .edge-result-led{
+  background:#fff176;
+  box-shadow:0 0 8px rgba(255,241,118,0.70);
+}
 #battleDockEdgeResultPanel .edge-result-title{
   font-size:10px;
   color:#dffff8;
@@ -7507,6 +7515,25 @@ body.battle-edge-follow-mode #battleDockMiniBar{
 #battleDockEdgeResultPanel.is-lose .edge-result-title{
   color:#ffe2ea;
   text-shadow:0 0 7px rgba(255,108,145,0.42);
+}
+#battleDockEdgeResultPanel.is-notice .edge-result-title{
+  color:#fff8c8;
+  text-shadow:0 0 7px rgba(255,224,92,0.42);
+}
+#battleDockEdgeResultPanel .edge-result-notice{
+  position:relative;
+  z-index:1;
+  margin-top:4px;
+  padding:6px 7px;
+  border-radius:9px;
+  border:1px solid rgba(255,241,118,0.16);
+  background:rgba(255,241,118,0.055);
+  color:rgba(255,255,238,0.94);
+  font-size:8px;
+  line-height:1.45;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  text-shadow:0 0 6px rgba(255,224,92,0.20);
 }
 #battleDockEdgeResultPanel .edge-result-enemy{
   margin:0 0 6px;
@@ -7564,6 +7591,36 @@ body.battle-edge-follow-mode #battleDockMiniBar{
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+
+#battleDockEdgeResultPanel .edge-result-growth-row{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:auto minmax(0, 1fr);
+  gap:6px;
+  align-items:start;
+  margin-top:6px;
+  padding:6px 7px;
+  border-radius:9px;
+  border:1px solid rgba(255,241,118,0.16);
+  background:rgba(255,241,118,0.055);
+  color:rgba(255,255,238,0.94);
+  font-size:7px;
+  line-height:1.45;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  text-shadow:0 0 6px rgba(255,224,92,0.20);
+}
+#battleDockEdgeResultPanel .edge-result-growth-label{
+  color:#fff176;
+  font-size:6px;
+  letter-spacing:.08em;
+  white-space:nowrap;
+  opacity:.96;
+}
+#battleDockEdgeResultPanel .edge-result-growth-text{
+  min-width:0;
+}
 #battleDockEdgeResultPanel .edge-result-drop-row.is-none{
   color:rgba(210,225,235,0.48);
   border-color:rgba(255,255,255,0.06);
@@ -7577,4 +7634,393 @@ body.battle-edge-follow-mode #battleDockMiniBar{
   }
   #battleDockEdgeResultPanel .edge-result-title{ font-size:9px; }
   #battleDockEdgeResultPanel .edge-result-streak b{ font-size:15px; }
+}
+
+
+/* =====================================================
+   Battle Log controls: no-emoji luxury glyph UI
+   - Replaces emoji labels/icons with CSS-drawn marks.
+   ===================================================== */
+#battleLogControls.battle-log-controls{
+  border: 1px solid rgba(230,238,255,0.16) !important;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255,255,255,0.12), transparent 34%),
+    linear-gradient(180deg, rgba(30,32,42,0.78), rgba(10,11,18,0.72)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -1px 0 rgba(0,0,0,0.55),
+    0 14px 34px rgba(0,0,0,0.42) !important;
+}
+
+#battleLogControls .bl-ic-label,
+#battleLogControls .bl-icon-btn{
+  position: relative;
+  isolation: isolate;
+  border-radius: 14px !important;
+  border: 1px solid rgba(232,238,255,0.18) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.035)),
+    rgba(16,17,24,0.72) !important;
+  color: #f5f7ff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.50),
+    0 9px 22px rgba(0,0,0,0.30) !important;
+}
+
+#battleLogControls .bl-ic-label::after,
+#battleLogControls .bl-icon-btn::after{
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  pointer-events: none;
+  z-index: -1;
+}
+
+#battleLogControls .bl-ic-label:active,
+#battleLogControls .bl-icon-btn:active{
+  transform: translateY(1px) scale(0.985);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 8px 18px rgba(0,0,0,0.28),
+    0 4px 12px rgba(0,0,0,0.25) !important;
+}
+
+#battleLogControls .bl-symbol,
+#battleLogControls .bl-ic{
+  display: inline-block;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+#battleLogControls .bl-symbol-speed{
+  border: 2px solid rgba(245,247,255,0.86);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.05), 0 0 10px rgba(140,170,255,0.18);
+}
+#battleLogControls .bl-symbol-speed::before{
+  content: "";
+  position: absolute;
+  width: 1px;
+  height: 6px;
+  left: 8px;
+  top: 4px;
+  background: rgba(245,247,255,0.92);
+  transform-origin: 50% 100%;
+  transform: rotate(38deg);
+  border-radius: 99px;
+}
+#battleLogControls .bl-symbol-speed::after{
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 2px;
+  left: 6px;
+  top: -5px;
+  border-radius: 999px;
+  background: rgba(245,247,255,0.72);
+}
+
+#battleLogControls .bl-symbol-font::before{
+  content: "T";
+  position: absolute;
+  inset: -2px 0 auto 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  color: rgba(245,247,255,0.92);
+  text-shadow: 0 0 10px rgba(140,170,255,0.20);
+}
+#battleLogControls .bl-symbol-font::after{
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245,247,255,0.75), transparent);
+}
+
+#battleLogControls .bl-log-mark{
+  width: 17px;
+  height: 18px;
+  border: 1px solid rgba(245,247,255,0.82);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02));
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
+}
+#battleLogControls .bl-log-mark::before,
+#battleLogControls .bl-log-mark::after{
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: rgba(245,247,255,0.72);
+  border-radius: 99px;
+}
+#battleLogControls .bl-log-mark::before{ top: 6px; box-shadow: 0 4px 0 rgba(245,247,255,0.54); }
+#battleLogControls .bl-log-mark::after{ top: 2px; right: 8px; opacity: 0.48; }
+
+#battleLogControls .bl-stack-mark{
+  width: 20px;
+  height: 16px;
+  border: 1px solid rgba(245,247,255,0.72);
+  border-radius: 4px;
+  transform: translateY(1px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
+}
+#battleLogControls .bl-stack-mark::before{
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: -4px;
+  width: 9px;
+  height: 5px;
+  border: 1px solid rgba(245,247,255,0.56);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+#battleLogControls .bl-stack-mark::after{
+  content: "";
+  position: absolute;
+  inset: 4px 3px auto 3px;
+  height: 1px;
+  background: rgba(245,247,255,0.50);
+  box-shadow: 0 4px 0 rgba(245,247,255,0.38);
+}
+#battleLogControls .bl-stack-mark.is-closable{
+  box-shadow: inset 0 0 0 1px rgba(120,255,245,0.16), 0 0 12px rgba(120,255,245,0.10);
+}
+
+#battleLogControls .bl-arrow-mark::before{
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 99px;
+  background: rgba(245,247,255,0.88);
+}
+#battleLogControls .bl-arrow-mark::after{
+  content: "";
+  position: absolute;
+  left: 4px;
+  width: 8px;
+  height: 8px;
+  border-left: 2px solid rgba(245,247,255,0.88);
+  border-top: 2px solid rgba(245,247,255,0.88);
+}
+#battleLogControls .bl-arrow-mark.is-up::after{
+  top: 2px;
+  transform: rotate(45deg);
+}
+#battleLogControls .bl-arrow-mark.is-down::before{ top: 3px; }
+#battleLogControls .bl-arrow-mark.is-down::after{
+  bottom: 2px;
+  transform: rotate(225deg);
+}
+
+#battleLogControls .bl-badge{
+  border-color: rgba(232,238,255,0.18) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.035)) !important;
+  color: rgba(245,247,255,0.92);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 18px rgba(0,0,0,0.20);
+}
+
+#battleLogControls input[type="range"]::-webkit-slider-runnable-track{
+  background: linear-gradient(90deg, rgba(145,170,220,0.55), rgba(255,255,255,0.16)) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+#battleLogControls input[type="range"]::-webkit-slider-thumb{
+  width: 14px !important;
+  height: 14px !important;
+  margin-top: -6px !important;
+  border-color: rgba(255,255,255,0.46) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(184,196,220,0.86)) !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.06), 0 7px 16px rgba(0,0,0,0.38) !important;
+}
+#battleLogControls input[type="range"]::-moz-range-track{
+  background: linear-gradient(90deg, rgba(145,170,220,0.55), rgba(255,255,255,0.16)) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+#battleLogControls input[type="range"]::-moz-range-thumb{
+  width: 14px !important;
+  height: 14px !important;
+  border-color: rgba(255,255,255,0.46) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(184,196,220,0.86)) !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.06), 0 7px 16px rgba(0,0,0,0.38) !important;
+}
+
+/* =========================================================
+   Mixed special skills: compact inventory chips
+   - Aligns the special skill list with the item memory UI
+   - Long names scroll only when they overflow
+   ========================================================= */
+#combinedSkillContainer {
+  margin-top: 8px;
+  padding: 10px;
+  background: linear-gradient(135deg, #222, #111);
+  border: 2px solid #444;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+  box-sizing: border-box;
+}
+
+#combinedSkillList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+#combinedSkillList .mixed-skill-chip-entry,
+#combinedSkillList .skill-entry.mixed-skill-chip-entry {
+  width: auto;
+  max-width: min(92vw, 310px);
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  margin: 0;
+  background: linear-gradient(135deg, #333, #111) !important;
+  border: 1px solid #666 !important;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  user-select: none;
+  font-family: 'Press Start 2P', system-ui;
+  font-size: 11px;
+  line-height: 1.35;
+  animation: fadeInSkill 0.22s ease both;
+  box-sizing: border-box;
+}
+
+#combinedSkillList .mixed-skill-chip-entry:hover,
+#combinedSkillList .mixed-skill-chip-entry:focus-visible {
+  transform: scale(1.03);
+  border-color: rgba(255,255,255,0.55) !important;
+  box-shadow: 0 4px 10px rgba(255, 215, 0, 0.45);
+  outline: none;
+}
+
+.mixed-skill-chip-rarity {
+  flex: 0 0 auto;
+  color: #f7f7f7;
+  letter-spacing: -0.08em;
+  opacity: 0.95;
+  text-shadow: 0 0 5px rgba(255,255,255,0.35);
+}
+
+.mixed-skill-chip-name-viewport {
+  flex: 1 1 auto;
+  min-width: 5.5em;
+  max-width: 15.5em;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  mask-image: linear-gradient(90deg, transparent 0, #000 9px, #000 calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 9px, #000 calc(100% - 14px), transparent 100%);
+}
+
+.mixed-skill-chip-name-track {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+  transform: translateX(0);
+  padding-inline: 2px 16px;
+}
+
+.mixed-skill-chip-name-viewport.is-overflowing .mixed-skill-chip-name-track {
+  animation-name: mixedSkillNameAutoScroll;
+  animation-duration: var(--mixed-scroll-duration, 7s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes mixedSkillNameAutoScroll {
+  0%, 18% {
+    transform: translateX(0);
+  }
+  62%, 82% {
+    transform: translateX(calc(-1 * var(--mixed-scroll-distance, 0px)));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.mixed-skill-chip-lv,
+.mixed-skill-chip-protected {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  box-shadow: inset 0 0 7px rgba(255,255,255,0.03);
+}
+
+.mixed-skill-chip-lv {
+  padding: 2px 6px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.mixed-skill-chip-protected {
+  padding: 2px 5px;
+  font-size: 9px;
+  color: #fff4bf;
+  border-color: rgba(255, 215, 0, 0.45);
+  text-shadow: 0 0 5px rgba(255, 215, 0, 0.35);
+}
+
+#combinedSkillList .mixed-skill-chip-entry.skill-protected {
+  border-color: rgba(255, 215, 0, 0.60) !important;
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.16), 0 2px 8px rgba(0,0,0,0.55);
+}
+
+@media (max-width: 520px) {
+  #combinedSkillContainer {
+    padding: 10px;
+  }
+
+  #combinedSkillList {
+    gap: 8px;
+    max-height: 128px;
+  }
+
+  #combinedSkillList .mixed-skill-chip-entry,
+  #combinedSkillList .skill-entry.mixed-skill-chip-entry {
+    max-width: calc(100vw - 72px);
+    padding: 6px 9px;
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .mixed-skill-chip-name-viewport {
+    max-width: 13em;
+  }
+
+  .mixed-skill-chip-lv {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
 }

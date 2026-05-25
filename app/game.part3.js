@@ -635,7 +635,11 @@ window.startBattle = function() {
 	//    ※ユーザー要望の「5ターン以内」と「5ターン以上」の境界が衝突するため、
 	//      “5ターン以内はやり直し” を優先し、6ターン目に入るまでを条件にしています。
 	// =========================================================
-	const __EARLY_END_TURNS = 5; // ここ以下で決着したらやり直し
+	// 短期決着補正は完全無効化。
+	// 旧仕様では、5ターン以内にプレイヤーが倒れた場合にHP倍率を上げて再戦していたが、
+	// 現仕様では短期決着でも結果をそのまま採用し、補正ログも出さない。
+	const __SHORT_BATTLE_RETRY_ENABLED = false;
+	const __EARLY_END_TURNS = 5; // 旧仕様の判定値（無効化中のため発動しない）
 	// 仕切り直し時のHP倍率（加速度的に増える）
 	// 例: 10, 20, 32, 46, 63 ...（差分が 1.2倍ずつ増えるイメージ）
 	const __RETRY_HP_FIRST = 10; // 1回目の仕切り直し倍率
@@ -1138,7 +1142,7 @@ window.startBattle = function() {
 
 		// 仕様変更：5ターン以内に「プレイヤーが倒れた」場合のみ、短期決着ダイジェスト→仕切り直し
 		//          5ターン以内に勝利した場合は、そのままこの戦闘結果を採用して終了する
-		if (__playerDefeated && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
+		if (__SHORT_BATTLE_RETRY_ENABLED && __playerDefeated && __turnsElapsed <= __EARLY_END_TURNS && __battleRetryBasePlayer && __battleRetryBaseEnemy) {
 			// リトライ上限を超える場合は、この結果を採用（＝ログは消さない）
 			if ((__retryIndex + 1) > __RETRY_LIMIT) {
 				log.push(`【短期決着補正】リトライ回数が上限（${__RETRY_LIMIT}回）に達したため、この結果を採用します。`);
@@ -1493,7 +1497,7 @@ window.startBattle = function() {
 					streak: currentStreak,
 					enemyName: (typeof displayName === 'function') ? displayName(enemy.name) : (enemy && enemy.name),
 					drops: (typeof window.__getBattleDockRewardSummaryForEdge === 'function') ? window.__getBattleDockRewardSummaryForEdge() : []
-				}, { autoDismissMs: 3200, fadeOutMs: 260 });
+				}, { autoDismissMs: 80, fadeOutMs: 1500 });
 			}catch(_e){}
 
 			log.push(`
@@ -1641,7 +1645,7 @@ window.startBattle = function() {
 					streak: currentStreak,
 					enemyName: (typeof displayName === 'function') ? displayName(enemy.name) : (enemy && enemy.name),
 					drops: (typeof window.__getBattleDockRewardSummaryForEdge === 'function') ? window.__getBattleDockRewardSummaryForEdge() : []
-				}, { autoDismissMs: 3600, fadeOutMs: 260 });
+				}, { autoDismissMs: 80, fadeOutMs: 1500 });
 			}catch(_e){}
 			updateSkillOverlay();
 			syncSkillsUI();

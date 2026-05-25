@@ -3562,29 +3562,59 @@ window.__showBattleDockEdgeResultPanel = window.__showBattleDockEdgeResultPanel 
 				.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 		});
 		const data = payload || {};
+		const isNoticeOnly = !!data.noticeOnly;
 		const won = !!data.playerWon;
-		const resultLabel = data.resultLabel || (won ? '戦闘勝利' : '戦闘敗北');
+		const resultLabel = data.resultLabel || (isNoticeOnly ? 'NOTICE' : (won ? '戦闘勝利' : '戦闘敗北'));
 		const streak = Number.isFinite(Number(data.streak)) ? Math.max(0, Math.floor(Number(data.streak))) : Math.max(0, Math.floor(Number(window.currentStreak || 0)));
 		const enemyName = String(data.enemyName || '').trim();
 		let drops = Array.isArray(data.drops) ? data.drops.filter(Boolean) : [];
-		if (!drops.length && typeof window.__getBattleDockRewardSummaryForEdge === 'function') drops = window.__getBattleDockRewardSummaryForEdge();
+		if (!isNoticeOnly && !drops.length && typeof window.__getBattleDockRewardSummaryForEdge === 'function') drops = window.__getBattleDockRewardSummaryForEdge();
 		drops = drops.slice(-3);
 		const dropHtml = drops.length
 			? drops.map(function(d){ return '<div class="edge-result-drop-row">' + esc(d) + '</div>'; }).join('')
 			: '<div class="edge-result-drop-row is-none">なし</div>';
 
-		panel.classList.remove('is-win','is-lose','show','fade-out');
-		panel.classList.add(won ? 'is-win' : 'is-lose');
+		// 成長系通知は、勝敗パネルの再描画で消えないよう一時保持してから、
+		// 勝敗・連勝・ITEM DROP と同じウインドウ内の専用行として描画する。
+		let noticeRows = [];
+		try{
+			if (Array.isArray(data.notices)) noticeRows = noticeRows.concat(data.notices);
+			if (data.messageHtml != null) noticeRows.push({ title: resultLabel, html: String(data.messageHtml) });
+			if (!isNoticeOnly && window.__battleDockEdgePendingNotice) {
+				noticeRows.push(window.__battleDockEdgePendingNotice);
+				window.__battleDockEdgePendingNotice = null;
+			}
+		}catch(_e){}
+		noticeRows = noticeRows.map(function(n){
+			if (n && typeof n === 'object') return { title: String(n.title || 'NOTICE'), html: String(n.html == null ? '' : n.html) };
+			return { title: 'NOTICE', html: String(n == null ? '' : n) };
+		}).filter(function(n){ return n.html.trim(); }).slice(-2);
+		const noticeHtml = noticeRows.map(function(n){
+			return '<div class="edge-result-growth-row"><span class="edge-result-growth-label">' + esc(n.title) + '</span><span class="edge-result-growth-text">' + n.html + '</span></div>';
+		}).join('');
+
+		panel.classList.remove('is-win','is-lose','is-notice','show','fade-out');
+		panel.classList.add(isNoticeOnly ? 'is-notice' : (won ? 'is-win' : 'is-lose'));
 		panel.innerHTML = '' +
 			'<div class="edge-result-scan" aria-hidden="true"></div>' +
 			'<div class="edge-result-head">' +
 				'<span class="edge-result-led"></span>' +
 				'<span class="edge-result-title">' + esc(resultLabel) + '</span>' +
 			'</div>' +
-			(enemyName ? '<div class="edge-result-enemy">vs ' + esc(enemyName) + '</div>' : '') +
-			'<div class="edge-result-streak"><span>連勝</span><b>' + streak + '</b><small>CHAIN</small></div>' +
-			'<div class="edge-result-drops"><div class="edge-result-label">ITEM DROP</div>' + dropHtml + '</div>';
+			(isNoticeOnly
+				? '<div class="edge-result-notice">' + (noticeRows[0] ? noticeRows[0].html : '') + '</div>'
+				: (enemyName ? '<div class="edge-result-enemy">vs ' + esc(enemyName) + '</div>' : '') +
+				  '<div class="edge-result-streak"><span>連勝</span><b>' + streak + '</b><small>CHAIN</small></div>' +
+				  '<div class="edge-result-drops"><div class="edge-result-label">ITEM DROP</div>' + dropHtml + '</div>' +
+				  noticeHtml
+			);
 
+		try{
+			if (!isNoticeOnly) {
+				panel.__lastNormalPayload = Object.assign({}, data, { notices: noticeRows });
+				panel.__lastNormalOptions = Object.assign({}, options);
+			}
+		}catch(_e){}
 		panel.style.display = 'block';
 		try{ void panel.offsetWidth; }catch(_e){}
 		panel.classList.add('show');
@@ -3592,8 +3622,8 @@ window.__showBattleDockEdgeResultPanel = window.__showBattleDockEdgeResultPanel 
 			if (panel.__timer1) { (window.__uiClearTimeout || window.clearTimeout)(panel.__timer1); panel.__timer1 = null; }
 			if (panel.__timer2) { (window.__uiClearTimeout || window.clearTimeout)(panel.__timer2); panel.__timer2 = null; }
 		}catch(_e){}
-		const autoDismissMs = Number(options.autoDismissMs || 2600);
-		const fadeOutMs = Number(options.fadeOutMs || 260);
+		const autoDismissMs = Number(options.autoDismissMs ?? 80);
+		const fadeOutMs = Number(options.fadeOutMs ?? 1500);
 		if (autoDismissMs > 0) {
 			panel.__timer1 = (window.__uiSetTimeout || window.setTimeout)(function(){
 				try{
@@ -3605,6 +3635,52 @@ window.__showBattleDockEdgeResultPanel = window.__showBattleDockEdgeResultPanel 
 			}, autoDismissMs);
 		}
 	}catch(e){ try{ console.warn('[BattleDockEdgeResultPanel] failed', e); }catch(_e){} }
+};
+
+
+// Growth/manual notices that used to appear as a separate toast are routed into
+// the same 50% translucent edge-follow result panel, avoiding overlapping windows.
+window.__showBattleDockEdgeNoticePanel = window.__showBattleDockEdgeNoticePanel || function(messageHtml, options = {}){
+	try{
+		const edgeFollow = !!(window.__isBattleDockEdgeFollowMode && window.__isBattleDockEdgeFollowMode());
+		if (!edgeFollow) return false;
+		if (typeof window.__showBattleDockEdgeResultPanel !== 'function') return false;
+		const notice = {
+			title: String(options.resultLabel || options.title || 'NOTICE'),
+			html: String(messageHtml == null ? '' : messageHtml)
+		};
+		window.__battleDockEdgePendingNotice = notice;
+
+		// 戦闘処理の途中で呼ばれた場合は、古い勝敗パネルを更新せず、
+		// 直後に描かれる今回の勝敗パネルで pending を消費する。
+		if (window.__battleInProgress) return true;
+
+		// 既に今回の勝敗パネルが出ている場合は、そのパネルを成長行付きで即時更新する。
+		const panel = document.getElementById('battleDockEdgeResultPanel');
+		if (panel && panel.__lastNormalPayload && panel.style.display !== 'none') {
+			const basePayload = Object.assign({}, panel.__lastNormalPayload);
+			const existing = Array.isArray(basePayload.notices) ? basePayload.notices.slice() : [];
+			basePayload.notices = existing.concat([notice]).slice(-2);
+			window.__battleDockEdgePendingNotice = null;
+			window.__showBattleDockEdgeResultPanel(basePayload, {
+				autoDismissMs: Number(options.autoDismissMs ?? 80),
+				fadeOutMs: Number(options.fadeOutMs ?? 1500)
+			});
+			return true;
+		}
+
+		// 勝敗パネルがまだ無い/消えている場合だけ、同じウインドウを通知単体として使う。
+		// 直後に勝敗パネルが描かれるケースでは、pending により成長行として再統合される。
+		window.__showBattleDockEdgeResultPanel({
+			noticeOnly: true,
+			resultLabel: notice.title,
+			messageHtml: notice.html
+		}, {
+			autoDismissMs: Number(options.autoDismissMs ?? 80),
+			fadeOutMs: Number(options.fadeOutMs ?? 1500)
+		});
+		return true;
+	}catch(_e){ return false; }
 };
 
 window.__showBattleDockResultWindow = window.__showBattleDockResultWindow || function(messageHtml, options = {}) {
