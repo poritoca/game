@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "totalImages": 122,
+  "cases": [
+    {
+      "scenario": "root",
+      "passed": true
+    },
+    {
+      "scenario": "nested",
+      "passed": true
+    },
+    {
+      "scenario": "lowercase",
+      "passed": true
+    },
+    {
+      "scenario": "invalidNested",
+      "passed": true
+    },
+    {
+      "scenario": "emptyNested",
+      "passed": true
+    },
+    {
+      "scenario": "missing",
+      "passed": true
+    },
+    {
+      "scenario": "delayed",
+      "passed": true
+    }
+  ],
+  "limitation": "Manifest is the supplied original; PNG responses use synthetic fixtures because actual image files were not supplied."
+}

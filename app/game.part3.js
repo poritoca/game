@@ -9,6 +9,14 @@ window.__syncActivePlayerRef = window.__syncActivePlayerRef || function(){
 };
 try{ window.__syncActivePlayerRef(); }catch(_){}
 window.startBattle = function() {
+	// 装備操作中・セーブ中は戦闘を開始しない。
+	if (window.Abyss && window.Abyss.blocksBattle()) return;
+	// 待機中のクリックで戦闘カウンターやボス抽選を進めない。
+	if (typeof isWaitingGrowth !== 'undefined' && isWaitingGrowth) {
+		if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
+		return;
+	}
+	if (!player) return;
 		// 初回魔メイク厳選フェーズ中は戦闘を開始しない（確定ボタンで開始）
 		if (window.__firstRerollSelectionPhase) {
 			try{ if (typeof showCustomAlert === 'function') showCustomAlert('初回は魔メイクを確定してください（ガチャを押すと引き直し。下の「この魔メイクで開始」で確定）', 2600); }catch(_){ }
@@ -616,6 +624,8 @@ window.startBattle = function() {
 		`  ├ レアリティ倍率: ${rarityFactor.toFixed(3)}\n` +
 		`  └ 成長倍率(指数): 1.1^${streakIndex} = ${growthFactor.toFixed(3)}`
 	);
+
+	if (window.Abyss) window.Abyss.prepare(player, enemy, log);
 
 	// --- 特殊スキル：戦闘開始時の特殊効果（残りHP%ダメージ/復活/吸収/バフ） ---
 	// ※敵の最終ステータス（倍率適用後）を確定してから実行する（HP%ダメージの基準ズレ防止）
@@ -1303,6 +1313,8 @@ window.startBattle = function() {
 		resetMixedStartAfterBattle(enemy);
 		// recordHP();
 
+		// 既存の一時バフ解除後に遺産倍率を戻し、報酬成長への混入を防ぐ。
+		if (window.Abyss) window.Abyss.restore(player);
 		streakBonus = 1 + currentStreak * 0.01;
 		const effectiveRarity = enemy.rarity * streakBonus;
 
@@ -1447,6 +1459,7 @@ window.startBattle = function() {
 				}
 			}
 			else if (window.isGrowthBoss) {
+				currentStreak += 1;
 				try{
 					const scale = (typeof window.__growthBossScale === 'number') ? window.__growthBossScale : 1;
 					const base = Number(window.GROWTH_BOSS_COIN_BASE || 0);
@@ -1679,6 +1692,7 @@ ${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 			}
 		}
 
+		sessionMaxStreak = Math.max(sessionMaxStreak || 0, currentStreak || 0);
 		log.push(`現在の連勝数: ${currentStreak}`);
 		log.push(`最大連勝数: ${sessionMaxStreak}`);
 
@@ -1687,6 +1701,8 @@ ${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 			localStorage.setItem('maxStreak', currentStreak);
 		}
 
+		if (window.Abyss) window.Abyss.finish(playerWon, !!(window.isBossBattle || window.isGrowthBoss), log);
+		sessionMaxStreak = Math.max(sessionMaxStreak || 0, currentStreak || 0);
 		try{ if (typeof window.__finalizeBattleDigest === 'function') window.__finalizeBattleDigest({ playerWon }); }catch(_e){}
 		maybeTriggerEvent();
 		displayBattleLogWithoutAsync(log);
@@ -1886,6 +1902,7 @@ ${displayName(player.name)} 残HP: ${player.hp}/${player.maxHp}`);
 		__continueBattleOutcomeResolution(playerWon);
 	}
 	} catch (e) {
+		if (window.Abyss) window.Abyss.cancel();
 		console.error('[startBattle] failed', e);
 		try{ console.error('[startBattle] message', (e && e.message) ? e.message : String(e)); }catch(_e2){}
 		try{ if (e && e.stack) console.error('[startBattle] stack', e.stack); }catch(_e2){}
@@ -2054,7 +2071,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	function onAutoBattleHoldStart(e) {
 		// 画面スクロール等で長押しが潰れないように抑止（特にiOS）
-		try { if (e && e.cancelable) e.preventDefault(); } catch (_) {}
+		// Pointer Events use CSS touch-action; cancelling pointerdown can swallow a Safari tap.
+		try { if (e && e.cancelable && e.type !== 'pointerdown') e.preventDefault(); } catch (_) {}
 		__autoBattleHoldStarted = false;
 		clearTimeout(__autoBattleHoldTimer);
 		__autoBattleHoldTimer = window.__battleSetTimeout(() => {
@@ -2064,7 +2082,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	function onAutoBattleHoldEnd(e) {
-		try { if (e && e.cancelable) e.preventDefault(); } catch (_) {}
+		try { if (e && e.cancelable && (e.type !== 'pointerup' || __autoBattleHoldStarted)) e.preventDefault(); } catch (_) {}
 		clearTimeout(__autoBattleHoldTimer);
 		// 長押しが成立して AutoBattle が開始していた場合だけ停止（=離すと止まる）
 		if (__autoBattleHoldStarted) {
@@ -2073,6 +2091,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 		__autoBattleHoldStarted = false;
 	}
+
+    // iOS text selection/loupe is a separate default action from Pointer Events.
+    // Keep the existing tap/hold handlers; only suppress native selection on this control.
+    ['contextmenu','selectstart','dragstart'].forEach(type=>{
+      battleBtn.addEventListener(type,e=>{if(e.cancelable)e.preventDefault();});
+    });
+    battleBtn.setAttribute('draggable','false');
+    // A cancelled/interrupted gesture must not leave a delayed hold running.
+    window.addEventListener('blur',onAutoBattleHoldEnd);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)onAutoBattleHoldEnd();});
 
 	// 可能なら Pointer Events を優先（iOS/Safariでも近年は動作）
 	if (window.PointerEvent) {
@@ -3072,12 +3100,12 @@ try{
 	if (isGrowthCompact) {
 		try{ titleEl.classList && titleEl.classList.add('growth-title'); }catch(_e){}
 		
-// Build header: ONLY a centered '最小化' button (hide the '成長選択' label to avoid awkward layout)
-titleEl.textContent = '';
+// Growth choices keep a short, explicit heading.
+titleEl.textContent = '成長を選択';
 const __minBtn = document.createElement('button');
 __minBtn.type = 'button';
 __minBtn.className = 'growth-min-btn';
-__minBtn.textContent = '最小化';
+__minBtn.textContent = '自動で選ぶ';
 __minBtn.title = '成長選択を最小化（自動選択）に切替';
 __minBtn.addEventListener('click', (ev) => {
 	try{ ev.preventDefault(); ev.stopPropagation(); }catch(_e){}

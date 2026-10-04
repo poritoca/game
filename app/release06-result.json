@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "initialRerollNoOverlay": true,
+  "confirmationNoAutoBattle": true,
+  "equippedBonusPreserved": true,
+  "saveReload": true,
+  "flatAssetRequests": true,
+  "stickyTabs": {
+    "modes": 2,
+    "widths": [
+      320,
+      390,
+      844
+    ]
+  },
+  "scenes": true,
+  "realTapBattle": true,
+  "errors": [],
+  "failed": []
+}

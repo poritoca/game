@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "engine": "WebKit",
+  "sceneSwitch": true,
+  "titlePNG": true,
+  "tap": true,
+  "hold": true,
+  "release": true,
+  "cancel": true,
+  "blur": true,
+  "nativeSelectionPrevented": true,
+  "errors": [],
+  "limitation": "Native iPhone Safari loupe must be checked on a physical device."
+}

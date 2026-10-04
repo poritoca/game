@@ -1,0 +1,386 @@
+/* Relics use the shared v3 surface and controls. Only collection layout lives here. */
+#abyssPanel {
+  position:static;
+  width:100%;
+  color:var(--ink);
+  text-align:left;
+  scroll-margin-top:16px
+}
+
+#abyssPanel header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:20px
+}
+
+#abyssPanel h2 {
+  font-size:19px;
+  margin:0
+}
+
+#abyssPanel h3 {
+  font-size:16px
+}
+
+#abyssPanel header .ab-eyebrow {
+  display:none
+}
+
+#abyssClose {
+  font-size:11px!important;
+  min-height:38px
+}
+
+#abyssStats {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line)
+}
+
+#abyssStats span {
+  font-size:10px;
+  color:var(--muted)
+}
+
+#abyssStats b {
+  display:block;
+  font:600 17px/1.7 ui-monospace,SFMono-Regular,monospace;
+  color:var(--gold)
+}
+
+#abyssTabs {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  margin:16px 0 22px
+}
+
+#abyssTabs button {
+  padding:9px 2px;
+  font-size:11px!important;
+  margin:0
+}
+
+#abyssPanel .ab-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin:16px 0
+}
+
+#abyssPanel .ab-card {
+  padding:16px;
+  background:rgba(9,8,14,.36);
+  border:1px solid var(--line);
+  border-radius:8px;
+  margin-bottom:12px
+}
+
+#abyssPanel .ab-grid .ab-card {
+  margin:0
+}
+
+#abyssPanel .ab-hero {
+  padding:20px;
+  border:1px solid #b9b0e533;
+  background:linear-gradient(120deg,#9d99ee10,#79e4de0b);
+  border-radius:10px;
+  margin:14px 0
+}
+
+#abyssPanel .ab-hero h3 strong {
+  display:block;
+  font:600 32px/1.6 ui-monospace,monospace;
+  color:var(--gold)
+}
+
+#abyssPanel .ab-eyebrow {
+  display:block;
+  font-size:10px;
+  letter-spacing:.08em;
+  color:var(--muted)
+}
+
+#abyssPanel .ab-controls {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:16px 0
+}
+
+#abyssPanel label {
+  display:block;
+  color:var(--muted);
+  font-size:11px
+}
+
+#abyssPanel .ab-actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin:12px 0
+}
+
+#abyssPanel .ab-actions button {
+  flex:1 1 100px;
+  margin:0
+}
+
+#abyssPanel .ab-equipment {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px
+}
+
+#abyssPanel .ab-equipment button {
+  padding:12px 4px;
+  font-size:11px!important;
+  margin:0
+}
+
+#abyssPanel .ab-lootlist {
+  display:grid;
+  gap:12px;
+  margin:16px 0
+}
+
+#abyssPanel .ab-loot {
+  width:100%;
+  display:block;
+  text-align:left;
+  padding:16px;
+  margin:0;
+  background:linear-gradient(120deg,#739acd12,#15121920)!important;
+  border-left:3px solid var(--rarity)!important
+}
+
+#abyssPanel .ab-loot-head,#abyssPanel .ab-powerline,#abyssPanel .ab-loot-foot {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:4px 10px
+}
+
+#abyssPanel .ab-loot-head {
+  font-size:10px;
+  color:var(--muted);
+  font-weight:400
+}
+
+#abyssPanel .ab-loot-head>span:last-child {
+  color:var(--gold)
+}
+
+#abyssPanel .ab-loot strong {
+  display:block;
+  font-size:16px;
+  font-weight:650;
+  margin:9px 0;
+  color:var(--ink)
+}
+
+#abyssPanel .ab-powerline b {
+  font:700 25px/1.5 ui-monospace,SFMono-Regular,monospace;
+  color:var(--rarity)
+}
+
+#abyssPanel .ab-powerline b small {
+  font:10px var(--font);
+  color:var(--muted);
+  margin-right:4px
+}
+
+#abyssPanel .ab-loot-foot {
+  font-size:11px;
+  color:var(--muted);
+  font-weight:400
+}
+
+#abyssPanel .ab-powertrack {
+  display:block;
+  height:6px;
+  background:#08070d;
+  border-radius:2px;
+  overflow:hidden;
+  margin:9px 0 12px
+}
+
+#abyssPanel .ab-powertrack>span {
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#456187,var(--rarity));
+  border-radius:2px
+}
+
+#abyssPanel .ab-rarity-0,#abyssLootToast.ab-rarity-0 {
+  --rarity:#a4cdff
+}
+
+#abyssPanel .ab-rarity-1,#abyssLootToast.ab-rarity-1 {
+  --rarity:#cfb1fa
+}
+
+#abyssPanel .ab-rarity-2,#abyssLootToast.ab-rarity-2 {
+  --rarity:#f3d29d
+}
+
+#abyssPanel .ab-rarity-3,#abyssLootToast.ab-rarity-3 {
+  --rarity:#f3acd7
+}
+
+#abyssPanel .ab-loot.ab-rarity-2 {
+  background:linear-gradient(120deg,#d1a36517,#15121b22)!important
+}
+
+#abyssPanel .ab-loot.ab-rarity-3 {
+  background:linear-gradient(120deg,#d09bf51c,#90e3de0b)!important
+}
+
+#abyssPanel .ab-rarity-2 .ab-powertrack>span {
+  background:linear-gradient(90deg,#aa8854,#f3d29d,#fff0d4)
+}
+
+#abyssPanel .ab-rarity-3 .ab-powertrack>span {
+  background:linear-gradient(90deg,#a695e4,#f3acd7,#adefe1)
+}
+
+#abyssPanel .ab-new {
+  box-shadow:inset 0 0 20px #d6efff06!important
+}
+
+#abyssPanel .ab-mainstat {
+  font:600 25px/1.6 ui-monospace,monospace;
+  color:var(--gold)
+}
+
+#abyssPanel .ab-muted,#abyssPanel small {
+  font-size:11px;
+  color:var(--muted)
+}
+
+#abyssPanel .ab-up {
+  color:var(--accent)
+}
+
+#abyssPanel .ab-down {
+  color:var(--danger)
+}
+
+#abyssPanel .ab-setchips {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:14px 0
+}
+
+#abyssPanel .ab-setchips span {
+  font-size:10px;
+  padding:3px 7px;
+  color:var(--muted);
+  border:1px solid var(--line);
+  border-radius:4px
+}
+
+#abyssPanel .ab-setchips .active {
+  border-color:#cfb1fa66;
+  background:#c5a3fa0c;
+  color:#e5d2ff
+}
+
+#abyssPanel .ab-choice {
+  padding:16px;
+  border:1px solid var(--gold);
+  border-radius:8px;
+  margin:14px 0;
+  background:#d7b17b0a
+}
+
+#abyssPanel footer {
+  margin-top:24px;
+  padding-top:16px;
+  border-top:1px solid var(--line)
+}
+
+#abyssPanel footer button {
+  width:100%
+}
+
+#abyssPanel table {
+  font-size:11px
+}
+
+#abyssPanel th,#abyssPanel td {
+  text-align:center;
+  padding:9px 2px
+}
+
+#abyssPanel ul {
+  padding-left:18px;
+  font-size:12px
+}
+
+#abyssPanel progress {
+  margin:14px 0
+}
+
+#abyssLootToast {
+  position:fixed;
+  bottom:max(18px,env(safe-area-inset-bottom));
+  left:12px;
+  width:min(290px,calc(100vw - 90px));
+  z-index:2147483645;
+  padding:16px;
+  background:#201a2af2!important;
+  border:1px solid var(--rarity,var(--blue))!important;
+  border-left:3px solid var(--rarity,var(--blue))!important;
+  text-align:left;
+  box-shadow:0 8px 32px #020a1950!important;
+  animation:fadeInUp .2s ease-out
+}
+
+#abyssLootToast strong,#abyssLootToast small,#abyssLootToast span {
+  display:block
+}
+
+#abyssLootToast strong {
+  color:var(--rarity,var(--blue));
+  margin:5px 0
+}
+
+#abyssLootToast span,#abyssLootToast small {
+  font-size:11px;
+  color:var(--muted)
+}
+
+@media(max-width:480px) {
+  #abyssPanel .ab-grid {
+    grid-template-columns:minmax(0,1fr)
+  }
+
+  #abyssPanel .ab-loot {
+    padding:13px
+  }
+
+  #abyssPanel .ab-loot strong {
+    font-size:14px
+  }
+
+  #abyssPanel .ab-equipment button {
+    font-size:10px!important
+  }
+
+  #abyssStats {
+    gap:4px
+  }
+
+  #abyssStats b {
+    font-size:15px
+  }
+
+}

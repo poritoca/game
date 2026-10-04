@@ -1207,7 +1207,7 @@ window.addEventListener('scroll', () => {
 	const itemEl = document.getElementById('itemOverlay');
 	const faceEl = document.getElementById('faceOverlay');
 	if (faceItemEquipped && faceEl) {
-		faceEl.src = faceItemEquipped;
+		faceEl.src = resolveAssetPath(faceItemEquipped);
 	}
 
 	// フェードアウト（スクロール中）
@@ -1367,11 +1367,11 @@ function updateLocalSaveButton() {
 	if (!btn) return;
 
 	if (isLocalSaveDirty) {
-		btn.textContent = 'ローカルにセーブ:ステータス除く';
+		btn.textContent = '引継ぎ保存・成長を除く';
 		btn.classList.remove('saved');
 		btn.classList.add('unsaved');
 	} else {
-		btn.textContent = 'ローカルにセーブ:ステータス除く（保存済）';
+		btn.textContent = '引継ぎ保存・成長を除く（保存済）';
 		btn.classList.remove('unsaved');
 		btn.classList.add('saved');
 	}
@@ -1382,11 +1382,11 @@ function updateLocalSaveButton2() {
 	if (!btn) return;
 
 	if (isLocalSaveDirty) {
-		btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（未保存）';
+		btn.textContent = '中断保存・進行ごと（未保存）';
 		btn.classList.remove('saved');
 		btn.classList.add('unsaved');
 	} else {
-		btn.textContent = 'ローカルにセーブ:戦闘数進捗含む（保存済）';
+		btn.textContent = '中断保存・進行ごと（保存済）';
 		btn.classList.remove('unsaved');
 		btn.classList.add('saved');
 	}
@@ -1495,6 +1495,7 @@ window.__restoreFaceItemsFromSave = window.__restoreFaceItemsFromSave || functio
 
 window.saveToLocalStorage = async function() {
 	if (!player) return;
+	if (window.__winnerGuessMiniGameActive) throw new Error('戦闘結果を確定してから保存してください');
 
 	// 成長ステータスを最新化
 	if (player.baseStats && player.growthBonus) {
@@ -1509,6 +1510,10 @@ window.saveToLocalStorage = async function() {
 	player.initialAndSlotSkills = window.initialAndSlotSkills || [];
 
 	const payload = {
+		saveSchema: 2,
+		battlesPlayed: Number(window.battlesPlayed || 0),
+		battleCount: Number(window.battleCount || 0),
+		sessionMaxStreak: Number(window.sessionMaxStreak || 0),
 		player,
 		currentStreak,
 		strongBossKillCount: Number.isFinite(window.strongBossKillCount) ? window.strongBossKillCount : 0,
@@ -1550,7 +1555,7 @@ window.saveToLocalStorage = async function() {
 	markLocalSaveClean(); // ← 状態を更新
 
 
-	markAsSaved();
+	if (typeof markAsSaved === 'function') markAsSaved();
 	updateLocalSaveButton();
 	updateLocalSaveButton2();
 	//	location.reload();
@@ -1629,6 +1634,7 @@ window.saveToLocalStorageAndReloadFromFinalResults = async function() {
 
 window.exportSaveCode = async function() {
 	if (!player) return;
+	if (window.__winnerGuessMiniGameActive) { alert('戦闘結果を確定してから保存してください'); return; }
 
 	// 成長ステータスを最新化
 	if (player.baseStats && player.growthBonus) {
@@ -1646,7 +1652,15 @@ window.exportSaveCode = async function() {
 	player.mixedSkills = player.mixedSkills || [];
 
 	const payload = {
+		saveSchema: 2,
+		battlesPlayed: Number(window.battlesPlayed || 0),
+		battleCount: Number(window.battleCount || 0),
+		sessionMaxStreak: Number(window.sessionMaxStreak || 0),
 		player,
+		mixedSkills: player.mixedSkills || [],
+		strongBossKillCount: Number(window.strongBossKillCount || 0),
+		faceItemBonusAlgoVersion: Number(window.faceItemBonusAlgoVersion || window.faceBonusAlgoVersion || 0),
+		timeLimitState: (typeof window.__serializeTimeLimitState === 'function') ? window.__serializeTimeLimitState() : null,
 		currentStreak,
 		sslot,
 		growthMultiplier: window.growthMultiplier,
@@ -1710,6 +1724,7 @@ window.exportSaveCode = async function() {
 };
 
 window.importSaveCode = async function(code = null) {
+	const progressLoad = !!window.__loadingFromProgress;
 	document.getElementById("skillMemoryList").classList.remove("hidden");
 
 	const input = code ?? document.getElementById('saveData').value.trim();
@@ -1729,26 +1744,35 @@ window.importSaveCode = async function(code = null) {
 		}
 
 		const parsed = JSON.parse(raw);
+		if (!parsed || !parsed.player || !parsed.player.baseStats || !parsed.player.skillMemory) throw new Error('戦士データがありません');
+		if (typeof window.stopAutoBattle === 'function') window.stopAutoBattle();
 		player = parsed.player;
+		window.player = player;
+		if (window.Abyss) window.Abyss.refresh();
 		currentStreak = Number.isFinite(Number(parsed.currentStreak)) ? Number(parsed.currentStreak) : 0;
+		window.battlesPlayed = Math.max(0, Number(parsed.battlesPlayed ?? parsed.battleCount ?? 0) || 0);
+		window.battleCount = window.battlesPlayed;
+		window.sessionMaxStreak = Math.max(currentStreak, Number(parsed.sessionMaxStreak || 0));
 		if (typeof parsed.sslot === 'number') sslot = parsed.sslot;
 		if (parsed.targetBattles !== undefined) window.targetBattles = parsed.targetBattles;
 		if (parsed.remainingBattles !== undefined) window.remainingBattles = parsed.remainingBattles;
 		if (Number.isFinite(Number(parsed.strongBossKillCount))) window.strongBossKillCount = Number(parsed.strongBossKillCount);
 
 		// ✅ 特殊スキル情報の復元（保護状態を正規化）
-		player.mixedSkills = Array.isArray(parsed.mixedSkills) ?
-			parsed.mixedSkills.map(s => {
+		const savedMixedSkills = Array.isArray(parsed.mixedSkills) ? parsed.mixedSkills : player.mixedSkills;
+		player.mixedSkills = Array.isArray(savedMixedSkills) ?
+			savedMixedSkills.map(s => {
 				if (s.protected) s.isProtected = true;
 				return s;
 			}) : [];
 
 		window.maxScores = parsed.maxScores || {};
-		//try{ window.__keepGrowthBonusFromProgressSave = false; window.__forceResetGrowthBonusOnNextStart = true; }catch(_e){}
-	player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
+		window.__keepGrowthBonusFromProgressSave = progressLoad;
+		window.__forceResetGrowthBonusOnNextStart = !progressLoad;
+		if (!progressLoad || !player.growthBonus) player.growthBonus = { attack: 0, defense: 0, speed: 0, maxHp: 0 };
 
 		player.itemMemory = parsed.itemMemory || [];
-		window.initialAndSlotSkills = parsed.initialAndSlotSkills || [];
+		window.initialAndSlotSkills = parsed.initialAndSlotSkills || player.initialAndSlotSkills || [];
 		window.levelCapExemptSkills = parsed.levelCapExemptSkills || [];
 		window.growthMultiplier = parsed.growthMultiplier || 1;
 		// 成長スキップ回数（未保存の旧データなら倍率からざっくり推定）
@@ -1761,7 +1785,7 @@ window.importSaveCode = async function(code = null) {
 			window.growthSkipCount = n;
 		}
 
-		const rebirth = (parsed.rebirthCount || 0) + 1;
+		const rebirth = (parsed.rebirthCount || 0) + (progressLoad ? 0 : 1);
 		localStorage.setItem('rebirthCount', rebirth);
 
 		// ✅ 魔メイク情報の復元とUI更新
@@ -1788,7 +1812,7 @@ window.importSaveCode = async function(code = null) {
 		//  - つづきから選択直後（import直後）から途中再開
 		// ==========================
 		try{
-			const shouldRestoreTimeLimit = !!window.__loadingFromProgress;
+			const shouldRestoreTimeLimit = progressLoad;
 			if (shouldRestoreTimeLimit) {
 				if (typeof window.__restoreTimeLimitStateFromSave === 'function') {
 					window.__restoreTimeLimitStateFromSave(parsed.timeLimitState || null);
@@ -1840,11 +1864,15 @@ window.importSaveCode = async function(code = null) {
 
 			if (typeof updateScoreOverlay === 'function') updateScoreOverlay();
 			try{
-				if (!window.__loadingFromProgress && typeof window.__resetTimeLimitForBaseLoad === 'function') {
+				if (!progressLoad && typeof window.__resetTimeLimitForBaseLoad === 'function') {
 					window.__resetTimeLimitForBaseLoad();
 				}
 			}catch(_e){}
-			startBattle();
+			if (!progressLoad) startBattle();
+			else {
+				updateStats();
+				if (window.Abyss) window.Abyss.refresh();
+			}
 
 			// ✅ 特殊スキルリストを再描画
 			if (typeof drawCombinedSkillList === 'function') drawCombinedSkillList();
@@ -1854,10 +1882,12 @@ window.importSaveCode = async function(code = null) {
 	} catch (e) {
 		alert('セーブデータの読み込みに失敗しました：' + e.message);
 		console.error(e);
+		return false;
 	}
 
 	// ✅ スキルUI同期（スロットや記憶）
 	if (typeof syncSkillsUI === 'function') syncSkillsUI();
+	return true;
 };
 
 
@@ -2139,7 +2169,7 @@ window.refreshLoadButtonsHighlight = function() {
 		const battles = (window.battleCount || 0);
 		const remain = (window.remainingBattles ?? 0);
 		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
-		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+		if (window.remainingBattles != null && remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
 
 		try {
 			if (typeof saveToLocalStorage === 'function') {
@@ -2317,7 +2347,7 @@ window.refreshLoadButtonsHighlight = function() {
 		const battles = (window.battleCount || 0);
 		const remain = (window.remainingBattles ?? 0);
 		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
-		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+		if (window.remainingBattles != null && remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
 		try {
 			if (typeof saveToLocalStorage === 'function') { await saveToLocalStorage(); }
 			const baseCode = localStorage.getItem('rpgLocalSave');
@@ -2409,7 +2439,7 @@ window.refreshLoadButtonsHighlight = function() {
 		const battles = (window.battleCount || 0);
 		const remain = (window.remainingBattles ?? 0);
 		if (battles <= 0) { notify('バトルを1回以上行った後にセーブできます。'); return; }
-		if (remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
+		if (window.remainingBattles != null && remain <= 0) { notify('残り戦闘数が0のため、進捗セーブはできません。'); return; }
 
 		if (typeof window.saveToLocalStorage === 'function') {
 			try { await window.saveToLocalStorage(); } catch (e) { console.warn('base save failed', e); }
@@ -2430,7 +2460,10 @@ window.refreshLoadButtonsHighlight = function() {
 		async function tryImport(code) {
 			if (!code) throw new Error('no code');
 			if (typeof importSaveCode !== 'function') throw new Error('importSaveCode missing');
-			await importSaveCode(code);
+			window.__loadingFromProgress = true;
+			try {
+				if (await importSaveCode(code) === false) throw new Error('進捗の復元に失敗しました');
+			} finally { delete window.__loadingFromProgress; }
 		}
 		try {
 			try { await tryImport(primary); } catch (_) { await tryImport(fallback); }
@@ -2440,7 +2473,7 @@ window.refreshLoadButtonsHighlight = function() {
 					const m = JSON.parse(metaStr);
 					if (m.targetBattles != null) window.targetBattles = m.targetBattles;
 					if (m.remainingBattles != null) window.remainingBattles = m.remainingBattles;
-					if (m.battleCount != null) window.battleCount = m.battleCount;
+					if (m.battleCount != null) { window.battleCount = m.battleCount; window.battlesPlayed = m.battleCount; }
 					if (m.currentStreak != null) window.currentStreak = m.currentStreak;
 				}
 			} catch (_) {}

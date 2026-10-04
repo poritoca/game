@@ -387,43 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	(function injectBattleStatusCSS() {
 		const style = document.createElement('style');
-		style.textContent = `
-    .battle-status-display {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      font-size: 10px;
-      color: #f0f0f0;
-      background: rgba(30, 30, 30, 0.6);
-      backdrop-filter: blur(6px);
-      padding: 10px 16px;
-      border-left: 4px solid #4caf50;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-      z-index: 1000;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
-      max-width: 280px;
-      pointer-events: none;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .fade-in {
-      animation: fadeInUp 0.6s ease-out;
-    }
-  `;
+		style.textContent = ""; // Presentation lives in style.css (v3).
 		document.head.appendChild(style);
 	})();
 
@@ -456,43 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	(function injectBattleStatusCSS() {
 		const style = document.createElement('style');
-		style.textContent = `
-    .battle-status-display {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      font-size: 12px;
-      color: #f0f0f0;
-      background: rgba(30, 30, 30, 0.6);
-      backdrop-filter: blur(6px);
-      padding: 10px 16px;
-      border-left: 4px solid #4caf50;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-      z-index: 1000;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
-      max-width: 280px;
-      pointer-events: none;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .fade-in {
-      animation: fadeInUp 0.6s ease-out;
-    }
-  `;
+		style.textContent = ""; // Presentation lives in style.css (v3).
 		document.head.appendChild(style);
 	})();
 
@@ -814,7 +742,7 @@ function updateFaceUI() {
 		const nameLine = document.createElement('div');
 		nameLine.style.fontWeight = '700';
 		nameLine.style.letterSpacing = '0.3px';
-		const shortName = itemPath.split('/').pop();
+		const shortName = itemPath.includes('fallback/face/') ? '紋章 '+(itemPath.match(/sigil-(\d+)/)?.[1] || '') : itemPath.split('/').pop().replace(/\.[^.]+$/, '');
 		nameLine.textContent = `${shortName} [${rarity}]`;
 		meta.appendChild(nameLine);
 
@@ -971,27 +899,7 @@ function ensureGlowBorderStyle() {
 	if (!document.getElementById('glowBorderStyle')) {
 		const style = document.createElement('style');
 		style.id = 'glowBorderStyle';
-		style.textContent = `
-      @keyframes glowBorder {
-        0% {
-          box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
-          border-color: white;
-        }
-        50% {
-          box-shadow:
-            0 0 20px white,
-            0 0 40px rgba(255, 0, 255, 0.5),
-            0 0 60px rgba(0, 255, 255, 0.5),
-            0 0 30px rgba(255, 255, 0, 0.4);
-          border-image: linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet) 1;
-          border-color: transparent;
-        }
-        100% {
-          box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
-          border-color: white;
-        }
-      }
-    `;
+		style.textContent = ""; // Presentation lives in style.css (v3).
 		document.head.appendChild(style);
 	}
 }
@@ -1083,7 +991,7 @@ window.syncFaceOverlay = window.syncFaceOverlay || function() {
 		if (!el) return;
 		const path = (typeof window.faceItemEquipped !== 'undefined') ? window.faceItemEquipped : null;
 		if (path) {
-			try { el.src = path; } catch (_e) {}
+			try { el.src = resolveAssetPath(path); } catch (_e) {}
 			try { el.classList.remove('hidden'); } catch (_e) {}
 			try { el.style.opacity = '1'; } catch (_e) {}
 		} else {
@@ -1206,9 +1114,9 @@ function maybeGainItemMemory() {
 	//   window.baseDropRate = 1.0;              // base probability (default 1.0 -> same as before)
 	//   window.brutalDropRateMult = 1.0;       // multiplier when specialMode==='brutal'
 	//   window.manualDropRateMult = 1.0;       // multiplier for manual battles (!isAutoBattle)
-	(function() {
+	const passedPreDropGate = (function() {
 
-		window.manualDropRateMult = 3;
+		if (typeof window.manualDropRateMult !== 'number') window.manualDropRateMult = 3;
 		const base = (typeof window.baseDropRate === 'number') ? window.baseDropRate : 1.0;
 		let preDropRate = base;
 		if (window.specialMode === 'brutal') {
@@ -1220,8 +1128,9 @@ function maybeGainItemMemory() {
 			preDropRate *= m;
 		}
 		preDropRate = Math.max(0, Math.min(1, preDropRate));
-		if (Math.random() >= preDropRate) { return; }
+		return Math.random() < preDropRate;
 	})();
+	if (!passedPreDropGate) return;
 
 	const allSkills = skillPool.filter(s => s.category !== 'passive');
 	const skill = allSkills[Math.floor(Math.random() * allSkills.length)];
@@ -1564,67 +1473,27 @@ window.faceItemsOwned = []; // 例: ['face/S/face1.png', ...]
 window.faceItemEquipped = null; // 例: 'face/A/face3.png'
 window.lastChosenSkillNames = []; // 戦闘ごとの抽選結果
 
-// パス解決: 配置が「app/ 配下だけ」でも「app/ と同階層に face/・image/」でも動くように、実行時に自動判定する
-var __assetPrefix = (typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : ''; // '' or '../' (auto-detected)
+// 既存のface/・image/を使用。背景・タイトル画像とコードはindex.htmlと同階層。
+var __assetPrefix = ''; 
 
-function __detectAssetPrefix() {
-	// GitHub Pages構成の前提:
-	//  - /app/ 配下でコードを動かす
-	//  - /face /image は /app の1つ上（= '../'）
-	try {
-		const p = (location && location.pathname) ? String(location.pathname).replace(/\\/g, '/') : '';
-		// 明示: /app/ 以下なら '../' を採用
-		if (p.includes('/app/')) {
-			__assetPrefix = '../';
-		} else {
-			__assetPrefix = '';
-		}
-	} catch (_e) {
-		// 何もしない（既存の __assetPrefix を維持）
-	}
-
-	// グローバル共有（他part/他JSから参照）
-	try { window.__assetPrefix = __assetPrefix; } catch (_e) {}
-
-	// 追加の保険: ネットワークで実在チェックして必要なら上書き（非同期・ノンブロッキング）
-	try {
-		Promise.resolve().then(async () => {
-			// まず prefix 付きで試す
-			try {
-				const r = await fetch(__assetPrefix + 'face/faceManifest.json', { cache: 'no-store' });
-				if (r && r.ok) return;
-			} catch (_e) {}
-
-			// ダメなら逆を試す（'' と '../' を入れ替え）
-			const alt = (__assetPrefix === '../') ? '' : '../';
-			try {
-				const r2 = await fetch(alt + 'face/faceManifest.json', { cache: 'no-store' });
-				if (r2 && r2.ok) {
-					__assetPrefix = alt;
-					try { window.__assetPrefix = __assetPrefix; } catch (_e) {}
-				}
-			} catch (_e) {}
-		});
-	} catch (_e) {}
-}
-
-window.addEventListener('DOMContentLoaded', () => { try { __detectAssetPrefix(); } catch (_e) {} });
+// Keep save keys unchanged; resolve legacy placeholders to existing artwork only.
+function __detectAssetPrefix() { __assetPrefix = ''; window.__assetPrefix = ''; }
+window.addEventListener('DOMContentLoaded', __detectAssetPrefix);
 
 function resolveAssetPath(p) {
-	if (!p) return p;
-	const s = String(p);
-
-	// data: / http(s): はそのまま
-	if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://')) return s;
-
-	// 旧セーブで '../face/...' などが入っていた場合も許容するが、今の判定に合わせて寄せる
-	if (s.startsWith('../face/')) return (__assetPrefix === '' ? s.replace(/^\.\.\//, '') : s);
-	if (s.startsWith('../image/')) return (__assetPrefix === '' ? s.replace(/^\.\.\//, '') : s);
-
-	if (s.startsWith('face/')) return ((typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : __assetPrefix) + s;
-	if (s.startsWith('image/')) return ((typeof window !== 'undefined' && window.__assetPrefix != null) ? window.__assetPrefix : __assetPrefix) + s;
-
-	return s;
+ if (!p) return p;
+ const raw = String(p);
+ if (/^(data:|blob:|https?:)/.test(raw)) return raw;
+ const s = raw.replace(/^(?:\.\.\/|\.\/|\/)+/, '');
+ // Older releases stored generated placeholder keys; preserve their bonuses,
+ // but display an existing face of the same rank instead of the removed artwork.
+ const legacy = s.match(/^fallback(?:\/|-)face(?:\/|-)([SABCD])(?:\/|-)sigil-(\d+)\.svg$/);
+ if (legacy) {
+   const pool = IMAGE_LIST_BY_RANK?.[legacy[1]] || [];
+   return window.GameAssets.resolve(pool.length ? `face/${legacy[1]}/${pool[(Number(legacy[2])-1)%pool.length]}` : 'image/warrior_base.png');
+ }
+ if (s === 'fallback/warrior.svg' || s === 'fallback-warrior.svg') return window.GameAssets.resolve('image/warrior_base.png');
+ return window.GameAssets.resolve(raw);
 }
 
 function normalizeFacePath(p) {
@@ -2277,12 +2146,12 @@ window.formatStats = function(c) {
 
       ` : ``}
     </div>
-    <ul style="padding-left: 20px;">
-      <li>ATK: ${c.attack}</li>
-      <li>DEF: ${c.defense}</li>
-      <li>SPD: ${c.speed}</li>
-      <li>HP: ${c.maxHp}</li>
-    </ul>
+    <div class="ability-grid">
+      <div><span>攻撃 <small>ATK</small></span><b>${c.attack}</b></div>
+      <div><span>防御 <small>DEF</small></span><b>${c.defense}</b></div>
+      <div><span>速さ <small>SPD</small></span><b>${c.speed}</b></div>
+      <div><span>体力 <small>HP</small></span><b>${c.maxHp}</b></div>
+    </div>
     ${itemSectionHtml}
   `;
 };
@@ -2332,20 +2201,7 @@ window.formatSkills = function(c) {
 		}
 
 		return {
-			html: `<span title='${desc}' style="
-  color: ${color};
-  padding: 5px 10px;
-  margin: 4px;
-  border-radius: 8px;
-  border: 1px solid ${color};
-  display: inline-block;
-  font-weight: bold;
-  font-size: 13px;
-  text-shadow: 0 0 4px ${color}, 0 0 2px #000;
-  box-shadow: 0 0 8px rgba(0,0,0,0.6);
-">
-  ${skillName} Lv${s.level || 1}
-</span>`,
+			html: `<span class="character-skill" title='${desc}'><span>${skillName}</span><b>Lv ${s.level || 1}</b></span>`,
 			priority: priority
 		};
 	});
@@ -2353,10 +2209,7 @@ window.formatSkills = function(c) {
 	skillElements.sort((a, b) => a.priority - b.priority);
 
 	return `
-    <div><strong>スキル</strong></div>
-    <ul style="padding-left: 20px;">
-      ${skillElements.map(e => `<li>${e.html}</li>`).join('')}
-    </ul>
+    <details class="character-skills"><summary>発動スキル <span>${skillElements.length}</span></summary><ul class="character-skill-list">${skillElements.map(e => `<li>${e.html}</li>`).join('')}</ul></details>
   `;
 };
 
@@ -2397,7 +2250,7 @@ window.updateStats = function() {
 	if (((window.isBossBattle && window.bossFacePath) || (window.isGrowthBoss && window.growthBossFacePath)) && enemyImgEl) {
 		// 強敵：魔メイクの画像を表示
 		if (enemyCanvasEl) enemyCanvasEl.classList.add('hidden');
-		enemyImgEl.src = (window.isBossBattle && window.bossFacePath) ? window.bossFacePath : window.growthBossFacePath;
+		enemyImgEl.src = resolveAssetPath((window.isBossBattle && window.bossFacePath) ? window.bossFacePath : window.growthBossFacePath);
 		enemyImgEl.classList.remove('hidden');
 	} else {
 		// 通常：キャンバスに描画
@@ -2468,6 +2321,7 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 			if (!player.skillMemory) player.skillMemory = {};
 			if (!player.itemMemory) player.itemMemory = [];
 			window.player = player;
+			if (window.Abyss) window.Abyss.refresh();
 		} else {
 			if (!window.player) window.player = {};
 			player = window.player;
@@ -2570,44 +2424,7 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 				btns.forEach(btn => btn.classList.remove('is-open'));
 			}
 		}catch(_){ }
-		try{
-			const guideMsg = window.__firstRerollSelectionPhase
-				? '初回は表示中のキャラクター情報で、魔メイクをガチャ→確定してください。確定後、右側のバトル操作エリアから進められます。'
-				: '右側のバトル操作エリアから戦闘を進められます。バトルボタンやモード切替を使ってください。';
-
-			// iPhone Safariなどで、ゲーム画面のフェードイン完了前にトーストだけ先に出ると
-			// 背景が真っ暗に見えることがある。
-			// そのため「ゲーム画面が表示済み」「バトルドック/バトルボタンが実寸を持つ」ことを確認してから案内する。
-			const showGuideWhenReady = (attempt = 0) => {
-				try{
-					const gs = document.getElementById('gameScreen');
-					const dock = document.getElementById('battleOverlayDock');
-					const battleBtn = document.getElementById('startBattleBtn');
-					const gsStyle = gs ? window.getComputedStyle(gs) : null;
-					const gsVisible = !!(gs && !gs.classList.contains('hidden') && gsStyle && gsStyle.display !== 'none' && Number(gsStyle.opacity || 1) > 0.75);
-					const target = dock || battleBtn;
-					const rect = target ? target.getBoundingClientRect() : null;
-					const targetVisible = !!(rect && rect.width > 1 && rect.height > 1);
-					if ((!gsVisible || !targetVisible) && attempt < 14) {
-						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 300);
-						return;
-					}
-
-					// 最低でも少しだけ描画を寝かせ、黒背景だけのタイミングを避ける。
-					(window.requestAnimationFrame || function(fn){ return (window.__battleSetTimeout || window.setTimeout)(fn, 16); })(() => {
-						try{
-							if (typeof window.__showBattleDockInstantMessage === 'function') window.__showBattleDockInstantMessage(guideMsg, 1500);
-							else if (typeof showCustomAlert === 'function') showCustomAlert(guideMsg, 1500, '#101820', '#eaffff', true);
-						}catch(__e){}
-					});
-				}catch(__e){
-					if (attempt < 14) {
-						(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(attempt + 1), 180);
-					}
-				}
-			};
-			(window.__battleSetTimeout || window.setTimeout)(() => showGuideWhenReady(0), 900);
-		}catch(_){ }
+		// The inline first-reroll note replaces delayed startup popups.
 
 		// ★ 戦闘回数選択の読み取りと初期化処理を追加
 		const battleBtn = document.getElementById('startBattleBtn');
@@ -2636,17 +2453,13 @@ try { if (typeof setupToggleButtons === 'function') setupToggleButtons(); } catc
 
 		// 初回の戦闘を開始（敵名プールを必要数ぶん事前生成：重い版）
 		const __startFirstBattle = () => {
-			updateStats();
-			// 初回魔メイク厳選フェーズ中は自動で戦闘を始めない（確定ボタンで開始）
-			if (window.__firstRerollSelectionPhase) {
-				window.__firstBattlePending = true;
-				try{ if (typeof window.__showFirstRerollPanel === 'function') window.__showFirstRerollPanel(true); }catch(_){ }
-				updateFaceUI();
-				return;
-			}
-			window.startBattle();
-			updateFaceUI();
-		};
+            updateStats();
+            window.__firstBattlePending = false;
+            if (window.__firstRerollSelectionPhase) {
+                try{ window.__showFirstRerollPanel?.(true); }catch(_){}
+            }
+            updateFaceUI();
+        };
 		try {
 			if (typeof window.__resetEnemyNamePool === 'function') window.__resetEnemyNamePool();
 			if (typeof window.__initEnemyNamePool === 'function') {

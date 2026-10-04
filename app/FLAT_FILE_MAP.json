@@ -1,0 +1,14 @@
+{
+  "assets/ARTWORK.md": "ARTWORK.md",
+  "assets/generation-prompts.json": "generation-prompts.json",
+  "assets/obsidian-knight.png": "obsidian-knight.png",
+  "assets/scenes/arena.png": "arena.png",
+  "assets/scenes/forge.png": "forge.png",
+  "tests/browser02.cjs": "browser02.cjs",
+  "tests/redesign03-result.json": "redesign03-result.json",
+  "tests/redesign03.cjs": "redesign03.cjs",
+  "tests/release02-browser.json": "release02-browser.json",
+  "tests/release02.test.cjs": "release02.test.cjs",
+  "tests/scene05-result.json": "scene05-result.json",
+  "tests/scene05.cjs": "scene05.cjs"
+}

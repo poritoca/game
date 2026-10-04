@@ -3,134 +3,72 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0, user-scalable=no" name="viewport"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <title>◯戦後に死ぬ戦士</title>
-<style>
-@keyframes glowBorder {
-  0% {
-    box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
-    border-color: white;
-  }
-  50% {
-    box-shadow: 
-      0 0 20px white,
-      0 0 40px rgba(255, 0, 255, 0.5),
-      0 0 60px rgba(0, 255, 255, 0.5),
-      0 0 30px rgba(255, 255, 0, 0.4);
-    border-image: linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet) 1;
-    border-color: transparent;
-  }
-  100% {
-    box-shadow: 0 0 10px white, 0 0 5px rgba(255,255,255,0.6);
-    border-color: white;
-  }
-}
 
-#faceItemGlowFrame {
-  animation: glowBorder 5s ease-in-out infinite;
-  border-radius: 8px;
-  pointer-events: none;
-}
-
-
-#loadLocalBtn.highlight, #loadLocalProgressBtn.highlight {
-  animation: pulse 1.2s infinite;
-  background-color: #ffcc00;
-  color: #000;
-  font-weight: bold;
-  box-shadow: 0 0 15px #ffcc00;
-  border: 2px solid #ffaa00;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.85; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-</style>
-<link href="style.css?v=4" rel="stylesheet"/>
+<link rel="preload" as="image" href="title-blue-flame.png"/>
+<link href="style.css?v=flat6" rel="stylesheet"/>
+<link href="endgame.css?v=flat6" rel="stylesheet"/>
+<script src="asset-paths.js?v=paths9"></script>
 <script>
 let IMAGE_LIST_BY_RANK = {};
 
 async function loadFaceManifest() {
+  window.__faceManifestLoading = true;
+  const candidates = window.GameAssets.manifestCandidates();
   try {
-    let response = null;
-    const __pref = (window.__assetPrefix != null) ? window.__assetPrefix : '';
-    const __candidates = [];
-    // 優先: いまの配置ルールに合わせたprefix
-    __candidates.push(__pref + 'face/faceManifest.json');
-    // フォールバック: 旧/別配置も試す
-    if (__pref !== '../') __candidates.push('../face/faceManifest.json');
-    if (__pref !== '') __candidates.push('face/faceManifest.json');
-
-    for (const u of __candidates) {
+    for (const url of candidates) {
       try {
-        response = await fetch(u, { cache: 'no-store' });
-        if (response && response.ok) break;
-      } catch (_e) {
-        response = null;
-      }
+        const response = await fetch(url, {cache:'no-store'});
+        if (!response.ok) continue;
+        const data = await response.json();
+        if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
+        const ranks = {};
+        for (const rank of ['S','A','B','C','D']) {
+          if (!Array.isArray(data[rank])) throw new Error('Invalid rank list');
+          ranks[rank] = data[rank].filter(name=>typeof name==='string' && name.trim().length>0);
+        }
+        if (!Object.values(ranks).some(list=>list.length)) continue;
+        IMAGE_LIST_BY_RANK = ranks;
+        window.GameAssets.useManifest(url);
+        window.__faceManifestSource = url;
+        return true;
+      } catch (_) { /* Try the next supported location, including invalid/empty JSON. */ }
     }
-    if (!response || !response.ok) throw new Error(`HTTP error ${response ? response.status : 'unknown'}`);(`HTTP error ${response.status}`);
-    const data = await response.json();
-    IMAGE_LIST_BY_RANK = data;
-    //console.log('Face manifest loaded:', IMAGE_LIST_BY_RANK);
-  } catch (error) {
-    console.error('Failed to load face manifest:', error);
-    // フォールバック処理：JSON読み込み失敗時はデフォルトまたは空のリストを設定
-    IMAGE_LIST_BY_RANK = { S: [], A: [], B: [], C: [], D: [] };
+    IMAGE_LIST_BY_RANK = {S:[],A:[],B:[],C:[],D:[]};
+    window.__faceManifestSource = null;
+    return false;
+  } finally {
+    window.__faceManifestLoading = false;
   }
 }
-
-// DOMContentLoaded イベントでJSON読み込みを実行 [oai_citation:1‡developer.mozilla.org](https://developer.mozilla.org/ja/docs/Web/API/Document/DOMContentLoaded_event#:~:text=document.addEventListener%28,)
-window.addEventListener('DOMContentLoaded', loadFaceManifest);
+// Start loading early. Gacha waits for this promise before drawing or charging.
+window.faceManifestReady = loadFaceManifest();
 </script>
 </head>
 <body>
 <!-- ゲーム画面右上：戦闘状態表示エリア -->
 <!-- ゲーム画面右上：戦闘状態表示エリア -->
-<div class="battle-status-display" id="remainingBattlesDisplay" style="display: none;">
+<div class="battle-status-display" id="remainingBattlesDisplay" style="display:none">
   残り戦闘数：◯回<br/>
   現在の連勝数：◯<br/>
   現在挑戦中の最大連勝数：◯
 </div>
-<div id="scoreOverlay" style="display: none;"></div>
+<div id="scoreOverlay" style="display:none"></div>
 <img class="hidden" id="faceOverlay"/>
-<div id="skillOverlay" style="display: none;"></div>
+<div id="skillOverlay" style="display:none"></div>
 <!-- カスタムアラート -->
-<div id="customAlertContainer" style="position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
-    z-index: 9999; pointer-events: none;"></div>
+<div id="customAlertContainer" style="position:absolute;top:10%;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none"></div>
 <!-- タイトル画面 -->
 <div id="titleScreen">
+<p class="title-eyebrow">PIXEL CHRONICLE</p>
 <h1 id="animatedTitle">◯戦後に<span id="deathChar">死</span>ぬ戦士</h1>
-<div id="titleImage" style="text-align: center; margin-bottom: 20px;">
-<img onerror="this.onerror=null; this.src='../image/dark_knight.png';" src="image/dark_knight.png" style="width:80%; max-width:400px; height:auto;">
+<div id="titleImage" style="text-align:center;margin-bottom:20px">
+<img alt="黒曜石のガラス鎧をまとった細密ドット絵の戦士" src="obsidian-knight.png" style="width:80%;max-width:400px;height:auto">
 </img></div>
+
 <!-- 更新情報オーバーレイ
-<div id="updateNotice" style="
-  position: fixed;
-  top: 30%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
-  max-width: 400px;
-  padding: 16px 20px;
-  font-size: 16px;
-  font-weight: bold;
-  color: #fff8f0;
-  text-align: center;
-  background: linear-gradient(145deg, rgba(255, 100, 100, 0.35), rgba(255, 180, 120, 0.25));
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 0 25px rgba(255, 150, 100, 0.7);
-  text-shadow: 0 0 6px rgba(255, 180, 130, 0.8);
-  opacity: 1;
-  transition: opacity 1s ease, transform 1s ease;
-  z-index: 1000;
-  cursor: pointer;
-">
+<div id="updateNotice" style="position:fixed;top:30%;left:50%;transform:translate(-50%, -50%);width:90%;max-width:400px;padding:16px 20px;text-align:center;opacity:1;z-index:1000;cursor:pointer">
   🔔 更新情報：不具合を修正しました。
 </div>
  -->
@@ -139,11 +77,11 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div aria-hidden="true" class="new-panel is-collapsed" id="newPanel">
 <div class="new-panel-inner">
 <div class="panel-head">
-<div class="panel-title">はじめから 設定</div>
+<div class="panel-title">新しい戦士</div>
 </div>
 <div class="new-panel-body">
-<small class="playerNameHint">※名前により戦士の色やスキルが変化します</small>
-<input id="inputStr" placeholder="名前を入力:" type="text"/>
+<small class="playerNameHint">名前で色とスキルが決まります</small>
+<input id="inputStr" placeholder="戦士の名前" type="text"/>
 <!-- タイトル画面の入力フォーム内（プレイヤー名入力や開始ボタン付近）に追加 -->
 <select class="rainbow-select" id="battleCountSelect">
 <option value="100">100</option>
@@ -155,7 +93,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <option value="unlimited">無制限</option>
 </select>
 <div id="battleEffectOverlay"></div>
-<small>（ゲーム終了までの戦闘数を選択）</small>
+<small>旅の長さ（戦闘回数）</small>
 <select class="rainbow-select" id="timeLimitSelect">
 <option selected="" value="unlimited">無制限</option>
 <option value="60">1分</option>
@@ -164,7 +102,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <option value="1800">30分</option>
 <option value="3600">60分</option>
 </select>
-<small>（制限時間：無制限以外を選ぶと、開始直後からタイマーが動きます）</small>
+<small>制限時間（開始と同時に計測）</small>
 </div>
 <button class="lux-main-btn lux-main-btn--confirm" id="startNewGameBtn" type="button">開始する</button>
 </div>
@@ -186,12 +124,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div id="battleEffectOverlay"></div>
 <div aria-label="ロード方法を選択" class="load-panel-grid" role="group">
 <button class="load-tile" id="loadLocalBtn" onclick="loadFromLocalStorage()" type="button">
-<span class="tile-title">ローカル</span>
-<span class="tile-sub">端末に保存したデータ</span>
+<span class="tile-title">引継ぎ</span>
+<span class="tile-sub">成長をリセットして再出発</span>
 </button>
 <button class="load-tile" id="loadLocalProgressBtn" onclick="loadProgressFromLocalStorageCompat()" type="button">
 <span class="tile-title">中断</span>
-<span class="tile-sub">戦闘数進捗も含む</span>
+<span class="tile-sub">進行をそのまま再開</span>
 </button>
 <button class="load-tile load-tile-wide" id="loadFromTextBtn" type="button">
 <span class="tile-title">テキストからロード</span>
@@ -207,59 +145,28 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </div> -->
 </div>
 <!-- ゲーム画面 -->
-<div class="hidden" id="gameScreen" style="margin: 50px 0;">
+<div class="hidden" id="gameScreen" style="margin:50px 0">
 <!-- 上部：4つの折りたたみを2列パネルに集約（同時に1つだけ開く） -->
 <div aria-label="表示切替" class="top-fold-panel" role="group">
-<button class="top-fold-btn" data-kind="guide" onclick="toggleTopFold('guide')" type="button">【遊び方】</button>
-<button class="top-fold-btn" data-kind="char" onclick="toggleTopFold('char')" type="button">【キャラクター情報】</button>
-<button class="top-fold-btn" data-kind="log" onclick="toggleTopFold('log')" type="button">【戦闘ログ】</button>
-<button class="top-fold-btn" data-kind="memory" onclick="toggleTopFold('memory')" type="button">【魔道具・スキル】</button>
-<button class="top-fold-btn" data-kind="event" onclick="toggleTopFold('event')" type="button">【イベント&amp;入手設定】</button>
-<button class="top-fold-btn" data-kind="settings" onclick="toggleTopFold('settings')" type="button">【設定】</button>
+<button class="top-fold-btn" data-kind="guide" onclick="toggleTopFold('guide')" type="button">遊び方</button>
+<button class="top-fold-btn" data-kind="char" onclick="toggleTopFold('char')" type="button">戦士</button>
+<button class="top-fold-btn" data-kind="log" onclick="toggleTopFold('log')" type="button">戦闘ログ</button>
+<button class="top-fold-btn" data-kind="memory" onclick="toggleTopFold('memory')" type="button">装備・技</button>
+<button class="top-fold-btn" data-kind="event" onclick="toggleTopFold('event')" type="button">入手設定</button>
+<button class="top-fold-btn" data-kind="settings" onclick="toggleTopFold('settings')" type="button">保存・設定</button>
 </div>
 
 <!-- クイックガイド -->
 <div class="quick-guide-wrapper">
 <div class="quick-guide-content hidden" id="quickGuideContent">
-<!-- ★進め方（ざっくりガイド） -->
-<div aria-label="ゲームの進め方（概略）" class="mini-flow-guide" role="note">
-<div class="mini-flow-title">🚀 進め方（ざっくり）</div>
-<div class="mini-flow-steps">
-<div class="mini-flow-step">
-<div class="mini-flow-badge">1</div>
-<div class="mini-flow-text">
-<b>まずは【はじめから】→「ゲームを開始」</b> → 画面上の<b>【キャラクター情報】</b> → <b>「魔メイクを表示」</b>で<b>ガチャ</b>（<b>初回だけ</b>、<b>確定するまで同じガチャで何度でも引き直しOK</b>）
-          </div>
+<div class="guide-intro"><p class="section-kicker">HOW TO PLAY</p><h2>強くなる、その先へ。</h2><p>戦闘は自動。次の一戦が、新しい力に。</p></div>
+<div class="guide-steps">
+<div><span class="guide-icon">⚔</span><b>戦う</b><small>タップで1戦<br>長押しで連戦</small></div>
+<div><span class="guide-icon">◆</span><b>集める</b><small>装備・技と遺物で<br>戦い方を育てる</small></div>
+<div><span class="guide-icon">↑</span><b>挑む</b><small>ボスと深淵で<br>さらに良い報酬へ</small></div>
 </div>
-<div class="mini-flow-step">
-<div class="mini-flow-badge">2</div>
-<div class="mini-flow-text">
-<b>通常モード</b>で連勝＆スコアを伸ばす（スコアが伸びるほど後半がラク）
-          </div>
-</div>
-<div class="mini-flow-step">
-<div class="mini-flow-badge">3</div>
-<div class="mini-flow-text">
-<b>鬼畜モード</b>で強敵に挑み、<b>魔通貨</b>や<b>魔道具</b>を狙う（装備/保護も活用）
-          </div>
-</div>
-<div class="mini-flow-step">
-<div class="mini-flow-badge">4</div>
-<div class="mini-flow-text">
-            鬼畜で勝てない時は <b>特殊スキル厳選</b> / <b>スキルLv</b> / <b>魔通貨でスキル交換</b> で土台づくり
-          </div>
-</div>
-</div>
-<div class="mini-flow-note">
-        ※鬼畜モードの敵ステータスは、<b>あなたの基礎＋成長ステータス</b>を基準に強化されます（「鍛えてから鬼畜」より、<b>鬼畜で集めつつ通常で伸ばす</b>イメージが有効）。
-      </div>
-<div class="mini-flow-note">
-        ※<b>勝者当てミニゲーム</b>をONにしていると、<b>僅差決着</b>のときに「自分が勝った / 敵が勝った」を予想できます。<b>的中すると魔通貨</b>が増え、さらに<b>勝利報酬スロット</b>が発動します。
-      </div>
-<div class="mini-flow-note">
-        ※スロットでは <b>色 / 修飾語 / 名詞 / 発動スキル</b> の4列を、<b>好きなタイミングでレバーを倒して確定</b>します。<b>止まった組み合わせがそのまま魔道具</b>になって手に入ります。
-      </div>
-</div>
+<p class="guide-save-hint">旅を休む前に「保存・設定」でセーブ。</p>
+<details class="guide-reference"><summary>ルール・報酬を詳しく見る</summary>
 <h3>このゲームの目的</h3>
 <p>
         本作の目的は、<strong>連勝数</strong>をできる限り伸ばすことです。戦闘に勝利するたびにキャラクターが成長し、新たなスキルを習得して強くなります。<br/><br/>さらに、通常モードでまれに出現する<strong>「強ボス」</strong>を倒すと<strong>★</strong>が増えます。★を<strong><span id="guideStrongBossClearKills">-</span></strong>個集めると、エンディングが表示されて<strong>ゲームクリア</strong>です（★は画面上部の「HP推移チャート」の直前に表示されます）。
@@ -270,7 +177,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </p>
 <h3>スキル交換（魔通貨500枚）</h3>
 <p>
-					【魔道具・スキル】<strong>「スキル交換」</strong>ボタンで、スキル構成を入れ替えられます。
+					装備・技<strong>「スキル交換」</strong>ボタンで、スキル構成を入れ替えられます。
 					魔通貨を<strong>500枚</strong>消費して、<strong>現在所持していない通常スキル</strong>をスキルメモリーから<strong>2つ完全削除（Lvも初期化）</strong>し、
 					未修得の通常スキルから<strong>1つ</strong>をランダムに新規習得します。
 					<strong>特殊スキルは必ず対象外</strong>で、<strong>現在所持中の攻撃スキルが消えることはありません</strong>。
@@ -281,7 +188,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <h3>ボス戦について</h3>
 <p>
         一定回数ごとに<strong>ボス戦</strong>が発生します。
-    <details class="guide-fold" open="">
+    <details class="guide-fold">
 <summary>ボス戦の概要（動的表示）</summary>
 <div class="guide-fold-body">
 <ul class="guide-list">
@@ -395,7 +302,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <li>魔メイクのレアランク（S〜B）の出現率が、現在の連勝数に応じて上昇します。最大連勝数ではない点、ご注意ください。</li>
 <li>例：Dランクの割合が減少し、S〜Aランクの出現率がわずかに上昇。</li>
 </ul>
-<p style="color:#888; font-size: 90%;">
+<p >
 		※補正は控えめに設計されており、ゲームバランスを壊さず自然に反映されます。
 		</p>
 <h3>ゲーム終了とスコア</h3>
@@ -406,7 +313,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     </p>
 <p>
     キャラクターを作り直したい場合は「はじめから」ボタンを押して新しいゲームを開始してください。<br/><br/>
-<strong style="color: #ff4444;">
+<strong >
 			※重要：ゲームオーバー後には、成長は初期化されますが、<u>スキルメモリー、特殊スキルや魔道具は一部引き継がれます</u>。<br/>
         継続的にプレイすることで、成長したスキルや貴重な魔道具を維持して次の攻略に活かせます。
     </strong>
@@ -450,7 +357,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 		  これにより、<strong>スキル名を見るだけでレア度や性能の目安</strong>がわかるようになっています。
 		</p>
 <p><strong>構成例：</strong><br/>
-		「<span style="color:#aaa;">素早い</span> × <span style="color:#f39;">煌めく</span> エリュシオン」<br/>
+		「<span >素早い</span> × <span >煌めく</span> エリュシオン」<br/>
 		（発動率中程度／効果値が非常に高い）</p>
 <h4>発動率による接頭語例（一部）</h4>
 <table border="1" cellpadding="6" cellspacing="0">
@@ -484,7 +391,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
         使用回数・発動確率・破損率といった性能は、魔道具名を構成する以下の要素によって決まります。
     </p>
 <ul>
-<li><strong>色：</strong>1戦での使用可能回数（例：<span style="color: gold;">金色</span>は4回、<span style="color: lightgray;">透明</span>は無制限）</li>
+<li><strong>色：</strong>1戦での使用可能回数（例：<span >金色</span>は4回、<span >透明</span>は無制限）</li>
 <li><strong>形容詞：</strong>スキル発動確率（例：「伝説の」魔道具なら発動率60%）</li>
 <li><strong>名詞：</strong>魔道具の壊れにくさ（例：「珠玉」なら壊れない、「勾玉」なら破損率0.1%）</li>
 </ul>
@@ -514,7 +421,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     敵の強さは<strong>戦闘ごとに一定のペースで上昇</strong>します（毎戦確実に強くなります）。<br/>
     さらに、<strong>敵のスキルレベルは高め</strong>で、1つひとつのスキルが強力です。<br/>
     一方で、<strong>ステータスアップのイベントはほとんど発生しません</strong>。自キャラの成長は主にスキルや魔道具によって行われます。<br/>
-<strong style="color:#ffd700;">魔道具は鬼畜モードでしか手に入りません！</strong>通常モードでは入手できないため、魔道具による戦略を使いたい場合は鬼畜モードを選びましょう。
+<strong >魔道具は鬼畜モードでしか手に入りません！</strong>通常モードでは入手できないため、魔道具による戦略を使いたい場合は鬼畜モードを選びましょう。
   </li>
 </ul>
 <h3>停止フィルター</h3>
@@ -548,48 +455,31 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <div class="subnote"> <br/>※「倍率・確率・継続ターン」などの生データです。実際のダメージ/回復量は ATK/DEF/スキルLv 等で変動します。</div>
 <div id="skillValueList"></div>
 </details>
+</details>
 </div>
 </div>
 <!-- バトルエリア -->
 <div class="hidden" id="battleArea">
 <div class="quick-guide-content hidden" id="charInfoFold">
 <details open="">
-<summary><strong>自分のキャラクター情報（スクロール可能）</strong></summary>
+<summary><strong>戦士の能力</strong></summary>
 <!-- 魔メイクUIコンテナ（全幅表示・透過背景） -->
-<div id="faceMemoryUI" style="
-  width: 100%;
-	
-  color: #fff;
-  border: none;
-  box-shadow: none;
-  border-radius: 0;
-  animation: fadeIn 0.6s ease-out;
-">
+<div id="faceMemoryUI" style="width:100%">
 <!-- 表示切替ボタン（スタイル統一） -->
-<button id="faceMemoryToggle" style="
-    font-size: 11px;
-
-    background: linear-gradient(to bottom, #222, #444);
-    color: #0ff;
-    border: 1px solid #0ff;
-    border-radius: 4px;
-    cursor: pointer;
-    text-shadow: 1px 1px 0 #000;
-    transition: background 0.2s ease, transform 0.1s ease;
-  ">
+<button id="faceMemoryToggle" style="cursor:pointer">
     ▶ 魔メイクを表示
   </button>
 <!-- 折りたたみ可能なコンテンツ -->
-<div id="faceMemoryContent" style="display: none; margin-top: 10px;">
+<div id="faceMemoryContent" style="display:none;margin-top:10px">
 <!-- 魔通貨と魔メイク -->
-<div id="faceCoinInfo" style="margin-bottom: 10px;">
+<div id="faceCoinInfo" style="margin-bottom:10px">
             魔通貨: <span id="faceCoinCount">0</span> 枚 
 		<button disabled="" id="faceGachaBtn">ガチャ</button>
 <div class="first-reroll-panel hidden" id="firstRerollPanel">
-<div class="first-reroll-title">初回魔メイク厳選（確定まで無料）</div>
+<div class="first-reroll-title">最初の魔メイクを選ぼう</div>
 <div class="first-reroll-actions"><button class="first-reroll-confirm-btn" disabled="" id="firstRerollConfirmBtn" type="button">この魔メイクで開始</button>
 </div>
-<div class="subnote first-reroll-note" id="firstRerollNote">※「はじめから」初回のみ。ガチャ→気に入らなければ<b>無料で何度でも</b>引き直しOK。<br/>※確定すると戦闘が始まり、無料引き直しは終了します。</div>
+<div class="subnote first-reroll-note" id="firstRerollNote">確定するまで、何度でも無料。</div>
 </div>
 <br/>
 <div class="subnote">※現在の連勝数が多いほど高レア排出率UP</div>
@@ -613,7 +503,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
     <div class="winner-slot-header">
       <div class="winner-slot-kicker">PREMIUM REWARD SLOT</div>
       <div class="winner-slot-title">勝利報酬スロット</div>
-      <div class="winner-slot-sub" id="winnerSlotSubMessage">4列を見極めて止めた組み合わせが、そのまま魔道具になります。</div>
+      <div class="winner-slot-sub" id="winnerSlotSubMessage">4列を止めて、魔道具を完成させよう。</div>
     </div>
     <div class="winner-slot-machine">
       <div class="winner-slot-reels" id="winnerSlotReels"></div>
@@ -625,26 +515,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
   </div>
 </div>
 <div id="uniqueSkillSection">
-<button id="toggleUniqueSkills" style="
-		  height: 36px;
-      font-size: 11px;
-      padding: 4px 6px;
-      background: linear-gradient(to bottom, #222, #444);
-      color: #0ff;
-      border: 1px solid #0ff;
-      border-radius: 4px;
-      cursor: pointer;
-      text-shadow: 1px 1px 0 #000;
-      transition: background 0.2s ease, transform 0.1s ease;
-    ">
+<button id="toggleUniqueSkills" style="height:36px;padding:4px 6px;cursor:pointer">
       ▶ 固有スキル候補を表示
     </button>
-<ul id="uniqueSkillList" style="
-      display: none;
-      list-style: none;
-      padding-left: 0;
-
-    "></ul>
+<ul id="uniqueSkillList" style="display:none;list-style:none;padding-left:0"></ul>
 <div class="first-face-selecting-note hidden" id="firstFaceSelectingNote">初回厳選中：魔メイクを<strong>確定</strong>すると、ステータス/敵情報が表示されます。</div>
 </div>
 <div class="status-area compact">
@@ -661,7 +535,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 </details>
 <details open="">
-<summary><strong>敵のキャラクター情報（スクロール可能）</strong></summary>
+<summary><strong>対戦相手</strong></summary>
 <div class="status-area compact">
 <div class="char-info">
 <canvas height="64" id="enemyCanvas" width="64"></canvas>
@@ -694,7 +568,7 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <span class="battle-log-font-value bl-badge" id="logFontValue">12px</span>
 </div>
 </div>
-<pre id="battleLog" style="height:350px;"></pre>
+<pre id="battleLog" style="height:350px"></pre>
 </div>
 </div>
 <!-- モード切替 -->
@@ -704,13 +578,12 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <button class="normal-mode" id="startBattleBtn">バトル！</button>
 <!-- <button id="mixedEffectListBtn" class="normal-mode">混合効果一覧</button>-->
 <!-- ゲーム終了時の結果表示ボックス（画面中央に表示） -->
-<div id="finalResults" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%);
-            background:#333; color:#fff; padding:20px; border:2px solid #fff; z-index:10000; max-width:300px;">
+<div id="finalResults" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);padding:20px;z-index:10000;max-width:300px">
 <!-- 最終結果はJavaScriptで埋め込まれます -->
 </div>
 <!-- 折りたたみ可能なスキル・魔道具メモリーセクション -->
 <div id="memoryToggleContainer">
-<div class="hidden" id="memoryContent" style="margin-top: 10px;">
+<div class="hidden" id="memoryContent" style="margin-top:10px">
 <!-- 特殊スキル -->
 <h4>特殊スキル</h4>
 <div class="subnote" id="mixedSkillProtectLimitNote">※選択で1つまで保護 / 解除可能</div>
@@ -725,8 +598,8 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 <!-- スキルメモリー -->
 <h4>スキルメモリー</h4>
-<div class="subnote">※3つ選択して最上部へ移動可能。スキル再構成時、上から数件を選出。</div>
-<div id="skillMemoryContainer" style="display: block;">
+<div class="subnote">3つ選んで優先枠へ。敗北後の再選出は上から。</div>
+<div id="skillMemoryContainer" style="display:block">
 <ul id="skillMemoryList"></ul>
 <!-- スキル交換（魔通貨で手動発動） -->
 <div class="skill-exchange-panel" id="skillExchangePanel">
@@ -748,14 +621,14 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 </div>
 <div id="eventSettingsToggleContainer">
-<div class="hidden" id="eventSettingsContent" style="margin-top: 10px;">
+<div class="hidden" id="eventSettingsContent" style="margin-top:10px">
 <h4>イベント設定</h4>
 <div id="autoStopControls">
 <button class="toggle-btn" id="toggleGrowthEvents">成長イベント: 発生</button>
 <button class="toggle-btn" id="toggleItemInterrupt">魔道具入手: 進行を停止する</button>
 </div>
-<h4 style="margin-top: 20px;">魔道具入手時設定</h4>
-<div style="margin-bottom: 10px;">
+<h4 style="margin-top:20px">魔道具入手時設定</h4>
+<div style="margin-bottom:10px">
 <button class="toggle-mode-btn and" id="filterModeToggleBtn">各要素の条件を満たす</button>
 </div>
 <div class="styled-filter-box" id="itemFilterBox">
@@ -768,43 +641,31 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 <!-- 設定（折りたたみ） -->
 <div class="quick-guide-content hidden" id="settingsFold">
 <div class="panel-grid">
-<button id="downloadLogsBtn">バトルログ出力</button>
+<button id="downloadLogsBtn">ログを書き出す</button>
 <!--   <div id="saveControls">
       <button id="saveCodeBtn">セーブ</button>
       <input type="text" id="saveCodeBox" readonly /> -->
 <button class="toggle-btn off" id="toggleAutoSave">自動保存: OFF（10戦ごと）</button>
-<button id="exportSaveTxtBtn" onclick="exportSaveAsTextFile()">セーブデータをテキスト出力</button>
-<input id="saveCodeBox" readonly="" style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; opacity:0;" type="text"/>
-<button id="localSaveBtn" onclick="saveToLocalStorage()">ローカルにセーブ（未保存）</button>
-<button id="localProgressSaveBtn" onclick="localProgressSaveMirror()">※戦闘数進捗を含む中断セーブはこちら</button>
-<button id="returnToTitleBtnInGame" style="
-
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: bold;
-  background-color: #0066cc;
-  color: #fff;
-  border: 2px solid #004c99;
-  border-radius: 6px;
-  cursor: pointer;
-  text-shadow: 1px 1px 2px #000;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-">
+<button id="exportSaveTxtBtn" onclick="exportSaveAsTextFile()">セーブを書き出す</button>
+<input id="saveCodeBox" readonly="" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0" type="text"/>
+<button id="localSaveBtn" onclick="saveToLocalStorage()">引継ぎ保存・成長を除く</button>
+<button id="localProgressSaveBtn" onclick="localProgressSaveMirror()">中断保存・進行ごと</button>
+<button id="returnToTitleBtnInGame" style="padding:6px 12px;cursor:pointer">
   タイトルに戻る
 </button>
 </div>
 </div>
-<div class="subnote" id="firstFaceHideSubnote">※戦闘ログ表示推奨。バトルボタン長押しで連戦可能。</div>
+<div class="subnote" id="firstFaceHideSubnote">長押しで連戦 · 離すと停止</div>
 <canvas height="100" id="hpChart" width="600"></canvas>
-<!-- 自分 vs 敵：ステータス差（対数）レーダーチャート -->
+<!-- 自分 vs 敵：戦力バランスレーダーチャート -->
 <div aria-label="ステータス差レーダーチャート" class="battle-radar-wrap" id="battleRadarWrap">
 <div class="battle-radar-head">
-<div class="battle-radar-title">ステータス差（対数）</div>
+<div class="battle-radar-title">戦力バランス</div>
 <div class="battle-radar-legend"><span class="battle-radar-dot player"></span>自分 <span class="battle-radar-dot enemy"></span>敵</div>
 </div>
 <div class="winner-guess-toggle-dock" id="winnerGuessToggleDock">
 <button id="winnerGuessToggleBtn" type="button" aria-pressed="false" data-state="off">ミニゲーム OFF</button>
-<div class="winner-guess-setting-note">残HP割合差3%以内かつ完全同率ではない時だけ発生</div>
+<div class="winner-guess-setting-note">接戦で勝者を予想 → 魔通貨獲得</div>
 </div>
 <script>
 (function(){
@@ -882,37 +743,20 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 
 
-<div id="subtitleOverlay" style="
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(30, 30, 30, 0.85);
-  color: #fff;
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: bold;
-  box-shadow: 0 0 8px rgba(0,0,0,0.4);
-  z-index: 9998;
-  display: none;
-  max-width: 80%;
-  width: fit-content;
-  text-align: center;
-  pointer-events: none;
-  white-space: normal;
-  line-height: 1.4;
-"></div>
-<div id="itemOverlay" style="display: none;"></div>
+<div id="subtitleOverlay" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:8px 20px;z-index:9998;display:none;max-width:80%;width:fit-content;text-align:center;pointer-events:none;white-space:normal;line-height:1.4"></div>
+<div id="itemOverlay" style="display:none"></div>
 <!-- スクリプト読込 -->
-<script src="drawCharacter.js"></script>
+<script src="drawCharacter.js?v=paths9"></script>
 <script src="skills.js"></script>
 <script src="namegen_heavy.js"></script>
-<script src="game.part1.js"></script>
-<script src="game.part2.js"></script>
-<script src="game.part3.js"></script>
-<script src="game.part4.js"></script>
-<div id="gachaAnimation" style="display: none;">
+<script src="game.part1.js?v=manifest8"></script>
+<script src="game.part2.js?v=paths9"></script>
+<script src="game.part3.js?v=flat6"></script>
+<script src="game.part4.js?v=flat6"></script>
+<script src="endgame.js?v=glass3"></script>
+<script src="tab-controls.js?v=2"></script>
+<script src="presentation.js?v=6"></script>
+<div id="gachaAnimation" style="display:none">
 <div class="gacha-body">
 <div class="gacha-glass">
 <div class="gacha-ball"></div>
@@ -921,26 +765,10 @@ window.addEventListener('DOMContentLoaded', loadFaceManifest);
 </div>
 </div>
 <!-- イベントポップアップ -->
-<div id="eventPopup" style="
-  display: none;
-	position: absolute; 
-  top: 30%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(34,34,34,0.95);
-  color: #fff;
-  padding: 20px;
-  border: 2px solid #fff;
-  border-radius: 8px;
-  box-shadow: 0 0 10px #fff;
-  z-index: 2147483647; /* 最大の前面値 */
-  text-align: center;
-  max-width: 90%;
-  pointer-events: auto;
-">
+<div id="eventPopup" style="display:none;position:absolute;top:30%;left:50%;transform:translateX(-50%);padding:20px;z-index:2147483647;text-align:center;max-width:90%;pointer-events:auto">
 <h3 id="eventPopupTitle"></h3>
-<div id="eventPopupOptions" style="margin-top: 10px;"></div>
-<div id="eventPopupSelectContainer" style="margin-top:10px; display:none;">
+<div id="eventPopupOptions" style="margin-top:10px"></div>
+<div id="eventPopupSelectContainer" style="margin-top:10px;display:none">
 <select id="eventPopupSelect"></select>
 <button id="eventPopupSelectBtn">決定</button>
 </div>

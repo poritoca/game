@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "layouts": [
+    {
+      "name": "siblings",
+      "passed": true
+    },
+    {
+      "name": "original-app-parent",
+      "passed": true
+    },
+    {
+      "name": "app-local",
+      "passed": true
+    },
+    {
+      "name": "root-manifest-parent-images",
+      "passed": true
+    },
+    {
+      "name": "split-folders",
+      "passed": true
+    }
+  ],
+  "checks": [
+    "gacha",
+    "equipped face",
+    "ordinary character canvas",
+    "boss image",
+    "legacy save key and bonus",
+    "bounded missing-file retry"
+  ],
+  "limitation": "Actual user PNG files were not supplied; a small synthetic PNG was served at the original image URLs."
+}

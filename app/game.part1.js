@@ -1182,7 +1182,8 @@ window.toggleQuickGuideLog = function() {
 				log: 'quickGuideLog',
 				memory: 'memoryContent',
 				event: 'eventSettingsContent',
-				settings: 'settingsFold'
+				settings: 'settingsFold',
+				abyss: 'abyssPanel'
 			};
 			const targetId = map[kind];
 			if (!targetId) return;
@@ -1191,6 +1192,7 @@ window.toggleQuickGuideLog = function() {
 			if (!targetEl) return;
 
 			const willOpen = targetEl.classList.contains('hidden');
+			if (willOpen && kind === 'abyss' && window.Abyss && !window.Abyss.onTabOpen()) return;
 			if (window.__winnerGuessMiniGameActive) {
 				const charEl = document.getElementById('charInfoFold');
 				if (kind !== 'char' || !willOpen) {
@@ -2273,8 +2275,8 @@ window.__decorateBattleDockEdgeButtons = window.__decorateBattleDockEdgeButtons 
 		}
 		const edgeBtn = document.getElementById('battleDockEdgeFollowBtn');
 		if (edgeBtn) {
-			edgeBtn.dataset.edgeIcon = on ? '解' : '追';
-			edgeBtn.dataset.edgeLabel = on ? '解除' : '追従';
+			edgeBtn.dataset.edgeIcon = on ? '↔' : '↗';
+			edgeBtn.dataset.edgeLabel = on ? '移動式' : '端に固定';
 			edgeBtn.setAttribute('aria-label', on ? '画面端追従を解除してドック表示に戻す' : '画面端追従に切替');
 		}
 	} catch (_) {}
@@ -5124,7 +5126,9 @@ function update魔通貨Display() {
 
 function drawRandomFace(rarity) {
 	const pool = IMAGE_LIST_BY_RANK?.[rarity] || [];
-	if (pool.length === 0) return null;
+	if (pool.length === 0) {
+		return null;
+	}
 	const selected = pool[Math.floor(Math.random() * pool.length)];
 	return {
 		path: `face/${rarity}/${selected}`,
@@ -6465,9 +6469,14 @@ window.drawBattleRadarChart = function(playerLike, enemyLike){
 ;
 
 
-function performFaceGacha() {
+async function performFaceGacha() {
+    if (window.faceManifestReady) await window.faceManifestReady;
 	// 高速連打でも処理が多重に走らないようガード
 	if (window.__faceGachaBusy) return;
+    if (!Object.values(IMAGE_LIST_BY_RANK || {}).some(pool=>Array.isArray(pool)&&pool.length)) {
+        showCustomAlert('魔メイク一覧を読み込めません。faceManifest.json の配置を確認してください。', 3000);
+        return;
+    }
 
 	if (faceCoins < FACE_GACHA_COST) {
 		alert(`魔通貨が${FACE_GACHA_COST}枚必要です！現在の魔通貨：${faceCoins}`);
@@ -6534,11 +6543,12 @@ for (const k in adjustedProbs) adjustedProbs[k] = Math.max(0.0000001, adjustedPr
 	}
 
 	// 魔メイク演出
-	showGachaAnimation(selectedRarity);
+	if (!window.__firstRerollSelectionPhase) showGachaAnimation(selectedRarity);
 
 	window.__battleSetTimeout(() => {
 		const result = drawRandomFace(selectedRarity);
 		if (!result) {
+            faceCoins += FACE_GACHA_COST;
 			alert(`${selectedRarity}ランクの魔メイクが読み込めませんでした`);
 			window.__faceGachaBusy = false;
 			try{ if (typeof update魔通貨Display === 'function') update魔通貨Display(); }catch(_){ }
@@ -6549,7 +6559,7 @@ for (const k in adjustedProbs) adjustedProbs[k] = Math.max(0.0000001, adjustedPr
 
 // ガチャ結果の「ズバーン」表示（進行を邪魔しない軽量演出）
 try{
-	if (typeof showFaceRevealAnimation === 'function') showFaceRevealAnimation(path, selectedRarity, 'gacha');
+	if (!window.__firstRerollSelectionPhase && typeof showFaceRevealAnimation === 'function') showFaceRevealAnimation(path, selectedRarity, 'gacha');
 }catch(_){}
 
 faceItemsOwned.push(path);
@@ -6786,6 +6796,7 @@ updateFaceUI();
 
 		window.__confirmFirstRerollAndStart = function(){
 			try{
+                if (!window.__firstRerollSelectionPhase || window.__faceGachaBusy) return;
 				const owned = Array.isArray(window.faceItemsOwned) ? window.faceItemsOwned.length : 0;
 				if (!(owned > 0)) {
 					try{ if (typeof showCustomAlert === 'function') showCustomAlert('先に魔メイクをガチャしてください', 2200); }catch(_){}
@@ -6818,7 +6829,12 @@ updateFaceUI();
 					try{ if (typeof updateStats === 'function') updateStats(); }catch(_){}
 					// 初戦開始時も戦闘ログタブは自動で開かない。
 					try{ window.__openBattleLogOnNextBattle = false; }catch(_){}
-					try{ if (typeof window.startBattle === 'function') window.startBattle(); }catch(_){}
+					// Confirmation enters the battle screen without triggering battle popups.
+                    window.__firstBattlePending = false;
+                    document.getElementById('gachaAnimation')?.remove();
+                    document.getElementById('faceRevealOverlay')?.remove();
+                    window.closeAllTopTabs?.();
+                    window.scrollTo({top:0,behavior:'auto'});
 					try{ if (typeof updateFaceUI === 'function') updateFaceUI(); }catch(_){}
 				};
 
@@ -7573,9 +7589,9 @@ function cleanUpMixedSkillsExceptOne() {
       const countEl = el.querySelector('.battle-ticker-count');
       const o = opt || {};
       _clearTypewriter(el);
-      if (kindEl) kindEl.textContent = String(kind || (side === 'enemy' ? 'ENEMY' : 'YOU'));
+      if (kindEl) kindEl.textContent = side === 'enemy' ? '敵' : '自分';
       if (textEl){
-        textEl.innerHTML = _formatTickerLabel(text);
+        textEl.innerHTML = _formatTickerLabel(text === 'WIN' ? '勝利' : text === 'LOSE' ? '敗北' : text === 'READY' ? '準備完了' : text);
         textEl.setAttribute('data-tier', String(o.tier || 'normal'));
       }
       if (countEl) countEl.textContent = (count && Number(count) > 1) ? ('×' + Math.floor(Number(count))) : '';

@@ -1,0 +1,15 @@
+{
+  "baseline": "202610040813_obsidian_manifest_08.zip",
+  "sha256": "770753e1350cf6a7e564bf0ec114d0f0e237ed4d458248eb2748a327cdb8f1ad",
+  "matched_files_before_edit": 43,
+  "release": "09",
+  "scope": "restore parent/sibling original image directories without reverting gameplay",
+  "reference_only": {
+    "drawCharacter(20261003-233231).js": "e7d2dbc9128264c65f428e9b1abb0558cb0878f4290b99d1b41806dd9e14cec9",
+    "game.part2(20261003-233231).js": "9c086fe1c25e1d64e3c78aa62f89cd21e235380fbef83ad2aac9a65d7e070e08",
+    "game.part1(20261003-233231).js": "8bce595b75669b08cef8fb7fe0e9d342b8d51dd7125435596929ce5f8f5ae9f1",
+    "game.part3(20261003-233231).js": "c53e3b5d36beff91df24854a8d0ef634650d665fcd9f569b4d801cd21cd10cee",
+    "game.part4(20261003-233231).js": "814ccb6b3f4ab6d6321f4614657132300ca844840191a07e9ec8affb0b65a108",
+    "index(20261003-233231).html": "4a920aa202947f4e9414161879a93e7420048b13d31622952d12d6a1e7075ba2"
+  }
+}

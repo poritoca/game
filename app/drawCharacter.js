@@ -50,7 +50,7 @@ function drawCharacterImage(name, canvasId) {
     }
 
     const img = new Image();
-    const __baseImgCandidates = ['image/warrior_base.png', '../image/warrior_base.png'];
+    const __baseImgCandidates = window.GameAssets.imageCandidates('warrior_base.png');
     let __baseIdx = 0;
     img.onerror = () => {
         __baseIdx++;
@@ -142,7 +142,7 @@ function drawCharacterImage(name, canvasId) {
         }
 
         tempCtx.putImageData(imageData, 0, 0);
-        const scale = 0.1;
+        const scale = Math.min(64 / originalWidth, 80 / originalHeight); // Stable pixel portrait size for every source image.
         const smallWidth = Math.floor(originalWidth * scale);
         const smallHeight = Math.floor(originalHeight * scale);
         canvas.width = smallWidth;
