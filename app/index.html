@@ -45,6 +45,9 @@ async function loadFaceManifest() {
 // Start loading early. Gacha waits for this promise before drawing or charging.
 window.faceManifestReady = loadFaceManifest();
 </script>
+<link rel="stylesheet" href="title-effects.css?v=10">
+<link rel="stylesheet" href="world-effects.css?v=11">
+<script defer src="title-effects.js?v=10"></script>
 </head>
 <body>
 <!-- ゲーム画面右上：戦闘状態表示エリア -->
@@ -756,6 +759,7 @@ window.faceManifestReady = loadFaceManifest();
 <script src="endgame.js?v=glass3"></script>
 <script src="tab-controls.js?v=2"></script>
 <script src="presentation.js?v=6"></script>
+<script src="world-effects.js?v=13"></script>
 <div id="gachaAnimation" style="display:none">
 <div class="gacha-body">
 <div class="gacha-glass">

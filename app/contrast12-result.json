@@ -1,0 +1,18 @@
+[
+  {
+    "label": "before",
+    "dark": 0,
+    "light": 35598,
+    "clear": 137131,
+    "edgeEnergy": 478048.74117628747,
+    "total": 237327
+  },
+  {
+    "label": "after",
+    "dark": 103372,
+    "light": 28031,
+    "clear": 47162,
+    "edgeEnergy": 2332064.4274485605,
+    "total": 237327
+  }
+]

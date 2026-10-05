@@ -1,0 +1,60 @@
+{
+  "engine": "WebKit",
+  "samples": [
+    {
+      "state": "running",
+      "seed": "eddf5e029fcd6ee5b63ade01a75bd5f6",
+      "frames": 6,
+      "buffers": 4,
+      "hue": 29,
+      "flames": 15,
+      "crystals": 20
+    },
+    {
+      "state": "running",
+      "seed": "cbbf2f0108382c4c558135f574d654bc",
+      "frames": 5,
+      "buffers": 4,
+      "hue": 163,
+      "flames": 20,
+      "crystals": 16
+    },
+    {
+      "state": "running",
+      "seed": "a1b5dee28c800767e6789ca2f6f69327",
+      "frames": 5,
+      "buffers": 4,
+      "hue": 239,
+      "flames": 21,
+      "crystals": 19
+    },
+    {
+      "state": "running",
+      "seed": "5b36049424df5bde7138719195493744",
+      "frames": 5,
+      "buffers": 4,
+      "hue": 254,
+      "flames": 21,
+      "crystals": 23
+    },
+    {
+      "state": "running",
+      "seed": "27f303840f3f488a00929c5c1d018d4f",
+      "frames": 5,
+      "buffers": 4,
+      "hue": 212,
+      "flames": 18,
+      "crystals": 12
+    }
+  ],
+  "checks": [
+    "5 page openings produce distinct seeds and palette/topology parameters; armor overlay has visible pixels",
+    "320px: no horizontal overflow",
+    "Hidden document pauses animation and resumes without a new seed",
+    "Reduced motion keeps one generated still image, with no animation loop",
+    "pagehide frees all four buffers; pageshow restores fresh art",
+    "Actual start button: game opens, title RAF stops, both display canvases removed and all four buffers released",
+    "Returning to title creates a new seed and a single pair of canvases"
+  ],
+  "errors": []
+}

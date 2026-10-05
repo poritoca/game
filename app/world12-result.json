@@ -1,0 +1,89 @@
+{
+  "engine": "WebKit 26.5",
+  "checks": [
+    "Three loads: distinct seeds, palettes and generated topology",
+    "Animated pixels, behind dark veil/glass, no pointer interception",
+    "Actual game start: title knight resources freed; same world seed continues at <=12fps",
+    "Abyss / forge tabs retain background scenery and continuous effect",
+    "Real touch battle completes while background animation runs",
+    "320px / landscape / desktop: no overflow; exactly one display canvas; <=360,000 buffer pixels",
+    "Hidden page stops both scheduled rendering paths and resumes",
+    "Reduced motion: static generated art, no drawing loop",
+    "pagehide releases display + 3 sprites; pageshow recreates once with original seed"
+  ],
+  "seeds": [
+    {
+      "seed": "33d1c7e98e39f9a44ae35e8a13be28ef",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 1.1428571428571428,
+      "maxDrawMs": 3,
+      "bands": 7,
+      "edges": 25,
+      "palette": [
+        124,
+        281,
+        31
+      ]
+    },
+    {
+      "seed": "495eb9ccb945d1f021cf1edbe37b56dc",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 1.2857142857142856,
+      "maxDrawMs": 2,
+      "bands": 7,
+      "edges": 23,
+      "palette": [
+        169,
+        315,
+        82
+      ]
+    },
+    {
+      "seed": "8f1d32cb21161a072f835b9fb77794e1",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 1.4285714285714284,
+      "maxDrawMs": 3,
+      "bands": 8,
+      "edges": 26,
+      "palette": [
+        245,
+        34,
+        155
+      ]
+    }
+  ],
+  "finalStats": {
+    "seed": "8f1d32cb21161a072f835b9fb77794e1",
+    "state": "running",
+    "scene": "arena",
+    "frames": 66,
+    "buffers": 4,
+    "pixels": 144000,
+    "fpsLimit": 12,
+    "meanDrawMs": 1.3185397286808411,
+    "maxDrawMs": 8,
+    "bands": 8,
+    "edges": 26,
+    "palette": [
+      245,
+      34,
+      155
+    ]
+  },
+  "errors": []
+}

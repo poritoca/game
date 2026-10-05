@@ -1,0 +1,101 @@
+{
+  "engine": "WebKit 26.5",
+  "checks": [
+    "Three loads: distinct seeds, palettes and generated topology",
+    "Animated pixels, behind dark veil/glass, no pointer interception",
+    "Actual game start: title knight resources freed; same world seed continues at <=12fps",
+    "Abyss / forge tabs retain background scenery and continuous effect",
+    "Real touch battle completes while background animation runs",
+    "320px / landscape / desktop: no overflow; exactly one display canvas; <=360,000 buffer pixels",
+    "Hidden page stops both scheduled rendering paths and resumes",
+    "Reduced motion: static generated art, no drawing loop",
+    "pagehide releases display + 3 sprites; pageshow recreates once with original seed"
+  ],
+  "seeds": [
+    {
+      "seed": "7f562a68fe96188a7377492c65f8c2b8",
+      "theme": "ivory-prism",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 0.5714285714285714,
+      "maxDrawMs": 1,
+      "bands": 3,
+      "seals": 1,
+      "dust": 12,
+      "edges": 6,
+      "palette": [
+        211,
+        211,
+        211
+      ]
+    },
+    {
+      "seed": "a81550f422b65580a00756e5aa8bae0c",
+      "theme": "obsidian-prism",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 0.7142857142857143,
+      "maxDrawMs": 1,
+      "bands": 3,
+      "seals": 1,
+      "dust": 12,
+      "edges": 7,
+      "palette": [
+        241,
+        241,
+        241
+      ]
+    },
+    {
+      "seed": "6ad4197ab7102a332198f18f9c990ca3",
+      "theme": "obsidian-crimson",
+      "state": "running",
+      "scene": "title",
+      "frames": 7,
+      "buffers": 4,
+      "pixels": 237327,
+      "fpsLimit": 20,
+      "meanDrawMs": 0.2857142857142857,
+      "maxDrawMs": 1,
+      "bands": 3,
+      "seals": 1,
+      "dust": 12,
+      "edges": 5,
+      "palette": [
+        349,
+        349,
+        349
+      ]
+    }
+  ],
+  "finalStats": {
+    "seed": "6ad4197ab7102a332198f18f9c990ca3",
+    "theme": "obsidian-crimson",
+    "state": "running",
+    "scene": "arena",
+    "frames": 68,
+    "buffers": 4,
+    "pixels": 144000,
+    "fpsLimit": 12,
+    "meanDrawMs": 0.500229184297884,
+    "maxDrawMs": 1,
+    "bands": 3,
+    "seals": 1,
+    "dust": 12,
+    "edges": 5,
+    "palette": [
+      349,
+      349,
+      349
+    ]
+  },
+  "errors": []
+}

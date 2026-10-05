@@ -1,0 +1,30 @@
+[
+  {
+    "theme": "ivory-prism",
+    "seed": 7,
+    "visible": 61329,
+    "colored": 1947,
+    "accentFraction": 0.03174680819840532
+  },
+  {
+    "theme": "obsidian-prism",
+    "seed": 12,
+    "visible": 74106,
+    "colored": 2327,
+    "accentFraction": 0.03140096618357488
+  },
+  {
+    "theme": "obsidian-gold",
+    "seed": 1,
+    "visible": 64741,
+    "colored": 2397,
+    "accentFraction": 0.03702445127508071
+  },
+  {
+    "theme": "obsidian-crimson",
+    "seed": 4,
+    "visible": 62394,
+    "colored": 2327,
+    "accentFraction": 0.03729525274866173
+  }
+]
